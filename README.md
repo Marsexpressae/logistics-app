@@ -1,6 +1,6 @@
-# Logistics App
+# Mars Express
 
-Cargo logistics for personal cargo: bookings, pickups by area, warehouse parcel splitting, container manifests, accounts, and public tracking.
+Cargo logistics app for Mars Express, handling personal cargo: bookings, pickups by area, warehouse parcel splitting, container manifests, accounts, and public tracking.
 
 **Stack:** Next.js (App Router) · Tailwind CSS · Supabase (Postgres, Auth, RLS) · Lucide icons
 

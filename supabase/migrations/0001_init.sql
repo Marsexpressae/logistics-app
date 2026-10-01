@@ -1,4 +1,4 @@
--- Cargo logistics schema. Run in the Supabase SQL editor (or `supabase db push`).
+-- Mars Express schema. Run in the Supabase SQL editor (or `supabase db push`).
 
 -- ---------- Sequences (human-friendly codes) ----------
 create sequence if not exists booking_code_seq   start 1001;

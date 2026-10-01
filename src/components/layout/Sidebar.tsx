@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LogOut, Package } from "lucide-react";
 import { ROLE_LABELS, navItems } from "@/config/navigation";
+import { site } from "@/config/site";
 import { supabase } from "@/lib/supabase";
 import type { Profile } from "@/lib/types";
 
@@ -27,7 +28,7 @@ export default function Sidebar({ open, onClose, profile }: SidebarProps) {
       >
         <div className="flex h-16 items-center gap-2 border-b border-slate-200 px-6">
           <Package className="h-6 w-6 text-blue-600" />
-          <span className="text-lg font-semibold text-slate-900">Logistics</span>
+          <span className="text-lg font-semibold text-slate-900">{site.name}</span>
         </div>
 
         <nav className="flex-1 space-y-1 p-3">

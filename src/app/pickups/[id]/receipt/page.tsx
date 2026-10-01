@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ArrowLeft, Printer } from "lucide-react";
 import { Button, ErrorMessage } from "@/components/ui/form";
+import { site } from "@/config/site";
 import { useQuery } from "@/lib/hooks";
 import { supabase } from "@/lib/supabase";
 import { formatDate, methodLabel, money, totalPaid } from "@/lib/format";
@@ -39,7 +40,8 @@ export default function ReceiptPage() {
 
       <div className="rounded-lg border border-slate-200 bg-white p-6 text-sm print:border-0 print:p-0">
         <div className="border-b border-slate-300 pb-3 text-center">
-          <h1 className="text-xl font-bold">Cargo Pickup Receipt</h1>
+          <p className="text-lg font-bold tracking-wide">{site.name}</p>
+          <h1 className="text-sm font-medium uppercase text-slate-600">Cargo Pickup Receipt</h1>
           <p className="font-mono text-lg">{b.code}</p>
           <p className="text-slate-500">{formatDate(b.collected_at ?? b.created_at)}</p>
         </div>

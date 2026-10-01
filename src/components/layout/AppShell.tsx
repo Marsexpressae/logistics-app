@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { Menu } from "lucide-react";
 import Sidebar from "./Sidebar";
 import { canAccess, homePath } from "@/config/navigation";
+import { site } from "@/config/site";
 import { useProfile, useSession } from "@/lib/hooks";
 import { ProfileContext } from "@/lib/profile-context";
 import { isMock, supabase } from "@/lib/supabase";
@@ -58,7 +59,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
           <button onClick={() => setMenuOpen(true)} aria-label="Open menu">
             <Menu className="h-6 w-6 text-slate-700" />
           </button>
-          <span className="font-semibold text-slate-900">Logistics</span>
+          <span className="font-semibold text-slate-900">{site.name}</span>
         </header>
         <Sidebar open={menuOpen} onClose={() => setMenuOpen(false)} profile={profile} />
         <main className="flex-1 overflow-y-auto p-4 md:p-8 print:p-0">

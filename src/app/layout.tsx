@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import AppShell from "@/components/layout/AppShell";
+import { site } from "@/config/site";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -14,8 +15,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Logistics App",
-  description: "Bookings, pickups, inventory and containers",
+  title: { default: site.name, template: `%s | ${site.name}` },
+  description: site.description,
+  applicationName: site.name,
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

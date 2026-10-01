@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Package } from "lucide-react";
+import { site } from "@/config/site";
 import { supabase, isMock } from "@/lib/supabase";
 import { Button, ErrorMessage, Field, inputClass } from "@/components/ui/form";
 
@@ -28,7 +29,10 @@ export default function LoginPage() {
       <form onSubmit={onSubmit} className="w-full max-w-sm space-y-4 rounded-lg border border-slate-200 bg-white p-6">
         <div className="flex items-center gap-2">
           <Package className="h-6 w-6 text-blue-600" />
-          <h1 className="text-lg font-semibold">Sign in</h1>
+          <div>
+            <p className="text-lg font-semibold leading-tight">{site.name}</p>
+            <h1 className="text-sm text-slate-500">Sign in to continue</h1>
+          </div>
         </div>
         {isMock && (
           <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">

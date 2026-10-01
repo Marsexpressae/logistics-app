@@ -33,7 +33,7 @@ export default function DashboardPage() {
 
   return (
     <>
-      <PageHeader title="Dashboard" description="Overview of your logistics operations." />
+      <PageHeader title="Dashboard" description="Overview of today's operations." />
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <Stat label="Pending pickups" value={pending ?? null} />
         <Stat label="Awaiting warehouse intake" value={awaiting ?? null} />
