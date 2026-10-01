@@ -10,11 +10,12 @@ type Db = {
   containers: Row[]; parcels: Row[]; parcel_events: Row[]; profiles: Row[];
 };
 
-const STORAGE_KEY = "logistics-mock-db-v4";
+const STORAGE_KEY = "logistics-mock-db-v5";
 const AUTH_KEY = "logistics-mock-signed-out";
 
 const uid = () => crypto.randomUUID();
 const now = () => new Date().toISOString();
+const today = (offsetDays = 0) => new Date(Date.now() + offsetDays * 86400_000).toISOString().slice(0, 10);
 const ago = (hours: number) => new Date(Date.now() - hours * 3600_000).toISOString();
 
 // ---------------------------------------------------------------- seed data
@@ -24,21 +25,21 @@ function seed(): Db {
   const d1 = { id: uid(), name: "Ahmed Khan", phone: "+971 50 111 2222", user_id: null, active: true };
   const d2 = { id: uid(), name: "Bilal Hussain", phone: "+971 50 333 4444", user_id: null, active: true };
 
-  const base = { receiver_phone: null, notes: null, collected_at: null };
+  const base = { receiver_phone: null, notes: null, collected_at: null, cancellation_reason: null, cancelled_at: null, geo_lat: null, geo_lng: null };
   const b1 = { ...base, id: uid(), code: "BK-1001", sender_name: "Sara Ali", sender_phone: "+971 55 100 2000",
     receiver_name: "Omar Ali", receiver_phone: "+92 300 1234567", receiver_address: "House 12, Gulberg, Lahore",
-    pickup_area: "Dubai", pickup_address: "Villa 5, Al Barsha 1, Dubai", driver_id: d1.id, status: "booked",
+    pickup_area: "Dubai", pickup_date: today(0), geo_lat: 25.1124, geo_lng: 55.1986, pickup_address: "Villa 5, Al Barsha 1, Dubai", driver_id: d1.id, status: "booked",
     estimated_bill: 450, invoice_amount: null, created_at: ago(5) };
   const b2 = { ...base, id: uid(), code: "BK-1002", sender_name: "John Mathew", sender_phone: "+971 56 222 3000",
-    receiver_name: "Mary Mathew", receiver_address: "Kochi, Kerala", pickup_area: "Dubai", pickup_address: "Apt 804, Marina Tower, Dubai",
+    receiver_name: "Mary Mathew", receiver_address: "Kochi, Kerala", pickup_area: "Dubai", pickup_date: today(-1), pickup_address: "Apt 804, Marina Tower, Dubai",
     driver_id: d2.id, status: "collected", estimated_bill: 800, invoice_amount: 800,
     created_at: ago(30), collected_at: ago(3) };
   const b3 = { ...base, id: uid(), code: "BK-1003", sender_name: "Fatima Noor", sender_phone: "+971 52 400 5000",
-    receiver_name: "Hamza Noor", receiver_address: "Block 7, Karachi", pickup_area: "Dubai", pickup_address: "Shop 3, Deira, Dubai",
+    receiver_name: "Hamza Noor", receiver_address: "Block 7, Karachi", pickup_area: "Dubai", pickup_date: today(-2), pickup_address: "Shop 3, Deira, Dubai",
     driver_id: d1.id, status: "at_warehouse", estimated_bill: 600, invoice_amount: 600,
     created_at: ago(60), collected_at: ago(48) };
   const b4 = { ...base, id: uid(), code: "BK-1004", sender_name: "Ravi Kumar", sender_phone: "+971 50 600 7000",
-    receiver_name: "Anita Kumar", receiver_address: "Chennai, Tamil Nadu", pickup_area: "Sharjah", pickup_address: "Warehouse St 9, Sharjah",
+    receiver_name: "Anita Kumar", receiver_address: "Chennai, Tamil Nadu", pickup_area: "Sharjah", pickup_date: today(-4), pickup_address: "Warehouse St 9, Sharjah",
     driver_id: d2.id, status: "at_warehouse", estimated_bill: 300, invoice_amount: null,
     created_at: ago(120), collected_at: ago(100) };
 
@@ -240,7 +241,8 @@ function withDefaults(table: string, it: Row): Row {
       Object.assign(row, {
         code: `BK-${d.seq.booking++}`, status: "booked", estimated_bill: null, invoice_amount: null,
         sender_phone: null, receiver_phone: null, receiver_address: null, notes: null,
-        driver_id: null, collected_at: null, created_at: now(), ...stripNull(it),
+        driver_id: null, collected_at: null, cancellation_reason: null, cancelled_at: null,
+        geo_lat: null, geo_lng: null, created_at: now(), ...stripNull(it),
       });
       break;
     case "containers":
@@ -342,13 +344,16 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
     return { data: null, error: null };
   },
 
-  cancel_booking({ p_booking_id }) {
+  cancel_booking({ p_booking_id, p_reason }) {
     const d = db();
+    if (!String(p_reason ?? "").trim()) return fail("A cancellation reason is required");
     if (d.parcels.some((p) => p.booking_id === p_booking_id))
       return fail("Booking already has parcels in the warehouse and cannot be cancelled");
     const b = d.bookings.find((x) => x.id === p_booking_id && ["booked", "collected"].includes(x.status));
     if (!b) return fail("Only booked or collected bookings can be cancelled");
     b.status = "cancelled";
+    b.cancellation_reason = String(p_reason).trim();
+    b.cancelled_at = now();
     save();
     return { data: null, error: null };
   },

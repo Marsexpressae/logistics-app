@@ -2,11 +2,12 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { MapPin, Phone, User } from "lucide-react";
+import { CalendarDays, MapPin, Navigation, Phone, User } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
 import EmptyState from "@/components/ui/EmptyState";
 import { ErrorMessage, StatusBadge, inputClass } from "@/components/ui/form";
 import { AREAS } from "@/config/areas";
+import { dayState, formatDay } from "@/lib/format";
 import { useQuery, useSession } from "@/lib/hooks";
 import { supabase } from "@/lib/supabase";
 import type { Booking, Driver } from "@/lib/types";
@@ -20,7 +21,7 @@ export default function PickupsPage() {
       .select("*, driver:drivers(name)")
       .in("status", ["booked", "collected"])
       .order("status") // booked first, then collected
-      .order("created_at")
+      .order("pickup_date") // earliest first
   );
 
   const [area, setArea] = useState("all");
@@ -80,6 +81,15 @@ export default function PickupsPage() {
                   <span className="font-mono text-base font-semibold">{b.code}</span>
                   <StatusBadge status={b.status} />
                 </div>
+                <p className="mt-1 flex items-center gap-1.5 text-sm text-slate-700">
+                  <CalendarDays className="h-4 w-4" /> {formatDay(b.pickup_date)}
+                  {b.status === "booked" && dayState(b.pickup_date) === "today" && (
+                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">Today</span>
+                  )}
+                  {b.status === "booked" && dayState(b.pickup_date) === "overdue" && (
+                    <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">Overdue</span>
+                  )}
+                </p>
                 <p className="mt-1 text-sm font-medium">{b.sender_name}</p>
                 <p className="mt-1 flex items-start gap-1.5 text-sm text-slate-600">
                   <MapPin className="mt-0.5 h-4 w-4 shrink-0" />
@@ -95,6 +105,11 @@ export default function PickupsPage() {
                 <p className="mt-1 flex items-center gap-1.5 text-sm text-slate-500">
                   <User className="h-4 w-4" /> {b.driver?.name ?? "Unassigned"}
                 </p>
+                {b.geo_lat !== null && (
+                  <span className="mt-1 inline-flex items-center gap-1.5 text-sm font-medium text-blue-700">
+                    <Navigation className="h-4 w-4" /> Pin saved
+                  </span>
+                )}
               </Link>
             </li>
           ))}

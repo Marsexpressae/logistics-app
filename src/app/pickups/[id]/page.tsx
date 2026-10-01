@@ -3,11 +3,12 @@
 import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { ArrowLeft, CheckCircle2, MapPin, Phone, Printer, Trash2 } from "lucide-react";
+import { ArrowLeft, CalendarDays, CheckCircle2, MapPin, Navigation, Phone, Printer, Trash2 } from "lucide-react";
 import { Button, Card, ErrorMessage, Field, StatusBadge, inputClass } from "@/components/ui/form";
 import { useQuery } from "@/lib/hooks";
 import { supabase } from "@/lib/supabase";
-import { methodLabel, money, totalPaid } from "@/lib/format";
+import { formatDay, methodLabel, money, totalPaid } from "@/lib/format";
+import { mapsUrl } from "@/lib/geo";
 import type { Booking, BookingItem } from "@/lib/types";
 
 export default function PickupDetailPage() {
@@ -82,13 +83,22 @@ export default function PickupDetailPage() {
           <StatusBadge status={b.status} />
         </div>
         <p className="mt-2 font-medium">{b.sender_name}</p>
+        <p className="mt-1 flex items-center gap-1.5 text-sm text-slate-700">
+          <CalendarDays className="h-4 w-4" /> {formatDay(b.pickup_date)}
+        </p>
+        <p className="mt-1 flex items-start gap-1.5 text-sm text-slate-700">
+          <MapPin className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>
+            <span className="font-medium">{b.pickup_area}</span> · {b.pickup_address}
+          </span>
+        </p>
         <a
-          className="mt-1 flex items-start gap-1.5 text-sm text-blue-700"
-          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(b.pickup_address)}`}
+          className="mt-2 inline-flex items-center gap-2 rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white"
+          href={mapsUrl(b)}
           target="_blank"
           rel="noreferrer"
         >
-          <MapPin className="mt-0.5 h-4 w-4 shrink-0" /> {b.pickup_address}
+          <Navigation className="h-4 w-4" /> {b.geo_lat !== null ? "Navigate to pin" : "Find on map"}
         </a>
         {b.sender_phone && (
           <a className="mt-1 flex items-center gap-1.5 text-sm text-blue-700" href={`tel:${b.sender_phone}`}>

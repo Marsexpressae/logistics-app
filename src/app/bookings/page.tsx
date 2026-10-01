@@ -8,7 +8,7 @@ import EmptyState from "@/components/ui/EmptyState";
 import { ErrorMessage, StatusBadge, inputClass } from "@/components/ui/form";
 import { useQuery } from "@/lib/hooks";
 import { supabase } from "@/lib/supabase";
-import { formatDate, money, totalPaid } from "@/lib/format";
+import { formatDate, formatDay, money, totalPaid } from "@/lib/format";
 import type { Booking } from "@/lib/types";
 
 const STATUS_FILTERS = [
@@ -24,6 +24,7 @@ export default function BookingsPage() {
     supabase
       .from("bookings")
       .select("*, driver:drivers(name), payments(amount)")
+      .order("pickup_date", { ascending: false })
       .order("created_at", { ascending: false })
   );
   const [search, setSearch] = useState("");
@@ -82,6 +83,7 @@ export default function BookingsPage() {
               <tr>
                 <th className="px-4 py-3">Code</th>
                 <th className="px-4 py-3">Sender → Receiver</th>
+                <th className="px-4 py-3">Pickup</th>
                 <th className="px-4 py-3">Area</th>
                 <th className="px-4 py-3">Driver</th>
                 <th className="px-4 py-3">Status</th>
@@ -102,10 +104,16 @@ export default function BookingsPage() {
                     <td className="px-4 py-3">
                       {b.sender_name} → {b.receiver_name}
                     </td>
+                    <td className="whitespace-nowrap px-4 py-3">{formatDay(b.pickup_date)}</td>
                     <td className="px-4 py-3">{b.pickup_area}</td>
                     <td className="px-4 py-3">{b.driver?.name ?? "—"}</td>
                     <td className="px-4 py-3">
                       <StatusBadge status={b.status} />
+                      {b.status === "cancelled" && b.cancellation_reason && (
+                        <p className="mt-1 max-w-48 text-xs text-slate-500" title={b.cancellation_reason}>
+                          {b.cancellation_reason.length > 40 ? `${b.cancellation_reason.slice(0, 40)}…` : b.cancellation_reason}
+                        </p>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       {b.invoice_amount !== null ? (

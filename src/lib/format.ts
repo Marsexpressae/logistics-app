@@ -10,3 +10,19 @@ export const totalPaid = (payments: Pick<Payment, "amount">[] = []) =>
   payments.reduce((sum, p) => sum + Number(p.amount), 0);
 
 export const methodLabel = (m: string) => (m === "bank_transfer" ? "Bank transfer" : "Cash");
+
+/** Today as YYYY-MM-DD in the user's local time (what <input type="date"> uses). */
+export const todayISO = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+
+/** "Fri, 3 Oct 2026" from a YYYY-MM-DD date (parsed as local, so no timezone shift). */
+export const formatDay = (date: string) =>
+  new Date(`${date}T00:00:00`).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", year: "numeric" });
+
+/** Today / Overdue / Upcoming, used to flag pickups that need attention. */
+export const dayState = (date: string): "today" | "overdue" | "upcoming" => {
+  const t = todayISO();
+  return date === t ? "today" : date < t ? "overdue" : "upcoming";
+};

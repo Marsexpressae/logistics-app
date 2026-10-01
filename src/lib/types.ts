@@ -36,6 +36,9 @@ export type Booking = {
   receiver_address: string | null;
   pickup_area: string;
   pickup_address: string;
+  pickup_date: string; // YYYY-MM-DD
+  geo_lat: number | null;
+  geo_lng: number | null;
   driver_id: string | null;
   status: BookingStatus;
   estimated_bill: number | null; // approximate, known at booking
@@ -43,6 +46,8 @@ export type Booking = {
   notes: string | null;
   created_at: string;
   collected_at: string | null;
+  cancellation_reason: string | null;
+  cancelled_at: string | null;
   driver?: { name: string } | null;
   payments?: Payment[];
 };
