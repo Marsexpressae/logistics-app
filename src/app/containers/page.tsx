@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { Suspense, useState, type FormEvent } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import PageHeader from "@/components/ui/PageHeader";
 import EmptyState from "@/components/ui/EmptyState";
 import { Button, Card, ErrorMessage, StatusBadge, inputClass } from "@/components/ui/form";
@@ -13,13 +13,16 @@ import { supabase } from "@/lib/supabase";
 import { formatDate } from "@/lib/format";
 import type { Container } from "@/lib/types";
 
-export default function ContainersPage() {
+function ContainersContent() {
   const router = useRouter();
   const canOperate = canOperateWarehouse(useCurrentProfile().role);
   const containers = useQuery<Container[]>(() =>
     supabase.from("containers").select("*, parcels(count)").order("created_at", { ascending: false })
   );
   const [error, setError] = useState<string | null>(null);
+  const initial = useSearchParams().get("status") ?? "all";
+  const [status, setStatus] = useState(["loading", "departed", "arrived"].includes(initial) ? initial : "all");
+  const shown = (containers.data ?? []).filter((c) => status === "all" || c.status === status);
 
   async function create(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -41,8 +44,27 @@ export default function ContainersPage() {
         <ErrorMessage message={error} />
       </Card>}
 
+      <div className="mb-3 flex flex-wrap gap-2">
+        {[
+          { value: "all", label: "All" },
+          { value: "loading", label: "Loading" },
+          { value: "departed", label: "Departed" },
+          { value: "arrived", label: "Arrived" },
+        ].map((f) => (
+          <button
+            key={f.value}
+            onClick={() => setStatus(f.value)}
+            className={`rounded-full px-3 py-1 text-sm ${
+              status === f.value ? "bg-blue-600 text-white" : "border border-slate-300 bg-white text-slate-700"
+            }`}
+          >
+            {f.label}
+          </button>
+        ))}
+      </div>
+
       <ErrorMessage message={containers.error} />
-      {!containers.data?.length ? (
+      {!shown.length ? (
         <EmptyState message="No containers yet." />
       ) : (
         <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
@@ -57,7 +79,7 @@ export default function ContainersPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {containers.data.map((c) => (
+              {shown.map((c) => (
                 <tr key={c.id}>
                   <td className="px-4 py-3">
                     <Link href={`/containers/${c.id}`} className="font-mono font-medium text-blue-700">
@@ -77,5 +99,13 @@ export default function ContainersPage() {
         </div>
       )}
     </>
+  );
+}
+
+export default function ContainersPage() {
+  return (
+    <Suspense fallback={null}>
+      <ContainersContent />
+    </Suspense>
   );
 }

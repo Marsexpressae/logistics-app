@@ -34,7 +34,7 @@ export default function WarehouseInventoryPage() {
       <PageHeader title="Warehouse Inventory" description="Receive collected packages and split them into parcels." />
       <ErrorMessage message={awaiting.error ?? parcels.error} />
 
-      <Card title="Awaiting warehouse intake" className="mb-6">
+      <Card id="awaiting-intake" title="Awaiting warehouse intake" className="mb-6 scroll-mt-4">
         {!awaiting.data?.length ? (
           <p className="text-sm text-slate-500">No collected bookings waiting.</p>
         ) : (

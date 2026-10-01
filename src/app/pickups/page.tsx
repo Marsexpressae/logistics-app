@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { CalendarDays, MapPin, Navigation, Phone, User } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
 import EmptyState from "@/components/ui/EmptyState";
@@ -12,7 +13,7 @@ import { useQuery, useSession } from "@/lib/hooks";
 import { supabase } from "@/lib/supabase";
 import type { Booking, Driver } from "@/lib/types";
 
-export default function PickupsPage() {
+function PickupsContent() {
   const session = useSession();
   const drivers = useQuery<Driver[]>(() => supabase.from("drivers").select("*").order("name"));
   const pickups = useQuery<Booking[]>(() =>
@@ -24,6 +25,8 @@ export default function PickupsPage() {
       .order("pickup_date") // earliest first
   );
 
+  const initialStatus = useSearchParams().get("status");
+  const [status, setStatus] = useState(initialStatus === "booked" || initialStatus === "collected" ? initialStatus : "all");
   const [area, setArea] = useState("all");
   const [driverChoice, setDriverChoice] = useState<string | null>(null);
 
@@ -31,7 +34,9 @@ export default function PickupsPage() {
   const myDriver = drivers.data?.find((d) => d.user_id === session?.user.id);
   const driverId = driverChoice ?? myDriver?.id ?? "all";
 
-  const open = (pickups.data ?? []).filter((b) => driverId === "all" || b.driver_id === driverId);
+  const open = (pickups.data ?? []).filter(
+    (b) => (driverId === "all" || b.driver_id === driverId) && (status === "all" || b.status === status)
+  );
   const countFor = (a: string) => open.filter((b) => a === "all" || b.pickup_area === a).length;
   const visible = open.filter((b) => area === "all" || b.pickup_area === area);
 
@@ -53,8 +58,19 @@ export default function PickupsPage() {
         ))}
       </div>
 
+      <div className="mb-4 flex flex-wrap gap-2">
+        <select
+          className={`${inputClass} w-auto`}
+          value={status}
+          onChange={(e) => setStatus(e.target.value)}
+          aria-label="Status"
+        >
+          <option value="all">All open pickups</option>
+          <option value="booked">To collect</option>
+          <option value="collected">Collected</option>
+        </select>
       <select
-        className={`${inputClass} mb-4 max-w-xs`}
+        className={`${inputClass} w-auto`}
         value={driverId}
         onChange={(e) => setDriverChoice(e.target.value)}
         aria-label="Driver"
@@ -66,6 +82,7 @@ export default function PickupsPage() {
           </option>
         ))}
       </select>
+      </div>
 
       <ErrorMessage message={pickups.error ?? drivers.error} />
       {pickups.loading ? (
@@ -116,5 +133,13 @@ export default function PickupsPage() {
         </ul>
       )}
     </>
+  );
+}
+
+export default function PickupsPage() {
+  return (
+    <Suspense fallback={null}>
+      <PickupsContent />
+    </Suspense>
   );
 }

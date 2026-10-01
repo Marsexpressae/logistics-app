@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Plus, Search } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
 import EmptyState from "@/components/ui/EmptyState";
@@ -19,7 +20,7 @@ const STATUS_FILTERS = [
   { value: "cancelled", label: "Cancelled" },
 ];
 
-export default function BookingsPage() {
+function BookingsContent() {
   const { data, error, loading } = useQuery<Booking[]>(() =>
     supabase
       .from("bookings")
@@ -28,7 +29,8 @@ export default function BookingsPage() {
       .order("created_at", { ascending: false })
   );
   const [search, setSearch] = useState("");
-  const [status, setStatus] = useState("all");
+  const initial = useSearchParams().get("status") ?? "all";
+  const [status, setStatus] = useState(STATUS_FILTERS.some((f) => f.value === initial) ? initial : "all");
 
   const term = search.trim().toLowerCase();
   const rows = (data ?? []).filter(
@@ -139,5 +141,13 @@ export default function BookingsPage() {
         </div>
       )}
     </>
+  );
+}
+
+export default function BookingsPage() {
+  return (
+    <Suspense fallback={null}>
+      <BookingsContent />
+    </Suspense>
   );
 }
