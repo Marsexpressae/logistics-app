@@ -1,0 +1,14 @@
+// Label + badge colour for every status value used in the app.
+export const STATUS: Record<string, { label: string; className: string }> = {
+  booked: { label: "Booked", className: "bg-slate-100 text-slate-700" },
+  collected: { label: "Collected", className: "bg-amber-100 text-amber-800" },
+  at_warehouse: { label: "At warehouse", className: "bg-blue-100 text-blue-800" },
+  cancelled: { label: "Cancelled", className: "bg-red-100 text-red-700" },
+  in_warehouse: { label: "In warehouse", className: "bg-blue-100 text-blue-800" },
+  loaded: { label: "Loaded in container", className: "bg-indigo-100 text-indigo-800" },
+  in_transit: { label: "In transit", className: "bg-emerald-100 text-emerald-800" },
+  delivered: { label: "Delivered", className: "bg-green-100 text-green-800" },
+  loading: { label: "Loading", className: "bg-amber-100 text-amber-800" },
+  departed: { label: "Departed", className: "bg-emerald-100 text-emerald-800" },
+  arrived: { label: "Arrived at destination", className: "bg-teal-100 text-teal-800" },
+};

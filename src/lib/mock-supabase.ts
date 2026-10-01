@@ -1,0 +1,409 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+// In-browser stand-in for the parts of supabase-js this app uses, so the UI can be tested
+// without a backend. Data lives in localStorage. Used automatically when no Supabase keys are set.
+
+type Row = Record<string, any>;
+type Db = {
+  seq: { booking: number; container: number };
+  [table: string]: any;
+  drivers: Row[]; warehouses: Row[]; bookings: Row[]; booking_items: Row[]; payments: Row[];
+  containers: Row[]; parcels: Row[]; parcel_events: Row[]; profiles: Row[];
+};
+
+const STORAGE_KEY = "logistics-mock-db-v4";
+const AUTH_KEY = "logistics-mock-signed-out";
+
+const uid = () => crypto.randomUUID();
+const now = () => new Date().toISOString();
+const ago = (hours: number) => new Date(Date.now() - hours * 3600_000).toISOString();
+
+// ---------------------------------------------------------------- seed data
+function seed(): Db {
+  const wA = { id: uid(), code: "A", name: "Warehouse A" };
+  const wB = { id: uid(), code: "B", name: "Warehouse B" };
+  const d1 = { id: uid(), name: "Ahmed Khan", phone: "+971 50 111 2222", user_id: null, active: true };
+  const d2 = { id: uid(), name: "Bilal Hussain", phone: "+971 50 333 4444", user_id: null, active: true };
+
+  const base = { receiver_phone: null, notes: null, collected_at: null };
+  const b1 = { ...base, id: uid(), code: "BK-1001", sender_name: "Sara Ali", sender_phone: "+971 55 100 2000",
+    receiver_name: "Omar Ali", receiver_phone: "+92 300 1234567", receiver_address: "House 12, Gulberg, Lahore",
+    pickup_area: "Dubai", pickup_address: "Villa 5, Al Barsha 1, Dubai", driver_id: d1.id, status: "booked",
+    estimated_bill: 450, invoice_amount: null, created_at: ago(5) };
+  const b2 = { ...base, id: uid(), code: "BK-1002", sender_name: "John Mathew", sender_phone: "+971 56 222 3000",
+    receiver_name: "Mary Mathew", receiver_address: "Kochi, Kerala", pickup_area: "Dubai", pickup_address: "Apt 804, Marina Tower, Dubai",
+    driver_id: d2.id, status: "collected", estimated_bill: 800, invoice_amount: 800,
+    created_at: ago(30), collected_at: ago(3) };
+  const b3 = { ...base, id: uid(), code: "BK-1003", sender_name: "Fatima Noor", sender_phone: "+971 52 400 5000",
+    receiver_name: "Hamza Noor", receiver_address: "Block 7, Karachi", pickup_area: "Dubai", pickup_address: "Shop 3, Deira, Dubai",
+    driver_id: d1.id, status: "at_warehouse", estimated_bill: 600, invoice_amount: 600,
+    created_at: ago(60), collected_at: ago(48) };
+  const b4 = { ...base, id: uid(), code: "BK-1004", sender_name: "Ravi Kumar", sender_phone: "+971 50 600 7000",
+    receiver_name: "Anita Kumar", receiver_address: "Chennai, Tamil Nadu", pickup_area: "Sharjah", pickup_address: "Warehouse St 9, Sharjah",
+    driver_id: d2.id, status: "at_warehouse", estimated_bill: 300, invoice_amount: null,
+    created_at: ago(120), collected_at: ago(100) };
+
+  const c1 = { id: uid(), code: "CN-101", destination: "Karachi", status: "departed", departed_at: ago(20), created_at: ago(90) };
+  const c2 = { id: uid(), code: "CN-102", destination: "Lahore", status: "loading", departed_at: null, created_at: ago(2) };
+
+  const parcel = (b: Row, seq: number, description: string, kg: number, status: string, w: Row | null, c: Row | null): Row => ({
+    id: uid(), booking_id: b.id, seq, barcode: `${b.code}-P${seq}`, description, weight_kg: kg, status,
+    warehouse_id: w?.id ?? null, container_id: c?.id ?? null, updated_at: ago(10),
+  });
+  const parcels = [
+    parcel(b3, 1, "Clothes", 18, "in_warehouse", wA, null),
+    parcel(b3, 2, "Kitchenware", 22, "in_warehouse", wB, null),
+    parcel(b4, 1, "Electronics", 15, "in_transit", wA, c1),
+  ];
+
+  const events: Row[] = [];
+  for (const p of parcels) {
+    events.push({ id: uid(), parcel_id: p.id, status: "in_warehouse", created_at: ago(40) });
+    if (p.status === "in_transit") {
+      events.push({ id: uid(), parcel_id: p.id, status: "loaded", created_at: ago(24) });
+      events.push({ id: uid(), parcel_id: p.id, status: "in_transit", created_at: ago(20) });
+    }
+  }
+
+  return {
+    seq: { booking: 1005, container: 103 },
+    drivers: [d1, d2],
+    warehouses: [wA, wB],
+    bookings: [b1, b2, b3, b4],
+    booking_items: [
+      { id: uid(), booking_id: b2.id, description: "Suitcase", quantity: 2, weight_kg: 20 },
+      { id: uid(), booking_id: b2.id, description: "Carton box", quantity: 1, weight_kg: 15 },
+      { id: uid(), booking_id: b3.id, description: "Mixed goods", quantity: 2, weight_kg: 20 },
+    ],
+    payments: [
+      { id: uid(), booking_id: b2.id, amount: 400, method: "bank_transfer", received_by_driver: d2.id, note: null, created_at: ago(3) },
+      { id: uid(), booking_id: b3.id, amount: 600, method: "cash", received_by_driver: d1.id, note: null, created_at: ago(48) },
+    ],
+    containers: [c1, c2],
+    parcels,
+    parcel_events: events,
+    profiles: [{ id: "mock-user", full_name: "Tester (admin)", role: "admin", active: true }],
+  } as Db;
+}
+
+// ---------------------------------------------------------------- storage
+let memory: Db | null = null;
+
+function db(): Db {
+  if (memory) return memory;
+  if (typeof window !== "undefined") {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) return (memory = JSON.parse(raw));
+    } catch {}
+  }
+  memory = seed();
+  save();
+  return memory;
+}
+
+function save() {
+  if (typeof window === "undefined" || !memory) return;
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(memory));
+  } catch {}
+}
+
+export function resetMockData() {
+  memory = seed();
+  save();
+  location.reload();
+}
+
+// ---------------------------------------------------------------- relations used in select("... alias:table(cols)")
+const RELATIONS: Record<string, { fk: string; kind: "one" | "many"; from?: string }> = {
+  "bookings.drivers": { kind: "one", fk: "driver_id" },
+  "bookings.payments": { kind: "many", fk: "booking_id" },
+  "parcels.warehouses": { kind: "one", fk: "warehouse_id" },
+  "parcels.bookings": { kind: "one", fk: "booking_id" },
+  "containers.parcels": { kind: "many", fk: "container_id" },
+};
+
+function splitTopLevel(s: string): string[] {
+  const parts: string[] = [];
+  let depth = 0, cur = "";
+  for (const ch of s) {
+    if (ch === "(") depth++;
+    if (ch === ")") depth--;
+    if (ch === "," && depth === 0) { parts.push(cur.trim()); cur = ""; } else cur += ch;
+  }
+  if (cur.trim()) parts.push(cur.trim());
+  return parts;
+}
+
+function project(table: string, row: Row, select: string): Row {
+  const out: Row = {};
+  for (const part of splitTopLevel(select)) {
+    if (part === "*") { Object.assign(out, row); continue; }
+    const m = part.match(/^(?:(\w+):)?(\w+)\((.*)\)$/);
+    if (!m) { out[part] = row[part]; continue; }
+    const [, alias, target, cols] = m;
+    const rel = RELATIONS[`${table}.${target}`];
+    if (!rel) continue;
+    if (rel.kind === "one") {
+      const found = (db()[target] as Row[]).find((r) => r.id === row[rel.fk]);
+      out[alias ?? target] = found ? project(target, found, cols) : null;
+    } else {
+      const children = (db()[target] as Row[]).filter((r) => r[rel.fk] === row.id);
+      out[alias ?? target] = cols === "count" ? [{ count: children.length }] : children.map((c) => project(target, c, cols));
+    }
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------- query builder
+type Filter = (r: Row) => boolean;
+
+class Query implements PromiseLike<any> {
+  private op: "select" | "insert" | "update" | "delete" = "select";
+  private filters: Filter[] = [];
+  private orders: { col: string; asc: boolean }[] = [];
+  private selectStr = "*";
+  private returning = false;
+  private mode: "many" | "single" | "maybe" = "many";
+  private head = false;
+  private wantCount = false;
+  private payload: any;
+
+  constructor(private table: string) {}
+
+  select(cols = "*", opts?: { count?: string; head?: boolean }) {
+    this.selectStr = cols;
+    if (this.op !== "select") this.returning = true;
+    if (opts?.count) this.wantCount = true;
+    if (opts?.head) this.head = true;
+    return this;
+  }
+  insert(v: any) { this.op = "insert"; this.payload = v; return this; }
+  update(v: any) { this.op = "update"; this.payload = v; return this; }
+  delete() { this.op = "delete"; return this; }
+  eq(col: string, v: any) { this.filters.push((r) => r[col] === v); return this; }
+  neq(col: string, v: any) { this.filters.push((r) => r[col] !== v); return this; }
+  in(col: string, vs: any[]) { this.filters.push((r) => vs.includes(r[col])); return this; }
+  order(col: string, opts?: { ascending?: boolean }) { this.orders.push({ col, asc: opts?.ascending ?? true }); return this; }
+  single() { this.mode = "single"; return this; }
+  maybeSingle() { this.mode = "maybe"; return this; }
+
+  then<R1 = any, R2 = never>(ok?: ((v: any) => R1 | PromiseLike<R1>) | null, fail?: ((e: any) => R2 | PromiseLike<R2>) | null) {
+    return new Promise((resolve) => setTimeout(() => resolve(this.run()), 60)).then(ok, fail);
+  }
+
+  private run() {
+    const tableRows: Row[] = db()[this.table];
+    if (!tableRows) return { data: null, error: { message: `Unknown table ${this.table}` }, count: null };
+    let rows: Row[] = [];
+
+    if (this.op === "insert") {
+      const items = Array.isArray(this.payload) ? this.payload : [this.payload];
+      rows = items.map((it: Row) => withDefaults(this.table, it));
+      tableRows.push(...rows);
+    } else {
+      const matched = tableRows.filter((r) => this.filters.every((f) => f(r)));
+      if (this.op === "update") {
+        matched.forEach((r) => Object.assign(r, this.payload));
+        rows = matched;
+      } else if (this.op === "delete") {
+        db()[this.table] = tableRows.filter((r) => !matched.includes(r));
+      } else rows = matched;
+    }
+    if (this.op !== "select") save();
+
+    for (const { col, asc } of [...this.orders].reverse()) {
+      rows = [...rows].sort((a, b) => (a[col] > b[col] ? 1 : a[col] < b[col] ? -1 : 0) * (asc ? 1 : -1));
+    }
+
+    const count = this.wantCount ? rows.length : null;
+    if (this.head) return { data: null, error: null, count };
+    if (this.op === "update" || this.op === "delete" || this.op === "insert") {
+      if (!this.returning) return { data: null, error: null, count };
+    }
+
+    const out = rows.map((r) => project(this.table, r, this.selectStr));
+    if (this.mode === "many") return { data: out, error: null, count };
+    if (out.length !== 1) {
+      if (this.mode === "maybe" && out.length === 0) return { data: null, error: null, count };
+      return { data: null, error: { message: "No matching row found" }, count };
+    }
+    return { data: out[0], error: null, count };
+  }
+}
+
+function withDefaults(table: string, it: Row): Row {
+  const d = db();
+  const row: Row = { id: uid(), ...it };
+  switch (table) {
+    case "bookings":
+      Object.assign(row, {
+        code: `BK-${d.seq.booking++}`, status: "booked", estimated_bill: null, invoice_amount: null,
+        sender_phone: null, receiver_phone: null, receiver_address: null, notes: null,
+        driver_id: null, collected_at: null, created_at: now(), ...stripNull(it),
+      });
+      break;
+    case "containers":
+      Object.assign(row, { code: `CN-${d.seq.container++}`, status: "loading", departed_at: null, created_at: now(), ...it });
+      break;
+    case "payments":
+      Object.assign(row, { created_at: now() });
+      break;
+  }
+  return row;
+}
+const stripNull = (o: Row) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== null && v !== undefined));
+
+// ---------------------------------------------------------------- RPC (mirrors the SQL functions)
+function setParcelStatus(p: Row, status: string) {
+  p.status = status;
+  p.updated_at = now();
+  db().parcel_events.push({ id: uid(), parcel_id: p.id, status, created_at: now() });
+}
+
+const fail = (message: string) => ({ data: null, error: { message } });
+
+const RPC: Record<string, (a: any) => { data: any; error: { message: string } | null }> = {
+  split_booking({ p_booking_id, p_warehouse_id, p_parcels }) {
+    const d = db();
+    const b = d.bookings.find((x) => x.id === p_booking_id);
+    if (!b) return fail("Booking not found");
+    if (!["collected", "at_warehouse"].includes(b.status)) return fail(`Booking ${b.code} has not been collected yet`);
+    if (!p_parcels.length) return fail("Add at least one parcel");
+    if (d.parcels.some((p) => p.booking_id === b.id && p.status !== "in_warehouse"))
+      return fail(`Some parcels of ${b.code} have already left the warehouse; cannot re-split`);
+
+    const old = d.parcels.filter((p) => p.booking_id === b.id).map((p) => p.id);
+    d.parcels = d.parcels.filter((p) => p.booking_id !== b.id);
+    d.parcel_events = d.parcel_events.filter((e) => !old.includes(e.parcel_id));
+
+    p_parcels.forEach((p: Row, i: number) => {
+      const row = { id: uid(), booking_id: b.id, seq: i + 1, barcode: `${b.code}-P${i + 1}`, description: p.description,
+        weight_kg: p.weight_kg ?? 0, status: "in_warehouse", warehouse_id: p_warehouse_id, container_id: null, updated_at: now() };
+      d.parcels.push(row);
+      d.parcel_events.push({ id: uid(), parcel_id: row.id, status: "in_warehouse", created_at: now() });
+    });
+    b.status = "at_warehouse";
+    save();
+    return { data: p_parcels.length, error: null };
+  },
+
+  load_parcel({ p_container_id, p_barcode }) {
+    const d = db();
+    const c = d.containers.find((x) => x.id === p_container_id);
+    if (!c) return fail("Container not found");
+    if (c.status !== "loading") return fail(`Container ${c.code} has already departed`);
+    const p = d.parcels.find((x) => x.barcode === p_barcode.trim().toUpperCase());
+    if (!p) return fail(`No parcel with barcode ${p_barcode}`);
+    if (p.status !== "in_warehouse") return fail(`Parcel ${p.barcode} is not in a warehouse (status: ${p.status})`);
+    p.container_id = c.id;
+    setParcelStatus(p, "loaded");
+    save();
+    return { data: p, error: null };
+  },
+
+  unload_parcel({ p_parcel_id }) {
+    const p = db().parcels.find((x) => x.id === p_parcel_id && x.status === "loaded");
+    if (!p) return fail("Parcel cannot be unloaded");
+    p.container_id = null;
+    setParcelStatus(p, "in_warehouse");
+    save();
+    return { data: null, error: null };
+  },
+
+  depart_container({ p_container_id }) {
+    const d = db();
+    const c = d.containers.find((x) => x.id === p_container_id && x.status === "loading");
+    if (!c) return fail("Container is not open for loading");
+    c.status = "departed";
+    c.departed_at = now();
+    const loaded = d.parcels.filter((p) => p.container_id === c.id && p.status === "loaded");
+    loaded.forEach((p) => setParcelStatus(p, "in_transit"));
+    save();
+    return { data: loaded.length, error: null };
+  },
+
+  arrive_container({ p_container_id }) {
+    const d = db();
+    const c = d.containers.find((x) => x.id === p_container_id && x.status === "departed");
+    if (!c) return fail("Container has not departed, or has already arrived");
+    c.status = "arrived";
+    const moved = d.parcels.filter((p) => p.container_id === c.id && p.status === "in_transit");
+    moved.forEach((p) => setParcelStatus(p, "arrived"));
+    save();
+    return { data: moved.length, error: null };
+  },
+
+  deliver_parcel({ p_parcel_id }) {
+    const p = db().parcels.find((x) => x.id === p_parcel_id && x.status === "arrived");
+    if (!p) return fail("Parcel must have arrived before it can be delivered");
+    setParcelStatus(p, "delivered");
+    save();
+    return { data: null, error: null };
+  },
+
+  cancel_booking({ p_booking_id }) {
+    const d = db();
+    if (d.parcels.some((p) => p.booking_id === p_booking_id))
+      return fail("Booking already has parcels in the warehouse and cannot be cancelled");
+    const b = d.bookings.find((x) => x.id === p_booking_id && ["booked", "collected"].includes(x.status));
+    if (!b) return fail("Only booked or collected bookings can be cancelled");
+    b.status = "cancelled";
+    save();
+    return { data: null, error: null };
+  },
+
+  track_booking({ p_code }) {
+    const d = db();
+    const b = d.bookings.find((x) => x.code === p_code.trim().toUpperCase());
+    if (!b) return { data: null, error: null };
+    const parcels = d.parcels
+      .filter((p) => p.booking_id === b.id)
+      .sort((x, y) => x.seq - y.seq)
+      .map((p) => ({
+        barcode: p.barcode, description: p.description, weight_kg: p.weight_kg, status: p.status,
+        warehouse: d.warehouses.find((w) => w.id === p.warehouse_id)?.code ?? null,
+        container: d.containers.find((c) => c.id === p.container_id)?.code ?? null,
+        updated_at: p.updated_at,
+        events: d.parcel_events.filter((e) => e.parcel_id === p.id)
+          .sort((x, y) => x.created_at.localeCompare(y.created_at))
+          .map((e) => ({ status: e.status, at: e.created_at })),
+      }));
+    return { data: { code: b.code, status: b.status, booked_at: b.created_at, parcels }, error: null };
+  },
+};
+
+// ---------------------------------------------------------------- auth (signed in by default)
+const listeners = new Set<(event: string, session: any) => void>();
+const currentSession = () => {
+  if (typeof window !== "undefined" && localStorage.getItem(AUTH_KEY)) return null;
+  return { user: { id: "mock-user", email: "tester@example.com" } };
+};
+const emit = (event: string) => listeners.forEach((fn) => fn(event, currentSession()));
+
+const auth = {
+  getSession: async () => ({ data: { session: currentSession() }, error: null }),
+  onAuthStateChange(fn: (event: string, session: any) => void) {
+    listeners.add(fn);
+    return { data: { subscription: { unsubscribe: () => listeners.delete(fn) } } };
+  },
+  async signInWithPassword() {
+    localStorage.removeItem(AUTH_KEY);
+    emit("SIGNED_IN");
+    return { data: {}, error: null };
+  },
+  async signOut() {
+    localStorage.setItem(AUTH_KEY, "1");
+    emit("SIGNED_OUT");
+    return { error: null };
+  },
+};
+
+export function createMockClient() {
+  return {
+    from: (table: string) => new Query(table),
+    rpc: (name: string, args: any) =>
+      new Promise((resolve) => setTimeout(() => resolve(RPC[name](args)), 60)),
+    auth,
+  };
+}
