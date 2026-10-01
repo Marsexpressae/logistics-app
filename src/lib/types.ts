@@ -31,7 +31,7 @@ export type Booking = {
   code: string;
   sender_name: string;
   sender_phone: string | null;
-  receiver_name: string;
+  receiver_name: string | null; // optional at booking time
   receiver_phone: string | null;
   receiver_address: string | null;
   pickup_area: string;
@@ -48,6 +48,7 @@ export type Booking = {
   collected_at: string | null;
   cancellation_reason: string | null;
   cancelled_at: string | null;
+  updated_at: string; // version stamp used to detect edit conflicts
   driver?: { name: string } | null;
   payments?: Payment[];
 };
@@ -91,4 +92,15 @@ export type TrackedBooking = {
   status: BookingStatus;
   booked_at: string;
   parcels: TrackedParcel[];
+};
+
+export type AuditEntry = {
+  id: number;
+  table_name: string;
+  row_id: string | null;
+  booking_id: string | null;
+  action: "insert" | "update" | "delete";
+  actor_name: string | null;
+  changed_at: string;
+  changes: Record<string, unknown>; // insert/delete: the row; update: { column: { old, new } }
 };

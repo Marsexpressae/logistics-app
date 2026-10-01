@@ -55,7 +55,7 @@ export default function ReceiptPage() {
           </div>
           <div>
             <p className="text-xs uppercase text-slate-500">Receiver</p>
-            <p className="font-medium">{b.receiver_name}</p>
+            <p className="font-medium">{b.receiver_name ?? "To be confirmed"}</p>
             <p>{b.receiver_phone}</p>
             <p>{b.receiver_address}</p>
           </div>

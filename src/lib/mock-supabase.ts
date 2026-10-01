@@ -7,10 +7,10 @@ type Db = {
   seq: { booking: number; container: number };
   [table: string]: any;
   drivers: Row[]; warehouses: Row[]; bookings: Row[]; booking_items: Row[]; payments: Row[];
-  containers: Row[]; parcels: Row[]; parcel_events: Row[]; profiles: Row[];
+  containers: Row[]; parcels: Row[]; parcel_events: Row[]; profiles: Row[]; audit_log: Row[];
 };
 
-const STORAGE_KEY = "logistics-mock-db-v5";
+const STORAGE_KEY = "logistics-mock-db-v6";
 const AUTH_KEY = "logistics-mock-signed-out";
 
 const uid = () => crypto.randomUUID();
@@ -25,7 +25,7 @@ function seed(): Db {
   const d1 = { id: uid(), name: "Ahmed Khan", phone: "+971 50 111 2222", user_id: null, active: true };
   const d2 = { id: uid(), name: "Bilal Hussain", phone: "+971 50 333 4444", user_id: null, active: true };
 
-  const base = { receiver_phone: null, notes: null, collected_at: null, cancellation_reason: null, cancelled_at: null, geo_lat: null, geo_lng: null };
+  const base = { updated_at: ago(1), receiver_phone: null, notes: null, collected_at: null, cancellation_reason: null, cancelled_at: null, geo_lat: null, geo_lng: null };
   const b1 = { ...base, id: uid(), code: "BK-1001", sender_name: "Sara Ali", sender_phone: "+971 55 100 2000",
     receiver_name: "Omar Ali", receiver_phone: "+92 300 1234567", receiver_address: "House 12, Gulberg, Lahore",
     pickup_area: "Dubai", pickup_date: today(0), geo_lat: 25.1124, geo_lng: 55.1986, pickup_address: "Villa 5, Al Barsha 1, Dubai", driver_id: d1.id, status: "booked",
@@ -82,6 +82,7 @@ function seed(): Db {
     containers: [c1, c2],
     parcels,
     parcel_events: events,
+    audit_log: [],
     profiles: [{ id: "mock-user", full_name: "Tester (admin)", role: "admin", active: true }],
   } as Db;
 }
@@ -205,7 +206,8 @@ class Query implements PromiseLike<any> {
     } else {
       const matched = tableRows.filter((r) => this.filters.every((f) => f(r)));
       if (this.op === "update") {
-        matched.forEach((r) => Object.assign(r, this.payload));
+        // bookings carry a version stamp, bumped on every update (like the database trigger)
+        matched.forEach((r) => Object.assign(r, this.payload, this.table === "bookings" ? { updated_at: now() } : {}));
         rows = matched;
       } else if (this.op === "delete") {
         db()[this.table] = tableRows.filter((r) => !matched.includes(r));
@@ -227,7 +229,7 @@ class Query implements PromiseLike<any> {
     if (this.mode === "many") return { data: out, error: null, count };
     if (out.length !== 1) {
       if (this.mode === "maybe" && out.length === 0) return { data: null, error: null, count };
-      return { data: null, error: { message: "No matching row found" }, count };
+      return { data: null, error: { code: "PGRST116", message: "No matching row found" }, count };
     }
     return { data: out[0], error: null, count };
   }
@@ -242,7 +244,7 @@ function withDefaults(table: string, it: Row): Row {
         code: `BK-${d.seq.booking++}`, status: "booked", estimated_bill: null, invoice_amount: null,
         sender_phone: null, receiver_phone: null, receiver_address: null, notes: null,
         driver_id: null, collected_at: null, cancellation_reason: null, cancelled_at: null,
-        geo_lat: null, geo_lng: null, created_at: now(), ...stripNull(it),
+        geo_lat: null, geo_lng: null, created_at: now(), updated_at: now(), ...stripNull(it),
       });
       break;
     case "containers":

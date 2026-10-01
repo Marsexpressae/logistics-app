@@ -104,7 +104,7 @@ function BookingsContent() {
                       </Link>
                     </td>
                     <td className="px-4 py-3">
-                      {b.sender_name} → {b.receiver_name}
+                      {b.sender_name} → {b.receiver_name ?? <span className="text-slate-400">receiver not set</span>}
                     </td>
                     <td className="whitespace-nowrap px-4 py-3">{formatDay(b.pickup_date)}</td>
                     <td className="px-4 py-3">{b.pickup_area}</td>

@@ -106,7 +106,7 @@ export default function PickupDetailPage() {
           </a>
         )}
         <p className="mt-2 text-sm text-slate-500">
-          To: {b.receiver_name}
+          To: {b.receiver_name ?? "receiver not set yet"}
           {b.receiver_address ? `, ${b.receiver_address}` : ""}
         </p>
       </Card>

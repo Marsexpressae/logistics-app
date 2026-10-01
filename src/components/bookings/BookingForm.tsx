@@ -22,6 +22,7 @@ export default function BookingForm({ booking, submitLabel, onSaved }: BookingFo
   );
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [conflict, setConflict] = useState(false);
   const [geoText, setGeoText] = useState(booking ? formatGeo(booking.geo_lat, booking.geo_lng) : "");
   const [locating, setLocating] = useState(false);
 
@@ -73,12 +74,24 @@ export default function BookingForm({ booking, submitLabel, onSaved }: BookingFo
 
     setBusy(true);
     setError(null);
+    setConflict(false);
     // New bookings get their code (BK-1001, ...) from the database.
     const { data, error } = booking
-      ? await supabase.from("bookings").update(fields).eq("id", booking.id).select("code").single()
+      ? // Only saves if nobody changed the booking since it was opened (version stamp must still match).
+        await supabase
+          .from("bookings")
+          .update(fields)
+          .eq("id", booking.id)
+          .eq("updated_at", booking.updated_at)
+          .select("code")
+          .single()
       : await supabase.from("bookings").insert(fields).select("code").single();
     setBusy(false);
-    if (error) return setError(error.message);
+    if (error) {
+      // PGRST116 = the update matched no row: someone saved first (or the booking was removed).
+      if (booking && error.code === "PGRST116") return setConflict(true);
+      return setError(error.message);
+    }
     onSaved(data.code);
   }
 
@@ -95,10 +108,10 @@ export default function BookingForm({ booking, submitLabel, onSaved }: BookingFo
         </div>
       </Card>
 
-      <Card title="Receiver">
+      <Card title="Receiver (optional, can be added later)">
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Name">
-            <input name="receiver_name" required defaultValue={booking?.receiver_name} className={inputClass} />
+            <input name="receiver_name" defaultValue={booking?.receiver_name ?? ""} className={inputClass} />
           </Field>
           <Field label="Phone">
             <input name="receiver_phone" type="tel" defaultValue={booking?.receiver_phone ?? ""} className={inputClass} />
@@ -218,6 +231,15 @@ export default function BookingForm({ booking, submitLabel, onSaved }: BookingFo
       </Card>
 
       <ErrorMessage message={error} />
+      {conflict && (
+        <div className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          <p className="font-medium">Someone else changed this booking while you were editing.</p>
+          <p>Your changes were not saved, so nothing was overwritten. Reload to see the latest version, then re-apply your edits.</p>
+          <button type="button" className="mt-1 font-medium underline" onClick={() => window.location.reload()}>
+            Reload now
+          </button>
+        </div>
+      )}
       <Button type="submit" disabled={busy}>
         {busy ? "Saving…" : submitLabel}
       </Button>

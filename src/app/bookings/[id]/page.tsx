@@ -5,17 +5,26 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, Ban, Printer } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
+import AuditList from "@/components/audit/AuditList";
 import BookingForm from "@/components/bookings/BookingForm";
 import { Button, Card, ErrorMessage, Field, StatusBadge, inputClass } from "@/components/ui/form";
 import { formatDate } from "@/lib/format";
 import { useQuery } from "@/lib/hooks";
+import { useCurrentProfile } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
-import type { Booking } from "@/lib/types";
+import type { AuditEntry, Booking } from "@/lib/types";
 
 export default function EditBookingPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const booking = useQuery<Booking>(() => supabase.from("bookings").select("*").eq("id", id).single());
+  const isAdmin = useCurrentProfile().role === "admin";
+  // The change history is admin-only (the database enforces it too).
+  const history = useQuery<AuditEntry[]>(() =>
+    isAdmin
+      ? supabase.from("audit_log").select("*").eq("booking_id", id).order("id", { ascending: false })
+      : Promise.resolve({ data: [], error: null })
+  );
   const [error, setError] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState(false);
   const [reason, setReason] = useState("");
@@ -101,6 +110,12 @@ export default function EditBookingPage() {
           </Card>
         )}
       </div>
+
+      {isAdmin && !!history.data?.length && (
+        <Card title="History" className="mt-6 max-w-3xl">
+          <AuditList entries={history.data} />
+        </Card>
+      )}
     </>
   );
 }

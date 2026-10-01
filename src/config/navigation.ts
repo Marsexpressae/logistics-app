@@ -2,6 +2,7 @@ import {
   Boxes,
   ClipboardList,
   Container,
+  History,
   LayoutDashboard,
   Truck,
   UserCog,
@@ -25,6 +26,7 @@ export const navItems: NavItem[] = [
   { label: "Containers", href: "/containers", icon: Container, roles: ["admin", "staff", "warehouse"] },
   { label: "Accounts", href: "/accounts", icon: Wallet, roles: ["admin", "staff"] },
   { label: "Users", href: "/users", icon: UserCog, roles: ["admin"] },
+  { label: "Activity", href: "/activity", icon: History, roles: ["admin"] },
 ];
 
 // Pages that are not in the sidebar but need tighter rules than their parent.

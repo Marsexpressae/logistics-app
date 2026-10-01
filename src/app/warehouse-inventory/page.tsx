@@ -42,7 +42,7 @@ export default function WarehouseInventoryPage() {
             {awaiting.data.map((b) => (
               <li key={b.id} className="flex items-center justify-between py-2">
                 <span>
-                  <span className="font-mono font-medium">{b.code}</span> · {b.sender_name} → {b.receiver_name}
+                  <span className="font-mono font-medium">{b.code}</span> · {b.sender_name} → {b.receiver_name ?? "receiver not set"}
                 </span>
                 {canOperate && (
                   <Link href={`/warehouse-inventory/split/${b.id}`} className="font-medium text-blue-700">
