@@ -32,7 +32,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0f172a",
+  themeColor: "#ffffff",
   viewportFit: "cover", // lets safe-area insets (home bar, notch) apply on phones
 };
 

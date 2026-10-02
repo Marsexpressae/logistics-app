@@ -6,6 +6,8 @@ import { LogOut } from "lucide-react";
 import BrandMark from "@/components/brand/BrandMark";
 import { homePath, navItems } from "@/config/navigation";
 import InstallButton from "@/components/pwa/InstallButton";
+import CountBadge from "@/components/ui/CountBadge";
+import { useBadges } from "@/lib/badges";
 import { site } from "@/config/site";
 import { supabase } from "@/lib/supabase";
 import { useCurrentProfile, usePermissions } from "@/lib/profile-context";
@@ -15,6 +17,7 @@ export default function Sidebar() {
   const pathname = usePathname();
   const profile = useCurrentProfile();
   const { canAny, permissions } = usePermissions();
+  const badges = useBadges();
 
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);
@@ -46,6 +49,7 @@ export default function Sidebar() {
           >
             <Icon className="h-5 w-5" />
             {label}
+            <CountBadge count={badges[href] ?? 0} className="ml-auto" />
           </Link>
         ))}
       </nav>

@@ -1,10 +1,10 @@
 import { ImageResponse } from "next/og";
 
 // App icons: /icons/192, /icons/512, /icons/180 (iPhone). "?maskable=1" gives the full-bleed Android version.
-// Design: an orange cargo box whose top edges and sides form a white letter M, on navy.
+// Design: an orange cargo box whose top edges and sides form a white letter M (brown outline), on white.
 // Keep in sync with src/components/brand/BrandMark.tsx and src/app/icon.svg.
 const SIZES = new Set([180, 192, 512]);
-const NAVY = "#0f172a";
+const WHITE = "#ffffff";
 
 export async function GET(req: Request, { params }: { params: Promise<{ size: string }> }) {
   const { size: raw } = await params;
@@ -25,7 +25,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ size: st
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: NAVY,
+          background: WHITE,
           borderRadius: roundedCorners ? Math.round(size * 0.22) : 0,
         }}
       >
@@ -36,8 +36,16 @@ export async function GET(req: Request, { params }: { params: Promise<{ size: st
           <polyline
             points="30,91 30,45 68,66 106,45 106,91"
             fill="none"
+            stroke="#7c2d12"
+            strokeWidth="12"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <polyline
+            points="30,91 30,45 68,66 106,45 106,91"
+            fill="none"
             stroke="#ffffff"
-            strokeWidth="7"
+            strokeWidth="6"
             strokeLinecap="round"
             strokeLinejoin="round"
           />

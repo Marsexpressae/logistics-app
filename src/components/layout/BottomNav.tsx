@@ -4,7 +4,9 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Download, Ellipsis, LogOut, X } from "lucide-react";
+import CountBadge from "@/components/ui/CountBadge";
 import { navItems } from "@/config/navigation";
+import { useBadges } from "@/lib/badges";
 import { useInstall } from "@/lib/pwa";
 import { useCurrentProfile, usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
@@ -21,6 +23,7 @@ export default function BottomNav() {
   const profile = useCurrentProfile();
   const { canAny } = usePermissions();
   const { canPrompt, install } = useInstall();
+  const badges = useBadges();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [typing, setTyping] = useState(false);
 
@@ -30,6 +33,7 @@ export default function BottomNav() {
 
   const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
   const moreActive = sheetOpen || overflow.some((i) => isActive(i.href));
+  const hiddenCount = overflow.reduce((sum, i) => sum + (badges[i.href] ?? 0), 0); // waiting items inside "More"
 
   // A bar floating above the on-screen keyboard steals form space, so hide it while typing.
   useEffect(() => {
@@ -74,7 +78,10 @@ export default function BottomNav() {
             return (
               <li key={href} className="flex-1">
                 <Link href={href} aria-current={active ? "page" : undefined} className={tabClass(active)}>
-                  <Icon className="h-6 w-6" strokeWidth={active ? 2.5 : 2} />
+                  <span className="relative">
+                    <Icon className="h-6 w-6" strokeWidth={active ? 2.5 : 2} />
+                    <CountBadge count={badges[href] ?? 0} className="absolute -right-3 -top-1.5 ring-2 ring-white" />
+                  </span>
                   <span>{shortLabel}</span>
                 </Link>
               </li>
@@ -87,7 +94,10 @@ export default function BottomNav() {
               aria-expanded={sheetOpen}
               className={tabClass(moreActive)}
             >
-              <Ellipsis className="h-6 w-6" strokeWidth={moreActive ? 2.5 : 2} />
+              <span className="relative">
+                <Ellipsis className="h-6 w-6" strokeWidth={moreActive ? 2.5 : 2} />
+                <CountBadge count={hiddenCount} variant="dot" className="absolute -right-1 -top-0.5" />
+              </span>
               <span>More</span>
             </button>
           </li>
@@ -129,6 +139,7 @@ export default function BottomNav() {
                   >
                     <Icon className="h-6 w-6" />
                     {label}
+                    <CountBadge count={badges[href] ?? 0} className="ml-auto" />
                   </Link>
                 </li>
               ))}

@@ -9,6 +9,7 @@ import BrandMark from "@/components/brand/BrandMark";
 import InstallBanner from "@/components/pwa/InstallBanner";
 import { canAccess, homePath } from "@/config/navigation";
 import { site } from "@/config/site";
+import { BadgeProvider, useBadgeCounts } from "@/lib/badges";
 import { useProfile, useSession } from "@/lib/hooks";
 import { ProfileContext } from "@/lib/profile-context";
 import { isMock, supabase } from "@/lib/supabase";
@@ -29,6 +30,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
   const session = useSession();
   const { profile, roleLabel, permissions, loading: profileLoading } = useProfile(session);
   const isPublic = isPublicPath(pathname);
+  const badges = useBadgeCounts(permissions, !!profile);
 
   const allowed = profile ? canAccess(permissions, pathname) : true;
 
@@ -56,6 +58,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <ProfileContext.Provider value={{ profile, roleLabel, permissions }}>
+      <BadgeProvider value={badges}>
       <div className="flex h-full flex-1 flex-col md:flex-row">
         {/* Phone top bar: just the brand. Navigation lives in the bottom bar, within thumb reach. */}
         <header
@@ -83,6 +86,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
         </main>
         <BottomNav />
       </div>
+      </BadgeProvider>
     </ProfileContext.Provider>
   );
 }
