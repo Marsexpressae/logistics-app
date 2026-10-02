@@ -4,6 +4,8 @@ import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ArrowLeft, CalendarDays, CheckCircle2, MapPin, Navigation, Phone, Printer, Trash2 } from "lucide-react";
+import BookingChangePanel from "@/components/bookings/BookingChangePanel";
+import ScheduleHistory from "@/components/bookings/ScheduleHistory";
 import { Button, Card, ErrorMessage, Field, StatusBadge, inputClass } from "@/components/ui/form";
 import { useQuery } from "@/lib/hooks";
 import { supabase } from "@/lib/supabase";
@@ -20,6 +22,7 @@ export default function PickupDetailPage() {
     supabase.from("booking_items").select("*").eq("booking_id", id).order("id")
   );
   const [error, setError] = useState<string | null>(null);
+  const [changes, setChanges] = useState(0); // bumps after a reschedule/cancel so the history refreshes
 
   const b = booking.data;
   if (booking.loading) return <p className="text-sm text-slate-500">Loading…</p>;
@@ -204,6 +207,18 @@ export default function PickupDetailPage() {
         >
           <Printer className="h-4 w-4" /> Receipt
         </Link>
+      </div>
+
+      {/* Reschedule or cancel this pickup, with a reason. The office is notified automatically. */}
+      <BookingChangePanel
+        booking={b}
+        onChanged={() => {
+          booking.reload();
+          setChanges((n) => n + 1);
+        }}
+      />
+      <div className="pb-6">
+        <ScheduleHistory bookingId={id} reloadKey={changes} />
       </div>
     </div>
   );

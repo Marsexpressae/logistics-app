@@ -62,7 +62,8 @@ export default function BookingForm({ booking, submitLabel, onSaved }: BookingFo
       receiver_address: text("receiver_address"),
       pickup_area: text("pickup_area"),
       pickup_address: text("pickup_address"),
-      pickup_date: text("pickup_date"),
+      // When editing, the date can only change through Reschedule (reason + notification), so it is not sent.
+      ...(booking ? {} : { pickup_date: text("pickup_date") }),
       geo_lat: geo?.lat ?? null,
       geo_lng: geo?.lng ?? null,
       driver_id: text("driver_id"),
@@ -128,9 +129,15 @@ export default function BookingForm({ booking, submitLabel, onSaved }: BookingFo
               name="pickup_date"
               type="date"
               required
+              readOnly={!!booking}
               defaultValue={booking?.pickup_date ?? todayISO()}
-              className={inputClass}
+              className={`${inputClass} ${booking ? "cursor-not-allowed bg-slate-100 text-slate-600" : ""}`}
             />
+            {booking && (
+              <span className="mt-1 block text-xs text-slate-500">
+                To move the pickup, use <strong>Reschedule</strong> above. A reason is required and the other team is told.
+              </span>
+            )}
           </Field>
           <div className="sm:col-span-2">
             <Field label="Pickup address">

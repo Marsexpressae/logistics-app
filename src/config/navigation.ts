@@ -1,4 +1,5 @@
 import {
+  Bell,
   Boxes,
   ClipboardList,
   Container,
@@ -31,6 +32,7 @@ export const navItems: NavItem[] = [
   { label: "Users", shortLabel: "Users", href: "/users", icon: UserCog, anyOf: ["users.manage"] },
   { label: "Roles & Permissions", shortLabel: "Roles", href: "/roles", icon: ShieldCheck, anyOf: ["roles.manage"] },
   { label: "Activity", shortLabel: "Activity", href: "/activity", icon: History, anyOf: ["activity.view"] },
+  { label: "Notifications", shortLabel: "Alerts", href: "/notifications", icon: Bell, anyOf: ["notifications.view"] },
 ];
 
 // Pages that are not in the sidebar but need tighter rules than their parent.

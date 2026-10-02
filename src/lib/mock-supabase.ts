@@ -8,9 +8,10 @@ type Db = {
   [table: string]: any;
   drivers: Row[]; warehouses: Row[]; bookings: Row[]; booking_items: Row[]; payments: Row[];
   containers: Row[]; parcels: Row[]; parcel_events: Row[]; profiles: Row[]; audit_log: Row[]; roles: Row[]; permissions: Row[]; role_permissions: Row[];
+  booking_events: Row[]; notifications: Row[];
 };
 
-const STORAGE_KEY = "logistics-mock-db-v7";
+const STORAGE_KEY = "logistics-mock-db-v8";
 const AUTH_KEY = "logistics-mock-signed-out";
 
 const uid = () => crypto.randomUUID();
@@ -46,16 +47,20 @@ const PERMISSIONS: Row[] = [
   ["users.manage", "People", "Manage users", "Add users, change their role, deactivate, reset passwords"],
   ["roles.manage", "People", "Edit roles and permissions", "Change which role can do what (super admin only by default)"],
   ["activity.view", "People", "View activity log", "See who changed what"],
+  ["notifications.view", "General", "Receive notifications", "See in-app notifications about changes to bookings"],
+  ["bookings.reschedule", "Bookings", "Reschedule bookings", "Move a booking to another pickup date (a reason is required)"],
+  ["pickups.cancel", "Pickups", "Cancel own pickups", "Cancel a pickup that has not been collected yet (a reason is required)"],
+  ["pickups.reschedule", "Pickups", "Reschedule own pickups", "Move a pickup to another date (a reason is required)"],
 ].map(([key, group_name, label, description], i) => ({ key, group_name, label, description, sort: (i + 1) * 10 }));
 const GRANTS: Record<string, string[]> = {
   super_admin: PERMISSIONS.map((p) => p.key),
   manager: ["dashboard.view", "bookings.view", "bookings.create", "bookings.edit", "bookings.cancel", "pickups.view_all",
     "pickups.collect", "warehouse.view", "warehouse.manage", "containers.view", "containers.manage", "accounts.view",
-    "payments.manage", "drivers.manage", "users.manage", "activity.view"],
+    "payments.manage", "drivers.manage", "users.manage", "activity.view", "notifications.view", "bookings.reschedule"],
   staff: ["dashboard.view", "bookings.view", "bookings.create", "bookings.edit", "bookings.cancel", "pickups.view_all",
-    "pickups.collect", "warehouse.view", "containers.view", "accounts.view"],
-  warehouse: ["dashboard.view", "warehouse.view", "warehouse.manage", "containers.view", "containers.manage"],
-  driver: ["pickups.view_own", "pickups.collect"],
+    "pickups.collect", "warehouse.view", "containers.view", "accounts.view", "notifications.view", "bookings.reschedule"],
+  warehouse: ["dashboard.view", "warehouse.view", "warehouse.manage", "containers.view", "containers.manage", "notifications.view"],
+  driver: ["pickups.view_own", "pickups.collect", "pickups.cancel", "pickups.reschedule", "notifications.view"],
 };
 const ROLE_PERMISSIONS: Row[] = Object.entries(GRANTS).flatMap(([role, perms]) => perms.map((permission) => ({ role, permission })));
 
@@ -124,6 +129,8 @@ function seed(): Db {
     parcels,
     parcel_events: events,
     audit_log: [],
+    booking_events: [],
+    notifications: [],
     profiles: [{ id: "mock-user", full_name: "Tester (super admin)", role: "super_admin", active: true }],
     roles: ROLES,
     permissions: PERMISSIONS,
@@ -214,6 +221,7 @@ class Query implements PromiseLike<any> {
   private head = false;
   private wantCount = false;
   private payload: any;
+  private limitN: number | undefined;
 
   constructor(private table: string) {}
 
@@ -229,6 +237,8 @@ class Query implements PromiseLike<any> {
   delete() { this.op = "delete"; return this; }
   eq(col: string, v: any) { this.filters.push((r) => r[col] === v); return this; }
   neq(col: string, v: any) { this.filters.push((r) => r[col] !== v); return this; }
+  is(col: string, v: any) { this.filters.push((r) => (r[col] ?? null) === v); return this; }
+  limit(n: number) { this.limitN = n; return this; }
   in(col: string, vs: any[]) { this.filters.push((r) => vs.includes(r[col])); return this; }
   order(col: string, opts?: { ascending?: boolean }) { this.orders.push({ col, asc: opts?.ascending ?? true }); return this; }
   single() { this.mode = "single"; return this; }
@@ -264,6 +274,7 @@ class Query implements PromiseLike<any> {
     }
 
     const count = this.wantCount ? rows.length : null;
+    if (this.limitN !== undefined) rows = rows.slice(0, this.limitN);
     if (this.head) return { data: null, error: null, count };
     if (this.op === "update" || this.op === "delete" || this.op === "insert") {
       if (!this.returning) return { data: null, error: null, count };
@@ -310,6 +321,14 @@ function setParcelStatus(p: Row, status: string) {
 }
 
 const fail = (message: string) => ({ data: null, error: { message } });
+
+// Mirrors the database: keep a history row, and tell the other party. Offline there is only one user, so the
+// notification goes to that user, which lets the notification screens be tried without a second account.
+function recordChange(b: Row, kind: string, reason: string, oldDate: string | null, newDate: string | null, title: string, body: string) {
+  const d = db();
+  d.booking_events.push({ id: uid(), booking_id: b.id, kind, reason, old_date: oldDate, new_date: newDate, actor_name: "You (sample data)", created_at: now() });
+  d.notifications.push({ id: uid(), user_id: "mock-user", booking_id: b.id, kind, title, body, actor_name: "Sample teammate", created_at: now(), read_at: null });
+}
 
 const RPC: Record<string, (a: any) => { data: any; error: { message: string } | null }> = {
   split_booking({ p_booking_id, p_warehouse_id, p_parcels }) {
@@ -390,6 +409,23 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
     return { data: null, error: null };
   },
 
+  reschedule_booking({ p_booking_id, p_new_date, p_reason }) {
+    const d = db();
+    const b = d.bookings.find((x) => x.id === p_booking_id);
+    if (!b) return fail("Booking not found");
+    if (!String(p_reason ?? "").trim()) return fail("A reason is required");
+    if (b.status !== "booked") return fail("Only pickups that have not been collected can be rescheduled");
+    if (!p_new_date || p_new_date < today()) return fail("Choose today or a future date");
+    if (p_new_date === b.pickup_date) return fail("The pickup is already on that date");
+    const old = b.pickup_date;
+    b.pickup_date = p_new_date;
+    b.updated_at = now();
+    recordChange(b, "rescheduled", String(p_reason).trim(), old, p_new_date,
+      `${b.code} rescheduled`, `Moved from ${old} to ${p_new_date}. Reason: ${String(p_reason).trim()}`);
+    save();
+    return { data: null, error: null };
+  },
+
   cancel_booking({ p_booking_id, p_reason }) {
     const d = db();
     if (!String(p_reason ?? "").trim()) return fail("A cancellation reason is required");
@@ -400,6 +436,8 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
     b.status = "cancelled";
     b.cancellation_reason = String(p_reason).trim();
     b.cancelled_at = now();
+    recordChange(b, "cancelled", String(p_reason).trim(), b.pickup_date, null,
+      `${b.code} cancelled`, `Reason: ${String(p_reason).trim()}`);
     save();
     return { data: null, error: null };
   },

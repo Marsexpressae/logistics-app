@@ -3,11 +3,13 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Ban, Printer } from "lucide-react";
+import { ArrowLeft, Printer } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
 import AuditList from "@/components/audit/AuditList";
+import BookingChangePanel from "@/components/bookings/BookingChangePanel";
 import BookingForm from "@/components/bookings/BookingForm";
-import { Button, Card, ErrorMessage, Field, StatusBadge, inputClass } from "@/components/ui/form";
+import ScheduleHistory from "@/components/bookings/ScheduleHistory";
+import { Card, ErrorMessage, StatusBadge } from "@/components/ui/form";
 import { formatDate } from "@/lib/format";
 import { useQuery } from "@/lib/hooks";
 import { usePermissions } from "@/lib/profile-context";
@@ -20,34 +22,18 @@ export default function EditBookingPage() {
   const booking = useQuery<Booking>(() => supabase.from("bookings").select("*").eq("id", id).single());
   const { can } = usePermissions();
   const canEdit = can("bookings.edit");
-  const canCancel = can("bookings.cancel");
   const canSeeHistory = can("activity.view");
-  // The change history needs the activity.view permission (the database enforces it too).
+  // The full activity log needs the activity.view permission (the database enforces it too).
   const history = useQuery<AuditEntry[]>(() =>
     canSeeHistory
       ? supabase.from("audit_log").select("*").eq("booking_id", id).order("id", { ascending: false })
       : Promise.resolve({ data: [], error: null })
   );
-  const [error, setError] = useState<string | null>(null);
-  const [cancelling, setCancelling] = useState(false);
-  const [reason, setReason] = useState("");
+  const [changes, setChanges] = useState(0); // bumps after a reschedule/cancel so the history refreshes
 
   const b = booking.data;
   if (booking.loading) return <p className="text-sm text-slate-500">Loading…</p>;
   if (!b) return <ErrorMessage message={booking.error ?? "Booking not found"} />;
-
-  const cancellable = canCancel && (b.status === "booked" || b.status === "collected");
-
-  async function cancel() {
-    if (!reason.trim()) return setError("Please enter a reason for cancelling.");
-    if (!confirm(`Cancel booking ${b!.code}? This cannot be undone.`)) return;
-    const { error } = await supabase.rpc("cancel_booking", { p_booking_id: id, p_reason: reason });
-    if (error) return setError(error.message);
-    setError(null);
-    setCancelling(false);
-    setReason("");
-    booking.reload();
-  }
 
   return (
     <>
@@ -57,7 +43,7 @@ export default function EditBookingPage() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <PageHeader
           title={`${canEdit ? "Edit" : "View"} ${b.code}`}
-          description={canEdit ? "Update details, reassign the driver, or cancel." : "You can view this booking but not change it."}
+          description={canEdit ? "Update details, reassign the driver, reschedule or cancel." : "You can view this booking but not change it."}
         />
         <div className="flex items-center gap-3">
           <StatusBadge status={b.status} />
@@ -77,54 +63,31 @@ export default function EditBookingPage() {
         </p>
       )}
 
+      {/* Reschedule / cancel, each with a reason. The other party is notified automatically. */}
+      <div className="mb-4 max-w-3xl">
+        <BookingChangePanel
+          booking={b}
+          onChanged={() => {
+            booking.reload();
+            history.reload();
+            setChanges((n) => n + 1);
+          }}
+        />
+      </div>
+
       {/* Without bookings.edit the whole form is read-only (the database blocks the write anyway). */}
       <fieldset disabled={!canEdit} className="min-w-0 border-0 p-0">
-        <BookingForm booking={b} submitLabel="Save changes" onSaved={() => router.push("/bookings")} />
+        <BookingForm key={b.updated_at} booking={b} submitLabel="Save changes" onSaved={() => router.push("/bookings")} />
       </fieldset>
 
-      <div className="mt-6 max-w-3xl space-y-2">
-        <ErrorMessage message={error} />
-        {cancellable && !cancelling && (
-          <Button variant="danger" onClick={() => setCancelling(true)}>
-            <Ban className="h-4 w-4" /> Cancel booking
-          </Button>
-        )}
-        {cancellable && cancelling && (
-          <Card title="Cancel this booking">
-            <Field label="Reason for cancellation (required)">
-              <textarea
-                value={reason}
-                onChange={(e) => setReason(e.target.value)}
-                rows={3}
-                autoFocus
-                placeholder="e.g. Customer changed their mind, duplicate booking, unreachable…"
-                className={inputClass}
-              />
-            </Field>
-            <div className="mt-3 flex gap-2">
-              <Button variant="danger" onClick={cancel} disabled={!reason.trim()}>
-                Confirm cancellation
-              </Button>
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  setCancelling(false);
-                  setReason("");
-                  setError(null);
-                }}
-              >
-                Keep booking
-              </Button>
-            </div>
+      <div className="mt-6 space-y-6">
+        <ScheduleHistory bookingId={id} reloadKey={changes} />
+        {canSeeHistory && !!history.data?.length && (
+          <Card title="Activity log" className="max-w-3xl">
+            <AuditList entries={history.data} />
           </Card>
         )}
       </div>
-
-      {canSeeHistory && !!history.data?.length && (
-        <Card title="History" className="mt-6 max-w-3xl">
-          <AuditList entries={history.data} />
-        </Card>
-      )}
     </>
   );
 }

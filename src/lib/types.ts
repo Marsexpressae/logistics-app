@@ -108,3 +108,25 @@ export type AuditEntry = {
 
 export type RoleRow = { key: string; label: string; description: string; sort: number };
 export type PermissionRow = { key: string; group_name: string; label: string; description: string; sort: number };
+
+export type BookingEvent = {
+  id: string;
+  booking_id: string;
+  kind: "rescheduled" | "cancelled";
+  reason: string;
+  old_date: string | null;
+  new_date: string | null;
+  actor_name: string | null;
+  created_at: string;
+};
+
+export type NotificationRow = {
+  id: string;
+  booking_id: string | null;
+  kind: string;
+  title: string;
+  body: string;
+  actor_name: string | null;
+  created_at: string;
+  read_at: string | null;
+};

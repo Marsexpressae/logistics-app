@@ -2,14 +2,18 @@
 
 import { useEffect, type ReactNode } from "react";
 import Link from "next/link";
+import { Bell } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import Sidebar from "./Sidebar";
 import BottomNav from "./BottomNav";
 import BrandMark from "@/components/brand/BrandMark";
+import NotificationToast from "@/components/notifications/NotificationToast";
 import InstallBanner from "@/components/pwa/InstallBanner";
+import CountBadge from "@/components/ui/CountBadge";
 import { canAccess, homePath } from "@/config/navigation";
 import { site } from "@/config/site";
 import { BadgeProvider, useBadgeCounts } from "@/lib/badges";
+import { NotificationProvider, useNotificationsState } from "@/lib/notifications";
 import { useProfile, useSession } from "@/lib/hooks";
 import { ProfileContext } from "@/lib/profile-context";
 import { isMock, supabase } from "@/lib/supabase";
@@ -31,6 +35,8 @@ export default function AppShell({ children }: { children: ReactNode }) {
   const { profile, roleLabel, permissions, loading: profileLoading } = useProfile(session);
   const isPublic = isPublicPath(pathname);
   const badges = useBadgeCounts(permissions, !!profile);
+  const wantsNotifications = !!profile && permissions.includes("notifications.view");
+  const notifications = useNotificationsState(session?.user.id, wantsNotifications);
 
   const allowed = profile ? canAccess(permissions, pathname) : true;
 
@@ -58,7 +64,8 @@ export default function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <ProfileContext.Provider value={{ profile, roleLabel, permissions }}>
-      <BadgeProvider value={badges}>
+      <NotificationProvider value={notifications}>
+      <BadgeProvider value={{ ...badges, "/notifications": notifications.unread }}>
       <div className="flex h-full flex-1 flex-col md:flex-row">
         {/* Phone top bar: just the brand. Navigation lives in the bottom bar, within thumb reach. */}
         <header
@@ -69,7 +76,18 @@ export default function AppShell({ children }: { children: ReactNode }) {
             <BrandMark size={28} />
             <span className="font-semibold text-slate-900">{site.name}</span>
           </Link>
+          {wantsNotifications && (
+            <Link
+              href="/notifications"
+              aria-label={`Notifications${notifications.unread ? `, ${notifications.unread} unread` : ""}`}
+              className="relative ml-auto flex h-11 w-11 items-center justify-center rounded-full text-slate-600 active:bg-slate-100"
+            >
+              <Bell className="h-6 w-6" />
+              <CountBadge count={notifications.unread} label="unread" className="absolute right-0.5 top-0.5 ring-2 ring-white" />
+            </Link>
+          )}
         </header>
+        <NotificationToast />
         <Sidebar />
         {/* Extra bottom padding on phones keeps the last content clear of the bottom bar. */}
         <main className="flex-1 overflow-y-auto p-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:p-8 md:pb-8 print:p-0">
@@ -87,6 +105,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
         <BottomNav />
       </div>
       </BadgeProvider>
+      </NotificationProvider>
     </ProfileContext.Provider>
   );
 }
