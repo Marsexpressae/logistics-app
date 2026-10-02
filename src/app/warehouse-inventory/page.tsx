@@ -30,7 +30,7 @@ export default function WarehouseInventoryPage() {
 
   return (
     <>
-      <PageHeader title="Warehouse Inventory" description="Receive collected packages and split them into parcels." />
+      <PageHeader title="Warehouse" description="Receive collected packages and split them into parcels." />
       <ErrorMessage message={awaiting.error ?? parcels.error} />
 
       <Card id="awaiting-intake" title="Awaiting warehouse intake" className="mb-6 scroll-mt-4">

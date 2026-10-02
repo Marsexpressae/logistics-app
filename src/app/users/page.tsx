@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { Fragment, useState, type FormEvent } from "react";
 import Link from "next/link";
 import PageHeader from "@/components/ui/PageHeader";
 import { Button, Card, ErrorMessage, Field, inputClass } from "@/components/ui/form";
@@ -8,6 +8,7 @@ import { useQuery } from "@/lib/hooks";
 import { useCurrentProfile, usePermissions } from "@/lib/profile-context";
 import { formatDate } from "@/lib/format";
 import { isMock, supabase } from "@/lib/supabase";
+import { mockUsersApi } from "@/lib/mock-supabase";
 import type { RoleRow } from "@/lib/types";
 
 type UserRow = {
@@ -23,6 +24,7 @@ type UsersResponse = { users: UserRow[]; unlinkedDrivers: { id: string; name: st
 
 // Calls our server routes with the signed-in user's token; the server checks they hold users.manage.
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
+  if (isMock) return mockUsersApi(path, init) as T; // sample data mode: no server
   const { data } = await supabase.auth.getSession();
   const res = await fetch(path, {
     ...init,
@@ -46,27 +48,29 @@ export default function UsersPage() {
   const roleLabel = (key: string | null) => allRoles.find((r) => r.key === key)?.label ?? key ?? "No access";
 
   const users = useQuery<UsersResponse>(() =>
-    isMock
-      ? Promise.resolve({ data: null, error: null })
-      : api<UsersResponse>("/api/users").then(
-          (data) => ({ data, error: null }),
-          (e: Error) => ({ data: null, error: { message: e.message } })
-        )
+    api<UsersResponse>("/api/users").then(
+      (data) => ({ data, error: null }),
+      (e: Error) => ({ data: null, error: { message: e.message } })
+    )
   );
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [role, setRole] = useState("staff");
   const [busy, setBusy] = useState(false);
+  // The person being edited (name and email), or null.
+  const [editing, setEditing] = useState<{ id: string; name: string; email: string } | null>(null);
 
-  async function run(action: () => Promise<unknown>, success: string) {
+  async function run(action: () => Promise<unknown>, success: string): Promise<boolean> {
     setError(null);
     setNotice(null);
     try {
       await action();
       setNotice(success);
       users.reload();
+      return true;
     } catch (e) {
       setError((e as Error).message);
+      return false;
     }
   }
 
@@ -97,13 +101,22 @@ export default function UsersPage() {
   const patch = (id: string, body: object, success: string) =>
     run(() => api(`/api/users/${id}`, { method: "PATCH", body: JSON.stringify(body) }), success);
 
+  async function saveEdit(e: FormEvent) {
+    e.preventDefault();
+    if (!editing) return;
+    setBusy(true);
+    const saved = await patch(editing.id, { full_name: editing.name, email: editing.email }, `Saved details for ${editing.name}.`);
+    setBusy(false);
+    if (saved) setEditing(null);
+  }
+
   return (
     <>
       <PageHeader title="Users" description="Add people and choose their role. What each role can do is set under Roles & Permissions." />
 
       {isMock && (
         <p className="mb-4 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">
-          User management needs the real Supabase connection. It is not available in mock data mode.
+          Sample data mode: these people are examples. Adding new users needs the real Supabase connection.
         </p>
       )}
 
@@ -185,8 +198,11 @@ export default function UsersPage() {
                 const isMe = u.id === me.id;
                 // Managers cannot modify a super admin.
                 const locked = isMe || (!isSuperAdmin && u.role === "super_admin");
+                const canEditPerson = isSuperAdmin || u.role !== "super_admin"; // managers cannot edit a super admin
+                const isEditing = editing?.id === u.id;
                 return (
-                  <tr key={u.id}>
+                  <Fragment key={u.id}>
+                  <tr>
                     <td className="px-4 py-3">
                       <p className="font-medium">
                         {u.full_name || "—"} {isMe && <span className="text-xs text-slate-500">(you)</span>}
@@ -226,6 +242,14 @@ export default function UsersPage() {
                       {u.last_sign_in_at ? formatDate(u.last_sign_in_at) : "Never"}
                     </td>
                     <td className="space-x-3 whitespace-nowrap px-4 py-3 text-right">
+                      {canEditPerson && (
+                        <button
+                          className="text-blue-700"
+                          onClick={() => setEditing(isEditing ? null : { id: u.id, name: u.full_name, email: u.email })}
+                        >
+                          {isEditing ? "Close" : "Edit"}
+                        </button>
+                      )}
                       {(!locked || isMe) && (
                         <button
                           className="text-blue-700"
@@ -253,6 +277,45 @@ export default function UsersPage() {
                       )}
                     </td>
                   </tr>
+                  {isEditing && editing && (
+                    <tr className="bg-slate-50">
+                      <td colSpan={5} className="px-4 py-4">
+                        <form onSubmit={saveEdit} className="grid max-w-2xl gap-3 sm:grid-cols-2">
+                          <Field label="Full name">
+                            <input
+                              required
+                              value={editing.name}
+                              onChange={(e) => setEditing({ ...editing, name: e.target.value })}
+                              className={inputClass}
+                            />
+                          </Field>
+                          <Field label="Email (they sign in with this)">
+                            <input
+                              required
+                              type="email"
+                              value={editing.email}
+                              onChange={(e) => setEditing({ ...editing, email: e.target.value })}
+                              className={inputClass}
+                            />
+                          </Field>
+                          {u.driver && (
+                            <p className="text-xs text-slate-500 sm:col-span-2">
+                              This person is a driver: their name on pickups and booking forms will change too.
+                            </p>
+                          )}
+                          <div className="flex gap-2 sm:col-span-2">
+                            <Button type="submit" disabled={busy}>
+                              {busy ? "Saving…" : "Save"}
+                            </Button>
+                            <Button type="button" variant="secondary" onClick={() => setEditing(null)}>
+                              Cancel
+                            </Button>
+                          </div>
+                        </form>
+                      </td>
+                    </tr>
+                  )}
+                  </Fragment>
                 );
               })}
             </tbody>

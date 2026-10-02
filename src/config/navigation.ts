@@ -26,7 +26,7 @@ export const navItems: NavItem[] = [
   { label: "Dashboard", shortLabel: "Home", href: "/", icon: LayoutDashboard, anyOf: ["dashboard.view"] },
   { label: "Bookings", shortLabel: "Bookings", href: "/bookings", icon: ClipboardList, anyOf: ["bookings.view"] },
   { label: "Pickups", shortLabel: "Pickups", href: "/pickups", icon: Truck, anyOf: ["pickups.view_all", "pickups.view_own"] },
-  { label: "Warehouse Inventory", shortLabel: "Warehouse", href: "/warehouse-inventory", icon: Boxes, anyOf: ["warehouse.view"] },
+  { label: "Warehouse", shortLabel: "Warehouse", href: "/warehouse-inventory", icon: Boxes, anyOf: ["warehouse.view"] },
   { label: "Containers", shortLabel: "Containers", href: "/containers", icon: Container, anyOf: ["containers.view", "containers.manage"] },
   { label: "Accounts", shortLabel: "Accounts", href: "/accounts", icon: Wallet, anyOf: ["accounts.view"] },
   { label: "Users", shortLabel: "Users", href: "/users", icon: UserCog, anyOf: ["users.manage"] },

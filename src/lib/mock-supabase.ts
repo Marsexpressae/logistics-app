@@ -11,7 +11,7 @@ type Db = {
   booking_events: Row[]; notifications: Row[];
 };
 
-const STORAGE_KEY = "logistics-mock-db-v9";
+const STORAGE_KEY = "logistics-mock-db-v10";
 const AUTH_KEY = "logistics-mock-signed-out";
 
 const uid = () => crypto.randomUUID();
@@ -132,7 +132,13 @@ function seed(): Db {
     audit_log: [],
     booking_events: [],
     notifications: [],
-    profiles: [{ id: "mock-user", full_name: "Tester (super admin)", role: "super_admin", active: true }],
+    profiles: [
+      { id: "mock-user", full_name: "Tester (super admin)", role: "super_admin", active: true, email: "tester@example.test" },
+      { id: "sample-manager", full_name: "Mona Manager", role: "manager", active: true, email: "mona@example.test" },
+      { id: "sample-staff", full_name: "Sam Staff", role: "staff", active: true, email: "sam@example.test" },
+      { id: "sample-driver", full_name: "Dan Driver", role: "driver", active: true, email: "dan@example.test" },
+      { id: "sample-warehouse", full_name: "Wendy Warehouse", role: "warehouse", active: false, email: "wendy@example.test" },
+    ],
     roles: ROLES,
     permissions: PERMISSIONS,
     role_permissions: ROLE_PERMISSIONS,
@@ -511,4 +517,37 @@ export function createMockClient() {
       new Promise((resolve) => setTimeout(() => resolve(RPC[name](args)), 60)),
     auth,
   };
+}
+
+/**
+ * Sample-data stand-in for the /api/users server route (the Users screen). Same rules as the real route:
+ * valid and unique email, a name is required, and a manager cannot touch a super admin.
+ */
+export async function mockUsersApi(path: string, init?: RequestInit): Promise<any> {
+  await new Promise((r) => setTimeout(r, 60));
+  const profiles = db().profiles;
+  const me = profiles.find((p) => p.id === "mock-user");
+  if (!init?.method || init.method === "GET") {
+    return {
+      users: profiles.map((p) => ({ id: p.id, email: p.email, full_name: p.full_name, role: p.role, active: p.active, driver: null, last_sign_in_at: null })),
+      unlinkedDrivers: [],
+    };
+  }
+  const id = path.split("/").pop();
+  const target = profiles.find((p) => p.id === id);
+  const body = JSON.parse(String(init.body ?? "{}"));
+  if (!target) throw new Error("User not found");
+  if (me?.role !== "super_admin" && target.role === "super_admin") throw new Error("Only a super admin can change a super admin");
+  if (body.full_name !== undefined && !String(body.full_name).trim()) throw new Error("Name cannot be empty");
+  if (body.email !== undefined) {
+    const email = String(body.email).trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error("Enter a valid email address");
+    if (profiles.some((p) => p.id !== id && p.email === email)) throw new Error("That email address is already used by someone else");
+    target.email = email;
+  }
+  if (body.full_name !== undefined) target.full_name = String(body.full_name).trim();
+  if (body.role !== undefined) target.role = body.role;
+  if (body.active !== undefined) target.active = Boolean(body.active);
+  save();
+  return { ok: true };
 }
