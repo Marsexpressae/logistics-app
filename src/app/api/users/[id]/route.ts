@@ -44,6 +44,11 @@ export async function PATCH(req: Request, ctx: RouteContext<"/api/users/[id]">) 
     if (body.email !== undefined) {
       const email = String(body.email).trim().toLowerCase();
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new HttpError(400, "Enter a valid email address");
+      // Supabase only says "Error updating user" for a duplicate, so check up front and give a clear message.
+      const { data: everyone } = await admin.auth.admin.listUsers({ perPage: 1000 });
+      if (everyone?.users.some((u) => u.id !== id && u.email?.toLowerCase() === email)) {
+        throw new HttpError(400, "That email address is already used by someone else");
+      }
       authUpdate.email = email;
       authUpdate.email_confirm = true; // no confirmation email: an admin is vouching for the address
     }
