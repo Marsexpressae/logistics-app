@@ -1,6 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  async redirects() {
+    // Some browsers and tools still ask for /favicon.ico directly.
+    return [{ source: "/favicon.ico", destination: "/icon.svg", permanent: false }];
+  },
   async headers() {
     return [
       {

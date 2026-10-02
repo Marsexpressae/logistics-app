@@ -21,7 +21,14 @@ export const metadata: Metadata = {
   applicationName: site.name,
   // iOS: "Add to Home Screen" opens full-screen with this title and icon.
   appleWebApp: { capable: true, title: site.name, statusBarStyle: "default" },
-  icons: { apple: "/icons/180" }, // the favicon comes from src/app/icon.svg
+  icons: {
+    // Browser tab: the SVG where supported, with a PNG fallback.
+    icon: [
+      { url: "/icon.svg", type: "image/svg+xml" },
+      { url: "/icons/192", type: "image/png", sizes: "192x192" },
+    ],
+    apple: "/icons/180",
+  },
 };
 
 export const viewport: Viewport = {
