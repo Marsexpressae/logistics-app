@@ -1,8 +1,10 @@
 import { ImageResponse } from "next/og";
 
-// Generates the app icon at /icons/192, /icons/512, /icons/180 (iOS), optionally ?maskable=1.
-// Placeholder artwork (white "M" on blue). To use a real logo, replace this with static PNGs in /public.
+// App icons: /icons/192, /icons/512, /icons/180 (iPhone). "?maskable=1" gives the full-bleed Android version.
+// Design: an envelope whose flap forms the letter M (white on Mars red). Keep in sync with
+// src/components/brand/BrandMark.tsx and src/app/icon.svg.
 const SIZES = new Set([180, 192, 512]);
+const RED = "#d9442a";
 
 export async function GET(req: Request, { params }: { params: Promise<{ size: string }> }) {
   const { size: raw } = await params;
@@ -10,9 +12,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ size: st
   if (!SIZES.has(size)) return new Response("Not found", { status: 404 });
 
   const maskable = new URL(req.url).searchParams.has("maskable");
-  // Maskable icons keep important artwork inside the central 80% "safe zone".
-  const fontSize = Math.round(size * (maskable ? 0.5 : 0.62));
-  const radius = maskable ? 0 : Math.round(size * 0.22);
+  // Android masks maskable icons (circle, squircle...), and iOS rounds its own corners, so both
+  // get a square, full-bleed background. Only the plain "any" icons carry their own rounded corners.
+  const roundedCorners = !maskable && size !== 180;
 
   return new ImageResponse(
     (
@@ -23,15 +25,20 @@ export async function GET(req: Request, { params }: { params: Promise<{ size: st
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: "#2563eb",
-          borderRadius: radius,
-          color: "white",
-          fontSize,
-          fontWeight: 800,
-          letterSpacing: -2,
+          background: RED,
+          borderRadius: roundedCorners ? Math.round(size * 0.22) : 0,
         }}
       >
-        M
+        <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 136 136">
+          <polyline
+            points="30,98 30,38 68,76 106,38 106,98 30,98"
+            fill="none"
+            stroke="#ffffff"
+            strokeWidth="10"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
       </div>
     ),
     { width: size, height: size }

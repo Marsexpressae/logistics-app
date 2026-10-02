@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LogOut, Package } from "lucide-react";
+import { LogOut } from "lucide-react";
+import BrandMark from "@/components/brand/BrandMark";
 import { homePath, navItems } from "@/config/navigation";
 import InstallButton from "@/components/pwa/InstallButton";
 import { site } from "@/config/site";
@@ -36,7 +37,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
           aria-label={`${site.name} home`}
           className="flex h-16 items-center gap-2 border-b border-slate-200 px-6 transition-colors hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500"
         >
-          <Package className="h-6 w-6 text-blue-600" />
+          <BrandMark size={32} />
           <span className="text-lg font-semibold text-slate-900">{site.name}</span>
         </Link>
 

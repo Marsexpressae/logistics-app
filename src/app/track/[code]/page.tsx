@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { Package } from "lucide-react";
+import BrandMark from "@/components/brand/BrandMark";
 import { Card, ErrorMessage, StatusBadge } from "@/components/ui/form";
 import { site } from "@/config/site";
 import { useQuery } from "@/lib/hooks";
@@ -20,7 +20,7 @@ export default function TrackingPage() {
   return (
     <div className="mx-auto w-full max-w-xl space-y-4 p-4 sm:p-6">
       <div className="flex items-center gap-2 pt-2">
-        <Package className="h-6 w-6 text-blue-600" />
+        <BrandMark size={32} />
         <div>
           <p className="text-sm font-semibold leading-tight text-blue-700">{site.name}</p>
           <h1 className="text-xl font-semibold leading-tight">Cargo tracking</h1>

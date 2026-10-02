@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { Package } from "lucide-react";
+import BrandMark from "@/components/brand/BrandMark";
 import InstallBanner from "@/components/pwa/InstallBanner";
 import { site } from "@/config/site";
 import { supabase, isMock } from "@/lib/supabase";
@@ -30,7 +30,7 @@ export default function LoginPage() {
       <InstallBanner className="w-full max-w-sm" />
       <form onSubmit={onSubmit} className="w-full max-w-sm space-y-4 rounded-lg border border-slate-200 bg-white p-6">
         <div className="flex items-center gap-2">
-          <Package className="h-6 w-6 text-blue-600" />
+          <BrandMark size={36} />
           <div>
             <p className="text-lg font-semibold leading-tight">{site.name}</p>
             <h1 className="text-sm text-slate-500">Sign in to continue</h1>
