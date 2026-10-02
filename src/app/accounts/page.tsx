@@ -6,23 +6,25 @@ import EmptyState from "@/components/ui/EmptyState";
 import { Card, ErrorMessage } from "@/components/ui/form";
 import { useQuery } from "@/lib/hooks";
 import { supabase } from "@/lib/supabase";
-import { money, totalPaid } from "@/lib/format";
+import { money, round2, totalPaid } from "@/lib/format";
 import type { Booking } from "@/lib/types";
 
 export default function AccountsPage() {
   const { data, error, loading } = useQuery<Booking[]>(() =>
-    supabase.from("bookings").select("*, payments(*)").neq("status", "cancelled").order("created_at", { ascending: false })
+    supabase.from("bookings").select("*, payments(*)").order("created_at", { ascending: false })
   );
 
-  const rows = (data ?? []).map((b) => ({ b, paid: totalPaid(b.payments) }));
+  const all = (data ?? []).map((b) => ({ b, paid: totalPaid(b.payments) }));
+  // Money received counts even if the booking was cancelled later; cancelled bookings are not billed or owed.
+  const rows = all.filter((r) => r.b.status !== "cancelled");
   const invoiced = rows.filter((r) => r.b.invoice_amount !== null);
   const notInvoiced = rows.filter((r) => r.b.invoice_amount === null);
 
-  const billed = invoiced.reduce((s, r) => s + Number(r.b.invoice_amount), 0);
-  const collected = rows.reduce((s, r) => s + r.paid, 0);
-  const outstanding = invoiced.filter((r) => Number(r.b.invoice_amount) > r.paid);
-  const outstandingTotal = outstanding.reduce((s, r) => s + Number(r.b.invoice_amount) - r.paid, 0);
-  const estimatedPending = notInvoiced.reduce((s, r) => s + Number(r.b.estimated_bill ?? 0), 0);
+  const billed = round2(invoiced.reduce((s, r) => s + Number(r.b.invoice_amount), 0));
+  const collected = round2(all.reduce((s, r) => s + r.paid, 0));
+  const outstanding = invoiced.filter((r) => round2(Number(r.b.invoice_amount) - r.paid) > 0);
+  const outstandingTotal = round2(outstanding.reduce((s, r) => s + Number(r.b.invoice_amount) - r.paid, 0));
+  const estimatedPending = round2(notInvoiced.reduce((s, r) => s + Number(r.b.estimated_bill ?? 0), 0));
 
   return (
     <>
@@ -77,7 +79,7 @@ export default function AccountsPage() {
                   <td className="px-4 py-3">{b.sender_name}</td>
                   <td className="px-4 py-3 text-right">{money(b.invoice_amount!)}</td>
                   <td className="px-4 py-3 text-right">{money(paid)}</td>
-                  <td className="px-4 py-3 text-right font-medium">{money(Number(b.invoice_amount) - paid)}</td>
+                  <td className="px-4 py-3 text-right font-medium">{money(round2(Number(b.invoice_amount) - paid))}</td>
                 </tr>
               ))}
             </tbody>

@@ -3,7 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { Check, Pencil, Trash2, X } from "lucide-react";
 import { Button, Card, ErrorMessage, Field, inputClass } from "@/components/ui/form";
-import { formatDate, methodLabel, money, totalPaid } from "@/lib/format";
+import { formatDate, methodLabel, money, round2, totalPaid } from "@/lib/format";
 import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
 import type { Booking, Payment } from "@/lib/types";
@@ -113,7 +113,7 @@ export default function PaymentsCard({ booking, payments, onChanged }: PaymentsC
         </div>
         <div>
           <p className="text-slate-500">Balance</p>
-          <p className="font-semibold">{invoiced ? money(Math.max(Number(booking.invoice_amount) - paid, 0)) : "—"}</p>
+          <p className="font-semibold">{invoiced ? money(Math.max(round2(Number(booking.invoice_amount) - paid), 0)) : "—"}</p>
         </div>
       </div>
 

@@ -7,7 +7,7 @@ import { Button, ErrorMessage } from "@/components/ui/form";
 import { site } from "@/config/site";
 import { useQuery } from "@/lib/hooks";
 import { supabase } from "@/lib/supabase";
-import { formatDate, methodLabel, money, totalPaid } from "@/lib/format";
+import { formatDate, kg, methodLabel, money, round2, totalPaid } from "@/lib/format";
 import { formatPhone } from "@/lib/phone";
 import type { Booking, BookingItem } from "@/lib/types";
 
@@ -75,14 +75,14 @@ export default function ReceiptPage() {
               <tr key={i.id} className="border-t border-slate-100">
                 <td className="py-1.5">{i.description}</td>
                 <td className="py-1.5 text-right">{i.quantity}</td>
-                <td className="py-1.5 text-right">{Number(i.weight_kg) * i.quantity} kg</td>
+                <td className="py-1.5 text-right">{kg(Number(i.weight_kg) * i.quantity)}</td>
               </tr>
             ))}
             <tr className="border-t border-slate-300 font-medium">
               <td className="py-2" colSpan={2}>
                 Total weight
               </td>
-              <td className="py-2 text-right">{totalWeight} kg</td>
+              <td className="py-2 text-right">{kg(totalWeight)}</td>
             </tr>
           </tbody>
         </table>
@@ -109,7 +109,7 @@ export default function ReceiptPage() {
           {invoiced ? (
             <div className="flex justify-between">
               <span>Balance</span>
-              <span>{money(Math.max(Number(b.invoice_amount) - paid, 0))}</span>
+              <span>{money(Math.max(round2(Number(b.invoice_amount) - paid), 0))}</span>
             </div>
           ) : (
             <p className="mt-1 text-xs text-slate-500">Final bill will be confirmed on the invoice.</p>

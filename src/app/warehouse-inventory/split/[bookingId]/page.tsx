@@ -7,6 +7,7 @@ import { ArrowLeft, PackageCheck, Plus, Printer, Trash2 } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
 import ParcelLabel from "@/components/ui/ParcelLabel";
 import { Button, Card, ErrorMessage, Field, inputClass } from "@/components/ui/form";
+import { kg, round2 } from "@/lib/format";
 import { useQuery } from "@/lib/hooks";
 import { supabase } from "@/lib/supabase";
 import type { Booking, BookingItem, Parcel, Warehouse } from "@/lib/types";
@@ -42,8 +43,8 @@ export default function ReceivePage() {
   const rows = custom ?? collected;
   const received = (parcels.data?.length ?? 0) > 0;
   const hasItems = collected.length > 0;
-  const collectedWeight = collected.reduce((s, r) => s + Number(r.weight_kg), 0);
-  const rowsWeight = rows.reduce((s, r) => s + Number(r.weight_kg || 0), 0);
+  const collectedWeight = round2(collected.reduce((s, r) => s + Number(r.weight_kg), 0));
+  const rowsWeight = round2(rows.reduce((s, r) => s + Number(r.weight_kg || 0), 0));
   const warehouse = warehouseId || warehouses.data?.[0]?.id || "";
 
   const update = (i: number, patch: Partial<Row>) =>
@@ -51,6 +52,7 @@ export default function ReceivePage() {
 
   async function save(list: Row[]) {
     if (received && !confirm("This replaces the parcels already received, and their barcodes. Continue?")) return;
+    if (list.some((r) => Number(r.weight_kg || 0) < 0)) return setError("A weight cannot be negative.");
     setBusy(true);
     setError(null);
     const { error } = await supabase.rpc("split_booking", {
@@ -77,7 +79,7 @@ export default function ReceivePage() {
         title={`Receive ${b.code}`}
         description={
           hasItems
-            ? `Collected: ${collected.length} ${collected.length === 1 ? "package" : "packages"} · ${collectedWeight} kg`
+            ? `Collected: ${collected.length} ${collected.length === 1 ? "package" : "packages"} · ${kg(collectedWeight)}`
             : "No packages were recorded at pickup."
         }
       />
@@ -223,7 +225,7 @@ export default function ReceivePage() {
             <Plus className="h-4 w-4" /> Add parcel
           </Button>
           <span className={`text-sm ${different ? "text-amber-700" : "text-slate-500"}`}>
-            {rowsWeight} kg{hasItems ? ` of ${collectedWeight} kg collected` : ""}
+            {kg(rowsWeight)}{hasItems ? ` of ${kg(collectedWeight)} collected` : ""}
             {different ? ": the weights do not match" : ""}
           </span>
         </div>

@@ -6,8 +6,14 @@ export const money = (n: number) =>
 export const formatDate = (iso: string) =>
   new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 
+/** Rounds to 2 decimals, so sums like 0.1 + 0.2 do not show as 0.30000000000000004. */
+export const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
+
+/** A weight for display: "80 kg", "12.5 kg". */
+export const kg = (n: number) => `${round2(n)} kg`;
+
 export const totalPaid = (payments: Pick<Payment, "amount">[] = []) =>
-  payments.reduce((sum, p) => sum + Number(p.amount), 0);
+  round2(payments.reduce((sum, p) => sum + Number(p.amount), 0));
 
 export const methodLabel = (m: string) => (m === "bank_transfer" ? "Bank transfer" : "Cash");
 

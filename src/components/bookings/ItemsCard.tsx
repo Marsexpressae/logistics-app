@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { Check, Pencil, Trash2, X } from "lucide-react";
 import { Button, Card, ErrorMessage, inputClass } from "@/components/ui/form";
+import { kg, round2 } from "@/lib/format";
 import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
 import type { BookingItem } from "@/lib/types";
@@ -28,7 +29,7 @@ export default function ItemsCard({ bookingId, items, onChanged }: ItemsCardProp
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const totalWeight = items.reduce((s, i) => s + Number(i.weight_kg) * i.quantity, 0);
+  const totalWeight = round2(items.reduce((s, i) => s + Number(i.weight_kg) * i.quantity, 0));
   const totalPackages = items.reduce((s, i) => s + i.quantity, 0);
 
   async function run(action: PromiseLike<{ error: { message: string } | null }>) {
@@ -82,7 +83,7 @@ export default function ItemsCard({ bookingId, items, onChanged }: ItemsCardProp
 
   function remove(i: BookingItem) {
     const sure = confirm(
-      `Remove "${i.description}" (${i.quantity} × ${Number(i.weight_kg)} kg)?\n\nThis is saved straight away and recorded in the Activity log.`
+      `Remove "${i.description}" (${i.quantity} × ${kg(Number(i.weight_kg))})?\n\nThis is saved straight away and recorded in the Activity log.`
     );
     if (sure) run(supabase.from("booking_items").delete().eq("id", i.id));
   }
@@ -133,7 +134,7 @@ export default function ItemsCard({ bookingId, items, onChanged }: ItemsCardProp
                     {i.quantity} × {i.description}
                   </span>
                   <span className="block text-xs text-slate-500">
-                    {Number(i.weight_kg)} kg each · {Number(i.weight_kg) * i.quantity} kg
+                    {kg(Number(i.weight_kg))} each · {kg(Number(i.weight_kg) * i.quantity)}
                   </span>
                 </span>
                 {canChange && (
@@ -153,7 +154,7 @@ export default function ItemsCard({ bookingId, items, onChanged }: ItemsCardProp
             <span>
               Total · {totalPackages} {totalPackages === 1 ? "package" : "packages"}
             </span>
-            <span>{totalWeight} kg</span>
+            <span>{kg(totalWeight)}</span>
           </li>
         </ul>
       ) : (
