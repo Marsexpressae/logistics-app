@@ -8,13 +8,15 @@ import PageHeader from "@/components/ui/PageHeader";
 import AuditList from "@/components/audit/AuditList";
 import BookingChangePanel from "@/components/bookings/BookingChangePanel";
 import BookingForm from "@/components/bookings/BookingForm";
+import ItemsCard from "@/components/bookings/ItemsCard";
+import PaymentsCard from "@/components/bookings/PaymentsCard";
 import ScheduleHistory from "@/components/bookings/ScheduleHistory";
 import { Card, ErrorMessage, StatusBadge } from "@/components/ui/form";
 import { formatDate } from "@/lib/format";
 import { useQuery } from "@/lib/hooks";
 import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
-import type { AuditEntry, Booking } from "@/lib/types";
+import type { AuditEntry, Booking, BookingItem, Payment } from "@/lib/types";
 
 export default function EditBookingPage() {
   const { id } = useParams<{ id: string }>();
@@ -29,6 +31,13 @@ export default function EditBookingPage() {
       ? supabase.from("audit_log").select("*").eq("booking_id", id).order("id", { ascending: false })
       : Promise.resolve({ data: [], error: null })
   );
+  const items = useQuery<BookingItem[]>(() =>
+    supabase.from("booking_items").select("*").eq("booking_id", id).order("id")
+  );
+  const payments = useQuery<Payment[]>(() =>
+    supabase.from("payments").select("*").eq("booking_id", id).order("created_at")
+  );
+  const seesMoney = can("accounts.view") || can("pickups.collect") || can("payments.manage");
   const [changes, setChanges] = useState(0); // bumps after a reschedule/cancel so the history refreshes
 
   const b = booking.data;
@@ -79,6 +88,21 @@ export default function EditBookingPage() {
       <fieldset disabled={!canEdit} className="min-w-0 border-0 p-0">
         <BookingForm key={b.updated_at} booking={b} submitLabel="Save changes" onSaved={() => router.push("/bookings")} />
       </fieldset>
+
+      {/* The same package list and payments the driver sees on the pickup page. */}
+      <div className="mt-6 max-w-3xl space-y-4">
+        <ItemsCard bookingId={id} status={b.status} items={items.data ?? []} onChanged={() => { items.reload(); history.reload(); }} />
+        {seesMoney && (
+          <PaymentsCard
+            booking={b}
+            payments={payments.data ?? []}
+            onChanged={() => {
+              payments.reload();
+              history.reload();
+            }}
+          />
+        )}
+      </div>
 
       <div className="mt-6 space-y-6">
         <ScheduleHistory bookingId={id} reloadKey={changes} />

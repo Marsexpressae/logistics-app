@@ -30,7 +30,7 @@ export default function WarehouseInventoryPage() {
 
   return (
     <>
-      <PageHeader title="Warehouse" description="Receive collected packages and split them into parcels." />
+      <PageHeader title="Warehouse" description="Receive collected packages, then print their labels." />
       <ErrorMessage message={awaiting.error ?? parcels.error} />
 
       <Card id="awaiting-intake" title="Awaiting warehouse intake" className="mb-6 scroll-mt-4">
@@ -45,7 +45,7 @@ export default function WarehouseInventoryPage() {
                 </span>
                 {canOperate && (
                   <Link href={`/warehouse-inventory/split/${b.id}`} className="font-medium text-blue-700">
-                    Receive & split
+                    Receive
                   </Link>
                 )}
               </li>
@@ -96,7 +96,7 @@ export default function WarehouseInventoryPage() {
                   <td className="px-4 py-3">
                     {canOperate && (
                       <Link href={`/warehouse-inventory/split/${p.booking_id}`} className="text-blue-700">
-                        Labels / re-split
+                        Labels
                       </Link>
                     )}
                   </td>

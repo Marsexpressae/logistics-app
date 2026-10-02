@@ -14,8 +14,12 @@ export const TABLE_LABELS: Record<string, string> = {
 
 const humanize = (key: string) => key.replace(/_/g, " ");
 
+const ISO_DATETIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/;
+
 function show(v: unknown): string {
   if (v === null || v === undefined || v === "") return "empty";
+  // timestamps read like normal dates instead of 2026-10-02T13:48:02.432+00:00
+  if (typeof v === "string" && ISO_DATETIME.test(v)) return formatDate(v);
   const s = typeof v === "object" ? JSON.stringify(v) : String(v);
   return s.length > 40 ? `${s.slice(0, 40)}…` : s;
 }
