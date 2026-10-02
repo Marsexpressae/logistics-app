@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Menu } from "lucide-react";
 import Sidebar from "./Sidebar";
+import BottomNav from "./BottomNav";
+import BrandMark from "@/components/brand/BrandMark";
 import InstallBanner from "@/components/pwa/InstallBanner";
 import { canAccess, homePath } from "@/config/navigation";
 import { site } from "@/config/site";
@@ -27,7 +28,6 @@ export default function AppShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const session = useSession();
   const { profile, roleLabel, permissions, loading: profileLoading } = useProfile(session);
-  const [menuOpen, setMenuOpen] = useState(false);
   const isPublic = isPublicPath(pathname);
 
   const allowed = profile ? canAccess(permissions, pathname) : true;
@@ -57,16 +57,19 @@ export default function AppShell({ children }: { children: ReactNode }) {
   return (
     <ProfileContext.Provider value={{ profile, roleLabel, permissions }}>
       <div className="flex h-full flex-1 flex-col md:flex-row">
-        <header className="flex h-14 items-center gap-3 border-b border-slate-200 bg-white px-4 print:hidden md:hidden">
-          <button onClick={() => setMenuOpen(true)} aria-label="Open menu">
-            <Menu className="h-6 w-6 text-slate-700" />
-          </button>
-          <Link href={homePath(permissions)} aria-label={`${site.name} home`} className="font-semibold text-slate-900">
-            {site.name}
+        {/* Phone top bar: just the brand. Navigation lives in the bottom bar, within thumb reach. */}
+        <header
+          className="flex h-14 shrink-0 items-center border-b border-slate-200 bg-white px-4 print:hidden md:hidden"
+          style={{ paddingTop: "env(safe-area-inset-top)" }}
+        >
+          <Link href={homePath(permissions)} aria-label={`${site.name} home`} className="flex items-center gap-2">
+            <BrandMark size={28} />
+            <span className="font-semibold text-slate-900">{site.name}</span>
           </Link>
         </header>
-        <Sidebar open={menuOpen} onClose={() => setMenuOpen(false)} />
-        <main className="flex-1 overflow-y-auto p-4 md:p-8 print:p-0">
+        <Sidebar />
+        {/* Extra bottom padding on phones keeps the last content clear of the bottom bar. */}
+        <main className="flex-1 overflow-y-auto p-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:p-8 md:pb-8 print:p-0">
           <InstallBanner className="mb-4" />
           {isMock && (
             <div className="mb-4 flex items-center justify-between gap-3 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800 print:hidden">
@@ -78,6 +81,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
           )}
           {children}
         </main>
+        <BottomNav />
       </div>
     </ProfileContext.Provider>
   );

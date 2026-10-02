@@ -33,6 +33,7 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: "#0f172a",
+  viewportFit: "cover", // lets safe-area insets (home bar, notch) apply on phones
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

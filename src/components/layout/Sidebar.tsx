@@ -10,9 +10,8 @@ import { site } from "@/config/site";
 import { supabase } from "@/lib/supabase";
 import { useCurrentProfile, usePermissions } from "@/lib/profile-context";
 
-type SidebarProps = { open: boolean; onClose: () => void };
-
-export default function Sidebar({ open, onClose }: SidebarProps) {
+// Desktop and tablet navigation. On phones the BottomNav is used instead.
+export default function Sidebar() {
   const pathname = usePathname();
   const profile = useCurrentProfile();
   const { canAny, permissions } = usePermissions();
@@ -23,55 +22,46 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
   const items = navItems.filter((i) => canAny(...i.anyOf));
 
   return (
-    <>
-      {open && <div className="fixed inset-0 z-30 bg-black/40 md:hidden" onClick={onClose} />}
-      <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-64 shrink-0 flex-col border-r border-slate-200 bg-white transition-transform print:hidden md:static md:translate-x-0 ${
-          open ? "translate-x-0" : "-translate-x-full"
-        }`}
+    <aside className="hidden w-64 shrink-0 flex-col border-r border-slate-200 bg-white print:hidden md:flex">
+      {/* Logo and name go to this person's home page (the Dashboard, or Pickups for drivers). */}
+      <Link
+        href={homePath(permissions)}
+        aria-label={`${site.name} home`}
+        className="flex h-16 items-center gap-2 border-b border-slate-200 px-6 transition-colors hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500"
       >
-        {/* Logo and name go to this person's home page (the Dashboard, or Pickups for drivers). */}
-        <Link
-          href={homePath(permissions)}
-          onClick={onClose}
-          aria-label={`${site.name} home`}
-          className="flex h-16 items-center gap-2 border-b border-slate-200 px-6 transition-colors hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500"
-        >
-          <BrandMark size={32} />
-          <span className="text-lg font-semibold text-slate-900">{site.name}</span>
-        </Link>
+        <BrandMark size={32} />
+        <span className="text-lg font-semibold text-slate-900">{site.name}</span>
+      </Link>
 
-        <nav className="flex-1 space-y-1 p-3">
-          {items.map(({ label, href, icon: Icon }) => (
-            <Link
-              key={href}
-              href={href}
-              onClick={onClose}
-              className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-                isActive(href)
-                  ? "bg-blue-50 text-blue-700"
-                  : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-              }`}
-            >
-              <Icon className="h-5 w-5" />
-              {label}
-            </Link>
-          ))}
-        </nav>
+      <nav className="flex-1 space-y-1 p-3">
+        {items.map(({ label, href, icon: Icon }) => (
+          <Link
+            key={href}
+            href={href}
+            className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+              isActive(href)
+                ? "bg-blue-50 text-blue-700"
+                : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+            }`}
+          >
+            <Icon className="h-5 w-5" />
+            {label}
+          </Link>
+        ))}
+      </nav>
 
-        <InstallButton />
-        <div className="border-t border-slate-200 px-6 py-3">
-          <p className="truncate text-sm font-medium text-slate-900">{profile.full_name || "Signed in"}</p>
-          <p className="text-xs text-slate-500">{profile.roleLabel}</p>
-        </div>
-        <button
-          onClick={() => supabase.auth.signOut()}
-          className="flex items-center gap-3 border-t border-slate-200 px-6 py-4 text-sm font-medium text-slate-600 hover:text-slate-900"
-        >
-          <LogOut className="h-5 w-5" />
-          Sign out
-        </button>
-      </aside>
-    </>
+      <InstallButton />
+      <div className="border-t border-slate-200 px-6 py-3">
+        <p className="truncate text-sm font-medium text-slate-900">{profile.full_name || "Signed in"}</p>
+        <p className="text-xs text-slate-500">{profile.roleLabel}</p>
+      </div>
+      <button
+        onClick={() => supabase.auth.signOut()}
+        className="flex items-center gap-3 border-t border-slate-200 px-6 py-4 text-sm font-medium text-slate-600 hover:text-slate-900"
+      >
+        <LogOut className="h-5 w-5" />
+        Sign out
+      </button>
+    </aside>
   );
 }
