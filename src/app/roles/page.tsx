@@ -3,7 +3,7 @@
 import { Fragment, useState } from "react";
 import { Lock } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
-import { ErrorMessage } from "@/components/ui/form";
+import { Button, ErrorMessage } from "@/components/ui/form";
 import { useQuery } from "@/lib/hooks";
 import { supabase } from "@/lib/supabase";
 import type { PermissionRow, RoleRow } from "@/lib/types";
@@ -31,17 +31,35 @@ export default function RolesPage() {
     };
   });
   const [error, setError] = useState<string | null>(null);
-  const [saving, setSaving] = useState<string | null>(null);
+  // Ticks are only collected here; nothing is saved until the Save button is pressed.
+  const [pending, setPending] = useState<Map<string, boolean>>(new Map());
+  const [saving, setSaving] = useState(false);
 
-  async function toggle(role: string, permission: string, on: boolean) {
-    setSaving(cell(role, permission));
+  function toggle(role: string, permission: string, on: boolean) {
+    const key = cell(role, permission);
+    const next = new Map(pending);
+    if (matrix.data?.granted.has(key) === on) next.delete(key); // back to how it was: not a change
+    else next.set(key, on);
+    setPending(next);
+  }
+
+  async function saveAll() {
+    setSaving(true);
     setError(null);
-    // Saved to the database immediately; every access rule in the system reads from this table.
-    const { error } = on
-      ? await supabase.from("role_permissions").insert({ role, permission })
-      : await supabase.from("role_permissions").delete().eq("role", role).eq("permission", permission);
-    setSaving(null);
-    if (error) setError(error.message);
+    // Every access rule in the system reads from this table.
+    for (const [key, on] of pending) {
+      const [role, permission] = key.split("|");
+      const { error } = on
+        ? await supabase.from("role_permissions").insert({ role, permission })
+        : await supabase.from("role_permissions").delete().eq("role", role).eq("permission", permission);
+      if (error) {
+        setError(error.message);
+        break;
+      }
+      pending.delete(key);
+    }
+    setPending(new Map(pending));
+    setSaving(false);
     matrix.reload();
   }
 
@@ -52,7 +70,7 @@ export default function RolesPage() {
     <>
       <PageHeader
         title="Roles & Permissions"
-        description="Choose what each role can do. Changes save instantly and apply to everyone with that role (they may need to refresh)."
+        description="Choose what each role can do. Tick or untick, then press Save changes. It applies to everyone with that role (they may need to refresh)."
       />
       <ErrorMessage message={error ?? matrix.error} />
 
@@ -96,8 +114,8 @@ export default function RolesPage() {
                               <input
                                 type="checkbox"
                                 className="h-4 w-4 accent-blue-600"
-                                checked={locked || m.granted.has(key)}
-                                disabled={locked || saving === key}
+                                checked={locked || (pending.get(key) ?? m.granted.has(key))}
+                                disabled={locked || saving}
                                 aria-label={`${r.label}: ${p.label}`}
                                 onChange={(e) => toggle(r.key, p.key, e.target.checked)}
                               />
@@ -110,6 +128,22 @@ export default function RolesPage() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {pending.size > 0 && (
+        <div className="sticky bottom-16 mt-3 flex items-center justify-between gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm md:bottom-4">
+          <span>
+            {pending.size} unsaved {pending.size === 1 ? "change" : "changes"}
+          </span>
+          <span className="flex gap-2">
+            <Button variant="secondary" onClick={() => setPending(new Map())} disabled={saving}>
+              Discard
+            </Button>
+            <Button onClick={saveAll} disabled={saving}>
+              {saving ? "Saving…" : "Save changes"}
+            </Button>
+          </span>
         </div>
       )}
 

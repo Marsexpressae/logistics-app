@@ -58,6 +58,8 @@ export default function UsersPage() {
   const [role, setRole] = useState("staff");
   const [busy, setBusy] = useState(false);
   // The person being edited (name and email), or null.
+  // A role picked in the list but not saved yet.
+  const [roleDraft, setRoleDraft] = useState<{ id: string; role: string } | null>(null);
   const [editing, setEditing] = useState<{ id: string; name: string; email: string } | null>(null);
 
   async function run(action: () => Promise<unknown>, success: string): Promise<boolean> {
@@ -214,9 +216,9 @@ export default function UsersPage() {
                       <select
                         aria-label={`Role for ${u.email}`}
                         className={`${inputClass} w-auto`}
-                        value={u.role ?? ""}
+                        value={roleDraft?.id === u.id ? roleDraft.role : u.role ?? ""}
                         disabled={locked}
-                        onChange={(e) => patch(u.id, { role: e.target.value }, `Role updated for ${u.email}`)}
+                        onChange={(e) => setRoleDraft(e.target.value === (u.role ?? "") ? null : { id: u.id, role: e.target.value })}
                       >
                         {!u.role && <option value="">No access</option>}
                         {u.role && !assignable.some((r) => r.key === u.role) && (
@@ -228,6 +230,23 @@ export default function UsersPage() {
                           </option>
                         ))}
                       </select>
+                      {roleDraft?.id === u.id && (
+                        <span className="ml-2 inline-flex gap-2">
+                          <Button
+                            disabled={busy}
+                            onClick={async () => {
+                              setBusy(true);
+                              if (await patch(u.id, { role: roleDraft.role }, `Role updated for ${u.email}`)) setRoleDraft(null);
+                              setBusy(false);
+                            }}
+                          >
+                            Save
+                          </Button>
+                          <Button variant="secondary" onClick={() => setRoleDraft(null)}>
+                            Cancel
+                          </Button>
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <span
