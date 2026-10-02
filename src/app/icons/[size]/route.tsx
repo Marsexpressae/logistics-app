@@ -1,10 +1,10 @@
 import { ImageResponse } from "next/og";
 
 // App icons: /icons/192, /icons/512, /icons/180 (iPhone). "?maskable=1" gives the full-bleed Android version.
-// Design: an envelope whose flap forms the letter M (white on Mars red). Keep in sync with
-// src/components/brand/BrandMark.tsx and src/app/icon.svg.
+// Design: an orange cargo box whose top edges and sides form a white letter M, on navy.
+// Keep in sync with src/components/brand/BrandMark.tsx and src/app/icon.svg.
 const SIZES = new Set([180, 192, 512]);
-const RED = "#d9442a";
+const NAVY = "#0f172a";
 
 export async function GET(req: Request, { params }: { params: Promise<{ size: string }> }) {
   const { size: raw } = await params;
@@ -25,16 +25,19 @@ export async function GET(req: Request, { params }: { params: Promise<{ size: st
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: RED,
+          background: NAVY,
           borderRadius: roundedCorners ? Math.round(size * 0.22) : 0,
         }}
       >
         <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 136 136">
+          <polygon points="68,24 106,45 68,66 30,45" fill="#fdba74" />
+          <polygon points="30,45 68,66 68,112 30,91" fill="#f97316" />
+          <polygon points="106,45 68,66 68,112 106,91" fill="#c2410c" />
           <polyline
-            points="30,98 30,38 68,76 106,38 106,98 30,98"
+            points="30,91 30,45 68,66 106,45 106,91"
             fill="none"
             stroke="#ffffff"
-            strokeWidth="10"
+            strokeWidth="7"
             strokeLinecap="round"
             strokeLinejoin="round"
           />
