@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LogOut, Package } from "lucide-react";
-import { navItems } from "@/config/navigation";
+import { homePath, navItems } from "@/config/navigation";
 import InstallButton from "@/components/pwa/InstallButton";
 import { site } from "@/config/site";
 import { supabase } from "@/lib/supabase";
@@ -14,7 +14,7 @@ type SidebarProps = { open: boolean; onClose: () => void };
 export default function Sidebar({ open, onClose }: SidebarProps) {
   const pathname = usePathname();
   const profile = useCurrentProfile();
-  const { canAny } = usePermissions();
+  const { canAny, permissions } = usePermissions();
 
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);
@@ -29,10 +29,16 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
           open ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        <div className="flex h-16 items-center gap-2 border-b border-slate-200 px-6">
+        {/* Logo and name go to this person's home page (the Dashboard, or Pickups for drivers). */}
+        <Link
+          href={homePath(permissions)}
+          onClick={onClose}
+          aria-label={`${site.name} home`}
+          className="flex h-16 items-center gap-2 border-b border-slate-200 px-6 transition-colors hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500"
+        >
           <Package className="h-6 w-6 text-blue-600" />
           <span className="text-lg font-semibold text-slate-900">{site.name}</span>
-        </div>
+        </Link>
 
         <nav className="flex-1 space-y-1 p-3">
           {items.map(({ label, href, icon: Icon }) => (
