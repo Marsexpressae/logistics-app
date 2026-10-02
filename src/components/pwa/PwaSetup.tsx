@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import "@/lib/pwa"; // starts listening for the browser's install event immediately
 
 /** Registers the offline-page service worker (production only, so it never interferes with development). */
 export default function PwaSetup() {

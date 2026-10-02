@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Package } from "lucide-react";
+import InstallBanner from "@/components/pwa/InstallBanner";
 import { site } from "@/config/site";
 import { supabase, isMock } from "@/lib/supabase";
 import { Button, ErrorMessage, Field, inputClass } from "@/components/ui/form";
@@ -25,7 +26,8 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex flex-1 items-center justify-center p-4">
+    <div className="flex flex-1 flex-col items-center justify-center gap-4 p-4">
+      <InstallBanner className="w-full max-w-sm" />
       <form onSubmit={onSubmit} className="w-full max-w-sm space-y-4 rounded-lg border border-slate-200 bg-white p-6">
         <div className="flex items-center gap-2">
           <Package className="h-6 w-6 text-blue-600" />

@@ -1,37 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { Download } from "lucide-react";
+import { useInstall } from "@/lib/pwa";
 
-// Chrome/Edge/Android fire this event when the app can be installed. (iOS Safari never does:
-// there, use Share > Add to Home Screen.)
-type InstallPromptEvent = Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: string }> };
-
+// Always-available install shortcut in the sidebar (shown only when the browser can install the app).
 export default function InstallButton() {
-  const [promptEvent, setPromptEvent] = useState<InstallPromptEvent | null>(null);
-
-  useEffect(() => {
-    const onPrompt = (e: Event) => {
-      e.preventDefault(); // keep it for our own button
-      setPromptEvent(e as InstallPromptEvent);
-    };
-    const onInstalled = () => setPromptEvent(null);
-    window.addEventListener("beforeinstallprompt", onPrompt);
-    window.addEventListener("appinstalled", onInstalled);
-    return () => {
-      window.removeEventListener("beforeinstallprompt", onPrompt);
-      window.removeEventListener("appinstalled", onInstalled);
-    };
-  }, []);
-
-  if (!promptEvent) return null; // already installed, or the browser cannot install it
+  const { canPrompt, install } = useInstall();
+  if (!canPrompt) return null;
 
   return (
     <button
-      onClick={async () => {
-        await promptEvent.prompt();
-        setPromptEvent(null);
-      }}
+      onClick={install}
       className="flex w-full items-center gap-3 border-t border-slate-200 px-6 py-3 text-sm font-medium text-blue-700 hover:bg-blue-50"
     >
       <Download className="h-5 w-5" />
