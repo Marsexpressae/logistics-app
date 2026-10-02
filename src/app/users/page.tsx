@@ -1,36 +1,27 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import Link from "next/link";
 import PageHeader from "@/components/ui/PageHeader";
 import { Button, Card, ErrorMessage, Field, inputClass } from "@/components/ui/form";
-import { ROLE_LABELS } from "@/config/navigation";
 import { useQuery } from "@/lib/hooks";
-import { useCurrentProfile } from "@/lib/profile-context";
+import { useCurrentProfile, usePermissions } from "@/lib/profile-context";
 import { formatDate } from "@/lib/format";
 import { isMock, supabase } from "@/lib/supabase";
-import type { Role } from "@/lib/types";
+import type { RoleRow } from "@/lib/types";
 
 type UserRow = {
   id: string;
   email: string;
   full_name: string;
-  role: Role | null;
+  role: string | null;
   active: boolean;
   driver: string | null;
   last_sign_in_at: string | null;
 };
 type UsersResponse = { users: UserRow[]; unlinkedDrivers: { id: string; name: string }[] };
 
-const ROLES: Role[] = ["admin", "staff", "driver", "warehouse"];
-
-const PERMISSIONS: Record<Role, string> = {
-  admin: "Everything, including adding users and changing roles.",
-  staff: "Bookings, pickups, accounts and payments. Can view (not change) warehouse and containers.",
-  driver: "Only their own pickups: record items and payments, mark collected, print receipts.",
-  warehouse: "Receive and split parcels, print labels, load / depart / arrive containers, mark delivered. No payments.",
-};
-
-// Calls our server routes with the signed-in user's token; the server checks they are an admin.
+// Calls our server routes with the signed-in user's token; the server checks they hold users.manage.
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const { data } = await supabase.auth.getSession();
   const res = await fetch(path, {
@@ -44,6 +35,16 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
 
 export default function UsersPage() {
   const me = useCurrentProfile();
+  const { can } = usePermissions();
+  const isSuperAdmin = me.role === "super_admin";
+
+  // Roles come from the database, so a new role (like Manager) appears here automatically.
+  const rolesQuery = useQuery<RoleRow[]>(() => supabase.from("roles").select("*").order("sort"));
+  const allRoles = rolesQuery.data ?? [];
+  // Only a super admin can hand out the super admin role.
+  const assignable = allRoles.filter((r) => isSuperAdmin || r.key !== "super_admin");
+  const roleLabel = (key: string | null) => allRoles.find((r) => r.key === key)?.label ?? key ?? "No access";
+
   const users = useQuery<UsersResponse>(() =>
     isMock
       ? Promise.resolve({ data: null, error: null })
@@ -54,7 +55,7 @@ export default function UsersPage() {
   );
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [role, setRole] = useState<Role>("staff");
+  const [role, setRole] = useState("staff");
   const [busy, setBusy] = useState(false);
 
   async function run(action: () => Promise<unknown>, success: string) {
@@ -98,7 +99,7 @@ export default function UsersPage() {
 
   return (
     <>
-      <PageHeader title="Users" description="Add people and control what they can do." />
+      <PageHeader title="Users" description="Add people and choose their role. What each role can do is set under Roles & Permissions." />
 
       {isMock && (
         <p className="mb-4 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">
@@ -106,15 +107,20 @@ export default function UsersPage() {
         </p>
       )}
 
-      <Card title="What each role can do" className="mb-6">
+      <Card title="Roles" className="mb-6">
         <dl className="space-y-2 text-sm">
-          {ROLES.map((r) => (
-            <div key={r} className="grid gap-1 sm:grid-cols-[10rem_1fr]">
-              <dt className="font-medium">{ROLE_LABELS[r]}</dt>
-              <dd className="text-slate-600">{PERMISSIONS[r]}</dd>
+          {allRoles.map((r) => (
+            <div key={r.key} className="grid gap-1 sm:grid-cols-[11rem_1fr]">
+              <dt className="font-medium">{r.label}</dt>
+              <dd className="text-slate-600">{r.description}</dd>
             </div>
           ))}
         </dl>
+        {can("roles.manage") && (
+          <Link href="/roles" className="mt-3 inline-block text-sm font-medium text-blue-700">
+            Edit what each role can do →
+          </Link>
+        )}
       </Card>
 
       {!isMock && (
@@ -130,10 +136,10 @@ export default function UsersPage() {
               <input name="password" type="text" required minLength={8} autoComplete="off" className={inputClass} />
             </Field>
             <Field label="Role">
-              <select value={role} onChange={(e) => setRole(e.target.value as Role)} className={inputClass}>
-                {ROLES.map((r) => (
-                  <option key={r} value={r}>
-                    {ROLE_LABELS[r]}
+              <select value={role} onChange={(e) => setRole(e.target.value)} className={inputClass}>
+                {assignable.map((r) => (
+                  <option key={r.key} value={r.key}>
+                    {r.label}
                   </option>
                 ))}
               </select>
@@ -177,6 +183,8 @@ export default function UsersPage() {
             <tbody className="divide-y divide-slate-100">
               {users.data.users.map((u) => {
                 const isMe = u.id === me.id;
+                // Managers cannot modify a super admin.
+                const locked = isMe || (!isSuperAdmin && u.role === "super_admin");
                 return (
                   <tr key={u.id}>
                     <td className="px-4 py-3">
@@ -191,13 +199,16 @@ export default function UsersPage() {
                         aria-label={`Role for ${u.email}`}
                         className={`${inputClass} w-auto`}
                         value={u.role ?? ""}
-                        disabled={isMe}
+                        disabled={locked}
                         onChange={(e) => patch(u.id, { role: e.target.value }, `Role updated for ${u.email}`)}
                       >
                         {!u.role && <option value="">No access</option>}
-                        {ROLES.map((r) => (
-                          <option key={r} value={r}>
-                            {ROLE_LABELS[r]}
+                        {u.role && !assignable.some((r) => r.key === u.role) && (
+                          <option value={u.role}>{roleLabel(u.role)}</option>
+                        )}
+                        {assignable.map((r) => (
+                          <option key={r.key} value={r.key}>
+                            {r.label}
                           </option>
                         ))}
                       </select>
@@ -215,16 +226,18 @@ export default function UsersPage() {
                       {u.last_sign_in_at ? formatDate(u.last_sign_in_at) : "Never"}
                     </td>
                     <td className="space-x-3 whitespace-nowrap px-4 py-3 text-right">
-                      <button
-                        className="text-blue-700"
-                        onClick={() => {
-                          const pw = prompt(`New password for ${u.email} (min 8 characters):`);
-                          if (pw) patch(u.id, { password: pw }, `Password changed for ${u.email}`);
-                        }}
-                      >
-                        Reset password
-                      </button>
-                      {!isMe && (
+                      {(!locked || isMe) && (
+                        <button
+                          className="text-blue-700"
+                          onClick={() => {
+                            const pw = prompt(`New password for ${u.email} (min 8 characters):`);
+                            if (pw) patch(u.id, { password: pw }, `Password changed for ${u.email}`);
+                          }}
+                        >
+                          Reset password
+                        </button>
+                      )}
+                      {!locked && (
                         <button
                           className={u.active && u.role ? "text-red-600" : "text-blue-700"}
                           onClick={() =>

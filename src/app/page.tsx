@@ -6,7 +6,7 @@ import PageHeader from "@/components/ui/PageHeader";
 import { Card, ErrorMessage } from "@/components/ui/form";
 import { canAccess } from "@/config/navigation";
 import { useQuery } from "@/lib/hooks";
-import { useCurrentProfile } from "@/lib/profile-context";
+import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
 
 const count = (table: string, column: string, value: string) =>
@@ -40,7 +40,7 @@ function Stat({ label, value, href, linked }: { label: string; value: number | n
 }
 
 export default function DashboardPage() {
-  const { role } = useCurrentProfile();
+  const { permissions } = usePermissions();
   const stats = useQuery<number[]>(async () => {
     const results = await Promise.all(STATS.map((s) => count(s.table, s.column, s.value)));
     const error = results.find((r) => r.error)?.error ?? null;
@@ -59,7 +59,7 @@ export default function DashboardPage() {
             value={stats.data?.[i] ?? null}
             href={s.href}
             // Only link to pages this role is allowed to open.
-            linked={canAccess(role, s.href.split(/[?#]/)[0])}
+            linked={canAccess(permissions, s.href.split(/[?#]/)[0])}
           />
         ))}
       </div>

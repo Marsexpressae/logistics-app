@@ -8,6 +8,7 @@ import PageHeader from "@/components/ui/PageHeader";
 import EmptyState from "@/components/ui/EmptyState";
 import { ErrorMessage, StatusBadge, inputClass } from "@/components/ui/form";
 import { useQuery } from "@/lib/hooks";
+import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
 import { formatDate, formatDay, money, totalPaid } from "@/lib/format";
 import type { Booking } from "@/lib/types";
@@ -28,6 +29,7 @@ function BookingsContent() {
       .order("pickup_date", { ascending: false })
       .order("created_at", { ascending: false })
   );
+  const canCreate = usePermissions().can("bookings.create");
   const [search, setSearch] = useState("");
   const initial = useSearchParams().get("status") ?? "all";
   const [status, setStatus] = useState(STATUS_FILTERS.some((f) => f.value === initial) ? initial : "all");
@@ -46,12 +48,14 @@ function BookingsContent() {
     <>
       <div className="flex items-start justify-between gap-4">
         <PageHeader title="Bookings" description="Customer shipment bookings." />
-        <Link
-          href="/bookings/new"
-          className="inline-flex shrink-0 items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-        >
-          <Plus className="h-4 w-4" /> New booking
-        </Link>
+        {canCreate && (
+          <Link
+            href="/bookings/new"
+            className="inline-flex shrink-0 items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+          >
+            <Plus className="h-4 w-4" /> New booking
+          </Link>
+        )}
       </div>
 
       <div className="mb-4 flex flex-wrap gap-2">

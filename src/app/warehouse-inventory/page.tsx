@@ -5,15 +5,14 @@ import Link from "next/link";
 import PageHeader from "@/components/ui/PageHeader";
 import EmptyState from "@/components/ui/EmptyState";
 import { Card, ErrorMessage, StatusBadge } from "@/components/ui/form";
-import { canOperateWarehouse } from "@/config/navigation";
 import { useQuery } from "@/lib/hooks";
-import { useCurrentProfile } from "@/lib/profile-context";
+import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
 import type { Booking, Parcel, Warehouse } from "@/lib/types";
 
 export default function WarehouseInventoryPage() {
   const [filter, setFilter] = useState("all");
-  const canOperate = canOperateWarehouse(useCurrentProfile().role);
+  const canOperate = usePermissions().can("warehouse.manage");
 
   const warehouses = useQuery<Warehouse[]>(() => supabase.from("warehouses").select("*").order("code"));
   const awaiting = useQuery<Booking[]>(() =>

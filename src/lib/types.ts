@@ -1,4 +1,5 @@
-export type Role = "admin" | "staff" | "driver" | "warehouse";
+// Roles are data now (the roles table); the key is e.g. "super_admin", "manager", "staff".
+export type Role = string;
 export type Profile = { id: string; full_name: string; role: Role; active: boolean };
 
 export type PaymentMethod = "cash" | "bank_transfer";
@@ -104,3 +105,6 @@ export type AuditEntry = {
   changed_at: string;
   changes: Record<string, unknown>; // insert/delete: the row; update: { column: { old, new } }
 };
+
+export type RoleRow = { key: string; label: string; description: string; sort: number };
+export type PermissionRow = { key: string; group_name: string; label: string; description: string; sort: number };

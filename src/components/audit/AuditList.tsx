@@ -9,6 +9,7 @@ export const TABLE_LABELS: Record<string, string> = {
   containers: "Container",
   drivers: "Driver",
   profiles: "User",
+  role_permissions: "Role permission",
 };
 
 const humanize = (key: string) => key.replace(/_/g, " ");
@@ -36,6 +37,8 @@ function rowSummary(table: string, row: Record<string, unknown>): string {
       return String(row.name ?? "");
     case "profiles":
       return `${row.full_name ?? ""} (${row.role})`;
+    case "role_permissions":
+      return `${row.role}: ${row.permission}`;
     default:
       return "";
   }

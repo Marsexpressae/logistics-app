@@ -1,9 +1,10 @@
-import { HttpError, ROLES, errorResponse, requireAdmin } from "@/lib/server/admin";
+import { HttpError, assertCanAssignRole, errorResponse, requirePermission } from "@/lib/server/admin";
 
 // PATCH /api/users/:id: change role, name, active flag, password, or driver link.
 export async function PATCH(req: Request, ctx: RouteContext<"/api/users/[id]">) {
   try {
-    const { admin, user: me } = await requireAdmin(req);
+    const caller = await requirePermission(req, "users.manage");
+    const { admin, user: me } = caller;
     const { id } = await ctx.params;
     const body = await req.json();
 
@@ -12,9 +13,15 @@ export async function PATCH(req: Request, ctx: RouteContext<"/api/users/[id]">) 
       throw new HttpError(400, "You cannot change your own role or deactivate yourself");
     }
 
+    // Managers cannot touch a super admin at all (role, password, status).
+    if (!caller.isSuperAdmin) {
+      const { data: target } = await admin.from("profiles").select("role").eq("id", id).maybeSingle();
+      if (target?.role === "super_admin") throw new HttpError(403, "Only a super admin can change a super admin");
+    }
+
     const profileUpdate: Record<string, unknown> = {};
     if (body.role !== undefined) {
-      if (!(ROLES as readonly string[]).includes(body.role)) throw new HttpError(400, "Invalid role");
+      await assertCanAssignRole(caller, String(body.role), id);
       profileUpdate.role = body.role;
     }
     if (body.full_name !== undefined) profileUpdate.full_name = String(body.full_name).trim();

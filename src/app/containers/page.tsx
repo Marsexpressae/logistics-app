@@ -6,16 +6,15 @@ import { useRouter, useSearchParams } from "next/navigation";
 import PageHeader from "@/components/ui/PageHeader";
 import EmptyState from "@/components/ui/EmptyState";
 import { Button, Card, ErrorMessage, StatusBadge, inputClass } from "@/components/ui/form";
-import { canOperateWarehouse } from "@/config/navigation";
 import { useQuery } from "@/lib/hooks";
-import { useCurrentProfile } from "@/lib/profile-context";
+import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
 import { formatDate } from "@/lib/format";
 import type { Container } from "@/lib/types";
 
 function ContainersContent() {
   const router = useRouter();
-  const canOperate = canOperateWarehouse(useCurrentProfile().role);
+  const canOperate = usePermissions().can("containers.manage");
   const containers = useQuery<Container[]>(() =>
     supabase.from("containers").select("*, parcels(count)").order("created_at", { ascending: false })
   );

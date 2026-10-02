@@ -44,22 +44,34 @@ export function useSession() {
   return session;
 }
 
-/** Loads the profile (role) for the signed-in user. `loading` stays true until it is known. */
+/** Loads the profile, the role's label and the role's permissions. `loading` stays true until known. */
 export function useProfile(session: Session | null | undefined) {
   const userId = session?.user.id;
-  const [state, setState] = useState<{ userId: string; profile: Profile | null } | null>(null);
+  const [state, setState] = useState<{
+    userId: string;
+    profile: Profile | null;
+    roleLabel: string;
+    permissions: string[];
+  } | null>(null);
 
   useEffect(() => {
     if (!userId) return;
     let cancelled = false;
-    supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", userId)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (!cancelled) setState({ userId, profile: data as Profile | null });
-      });
+    (async () => {
+      const { data } = await supabase.from("profiles").select("*").eq("id", userId).maybeSingle();
+      const profile = data as Profile | null;
+      let permissions: string[] = [];
+      let roleLabel = "";
+      if (profile?.active) {
+        const [perms, role] = await Promise.all([
+          supabase.from("role_permissions").select("permission").eq("role", profile.role),
+          supabase.from("roles").select("label").eq("key", profile.role).maybeSingle(),
+        ]);
+        permissions = ((perms.data ?? []) as { permission: string }[]).map((r) => r.permission);
+        roleLabel = (role.data as { label: string } | null)?.label ?? profile.role;
+      }
+      if (!cancelled) setState({ userId, profile, roleLabel, permissions });
+    })();
     return () => {
       cancelled = true;
     };
@@ -68,5 +80,10 @@ export function useProfile(session: Session | null | undefined) {
   const ready = !!userId && state?.userId === userId;
   // An inactive profile is treated the same as no profile: no access.
   const profile = ready && state!.profile?.active ? state!.profile : null;
-  return { profile, loading: !!userId && !ready };
+  return {
+    profile,
+    roleLabel: ready ? state!.roleLabel : "",
+    permissions: ready ? state!.permissions : [],
+    loading: !!userId && !ready,
+  };
 }

@@ -1,9 +1,9 @@
-import { HttpError, ROLES, errorResponse, requireAdmin } from "@/lib/server/admin";
+import { HttpError, assertCanAssignRole, errorResponse, requirePermission } from "@/lib/server/admin";
 
 // GET /api/users: everyone with a login, their role, and drivers not yet linked to a login.
 export async function GET(req: Request) {
   try {
-    const { admin } = await requireAdmin(req);
+    const { admin } = await requirePermission(req, "users.manage");
 
     const [{ data: list, error }, { data: profiles }, { data: drivers }] = await Promise.all([
       admin.auth.admin.listUsers({ perPage: 200 }),
@@ -34,7 +34,8 @@ export async function GET(req: Request) {
 // POST /api/users: create a login + profile (and link/create the driver record for drivers).
 export async function POST(req: Request) {
   try {
-    const { admin } = await requireAdmin(req);
+    const caller = await requirePermission(req, "users.manage");
+    const { admin } = caller;
     const body = await req.json();
     const email = String(body.email ?? "").trim().toLowerCase();
     const password = String(body.password ?? "");
@@ -44,7 +45,7 @@ export async function POST(req: Request) {
 
     if (!email || !fullName) throw new HttpError(400, "Name and email are required");
     if (password.length < 8) throw new HttpError(400, "Password must be at least 8 characters");
-    if (!(ROLES as readonly string[]).includes(role)) throw new HttpError(400, "Invalid role");
+    await assertCanAssignRole(caller, role);
 
     const { data, error } = await admin.auth.admin.createUser({
       email,

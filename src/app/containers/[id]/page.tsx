@@ -6,9 +6,8 @@ import { useParams } from "next/navigation";
 import { ArrowLeft, CheckCheck, MapPinCheck, PackagePlus, Rocket, ScanLine, X } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
 import { Button, Card, ErrorMessage, StatusBadge, inputClass } from "@/components/ui/form";
-import { canOperateWarehouse } from "@/config/navigation";
 import { useQuery } from "@/lib/hooks";
-import { useCurrentProfile } from "@/lib/profile-context";
+import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
 import type { Container, Parcel } from "@/lib/types";
 
@@ -16,7 +15,7 @@ type WarehouseParcel = Parcel & { warehouse: { code: string } | null };
 
 export default function ContainerManifestPage() {
   const { id } = useParams<{ id: string }>();
-  const canOperate = canOperateWarehouse(useCurrentProfile().role);
+  const canOperate = usePermissions().can("containers.manage");
   const container = useQuery<Container>(() => supabase.from("containers").select("*").eq("id", id).single());
   const loaded = useQuery<Parcel[]>(() =>
     supabase.from("parcels").select("*").eq("container_id", id).order("barcode")

@@ -10,11 +10,13 @@ import { ErrorMessage, StatusBadge, inputClass } from "@/components/ui/form";
 import { AREAS } from "@/config/areas";
 import { dayState, formatDay } from "@/lib/format";
 import { useQuery, useSession } from "@/lib/hooks";
+import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
 import type { Booking, Driver } from "@/lib/types";
 
 function PickupsContent() {
   const session = useSession();
+  const seesAll = usePermissions().can("pickups.view_all");
   const drivers = useQuery<Driver[]>(() => supabase.from("drivers").select("*").order("name"));
   const pickups = useQuery<Booking[]>(() =>
     supabase
@@ -32,7 +34,8 @@ function PickupsContent() {
 
   // A signed-in driver defaults to their own pickups; staff see everyone's.
   const myDriver = drivers.data?.find((d) => d.user_id === session?.user.id);
-  const driverId = driverChoice ?? myDriver?.id ?? "all";
+  // Without pickups.view_all you only ever see your own (the database enforces this as well).
+  const driverId = seesAll ? (driverChoice ?? myDriver?.id ?? "all") : (myDriver?.id ?? "none");
 
   const open = (pickups.data ?? []).filter(
     (b) => (driverId === "all" || b.driver_id === driverId) && (status === "all" || b.status === status)
@@ -69,6 +72,7 @@ function PickupsContent() {
           <option value="booked">To collect</option>
           <option value="collected">Collected</option>
         </select>
+      {seesAll && (
       <select
         className={`${inputClass} w-auto`}
         value={driverId}
@@ -82,6 +86,7 @@ function PickupsContent() {
           </option>
         ))}
       </select>
+      )}
       </div>
 
       <ErrorMessage message={pickups.error ?? drivers.error} />

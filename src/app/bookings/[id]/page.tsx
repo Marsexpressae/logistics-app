@@ -10,7 +10,7 @@ import BookingForm from "@/components/bookings/BookingForm";
 import { Button, Card, ErrorMessage, Field, StatusBadge, inputClass } from "@/components/ui/form";
 import { formatDate } from "@/lib/format";
 import { useQuery } from "@/lib/hooks";
-import { useCurrentProfile } from "@/lib/profile-context";
+import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
 import type { AuditEntry, Booking } from "@/lib/types";
 
@@ -18,10 +18,13 @@ export default function EditBookingPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const booking = useQuery<Booking>(() => supabase.from("bookings").select("*").eq("id", id).single());
-  const isAdmin = useCurrentProfile().role === "admin";
-  // The change history is admin-only (the database enforces it too).
+  const { can } = usePermissions();
+  const canEdit = can("bookings.edit");
+  const canCancel = can("bookings.cancel");
+  const canSeeHistory = can("activity.view");
+  // The change history needs the activity.view permission (the database enforces it too).
   const history = useQuery<AuditEntry[]>(() =>
-    isAdmin
+    canSeeHistory
       ? supabase.from("audit_log").select("*").eq("booking_id", id).order("id", { ascending: false })
       : Promise.resolve({ data: [], error: null })
   );
@@ -33,7 +36,7 @@ export default function EditBookingPage() {
   if (booking.loading) return <p className="text-sm text-slate-500">Loading…</p>;
   if (!b) return <ErrorMessage message={booking.error ?? "Booking not found"} />;
 
-  const cancellable = b.status === "booked" || b.status === "collected";
+  const cancellable = canCancel && (b.status === "booked" || b.status === "collected");
 
   async function cancel() {
     if (!reason.trim()) return setError("Please enter a reason for cancelling.");
@@ -52,7 +55,10 @@ export default function EditBookingPage() {
         <ArrowLeft className="h-4 w-4" /> Bookings
       </Link>
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <PageHeader title={`Edit ${b.code}`} description="Update details, reassign the driver, or cancel." />
+        <PageHeader
+          title={`${canEdit ? "Edit" : "View"} ${b.code}`}
+          description={canEdit ? "Update details, reassign the driver, or cancel." : "You can view this booking but not change it."}
+        />
         <div className="flex items-center gap-3">
           <StatusBadge status={b.status} />
           <Link
@@ -71,7 +77,10 @@ export default function EditBookingPage() {
         </p>
       )}
 
-      <BookingForm booking={b} submitLabel="Save changes" onSaved={() => router.push("/bookings")} />
+      {/* Without bookings.edit the whole form is read-only (the database blocks the write anyway). */}
+      <fieldset disabled={!canEdit} className="min-w-0 border-0 p-0">
+        <BookingForm booking={b} submitLabel="Save changes" onSaved={() => router.push("/bookings")} />
+      </fieldset>
 
       <div className="mt-6 max-w-3xl space-y-2">
         <ErrorMessage message={error} />
@@ -111,7 +120,7 @@ export default function EditBookingPage() {
         )}
       </div>
 
-      {isAdmin && !!history.data?.length && (
+      {canSeeHistory && !!history.data?.length && (
         <Card title="History" className="mt-6 max-w-3xl">
           <AuditList entries={history.data} />
         </Card>

@@ -3,21 +3,23 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LogOut, Package } from "lucide-react";
-import { ROLE_LABELS, navItems } from "@/config/navigation";
+import { navItems } from "@/config/navigation";
 import InstallButton from "@/components/pwa/InstallButton";
 import { site } from "@/config/site";
 import { supabase } from "@/lib/supabase";
-import type { Profile } from "@/lib/types";
+import { useCurrentProfile, usePermissions } from "@/lib/profile-context";
 
-type SidebarProps = { open: boolean; onClose: () => void; profile: Profile };
+type SidebarProps = { open: boolean; onClose: () => void };
 
-export default function Sidebar({ open, onClose, profile }: SidebarProps) {
+export default function Sidebar({ open, onClose }: SidebarProps) {
   const pathname = usePathname();
+  const profile = useCurrentProfile();
+  const { canAny } = usePermissions();
 
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);
 
-  const items = navItems.filter((i) => i.roles.includes(profile.role));
+  const items = navItems.filter((i) => canAny(...i.anyOf));
 
   return (
     <>
@@ -53,7 +55,7 @@ export default function Sidebar({ open, onClose, profile }: SidebarProps) {
         <InstallButton />
         <div className="border-t border-slate-200 px-6 py-3">
           <p className="truncate text-sm font-medium text-slate-900">{profile.full_name || "Signed in"}</p>
-          <p className="text-xs text-slate-500">{ROLE_LABELS[profile.role]}</p>
+          <p className="text-xs text-slate-500">{profile.roleLabel}</p>
         </div>
         <button
           onClick={() => supabase.auth.signOut()}

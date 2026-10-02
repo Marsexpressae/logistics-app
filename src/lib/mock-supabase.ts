@@ -7,16 +7,57 @@ type Db = {
   seq: { booking: number; container: number };
   [table: string]: any;
   drivers: Row[]; warehouses: Row[]; bookings: Row[]; booking_items: Row[]; payments: Row[];
-  containers: Row[]; parcels: Row[]; parcel_events: Row[]; profiles: Row[]; audit_log: Row[];
+  containers: Row[]; parcels: Row[]; parcel_events: Row[]; profiles: Row[]; audit_log: Row[]; roles: Row[]; permissions: Row[]; role_permissions: Row[];
 };
 
-const STORAGE_KEY = "logistics-mock-db-v6";
+const STORAGE_KEY = "logistics-mock-db-v7";
 const AUTH_KEY = "logistics-mock-signed-out";
 
 const uid = () => crypto.randomUUID();
 const now = () => new Date().toISOString();
 const today = (offsetDays = 0) => new Date(Date.now() + offsetDays * 86400_000).toISOString().slice(0, 10);
 const ago = (hours: number) => new Date(Date.now() - hours * 3600_000).toISOString();
+
+// ---------------------------------------------------------------- roles & permissions (mirrors migration 0009)
+const ROLES: Row[] = [
+  { key: "super_admin", label: "Super admin", description: "Owner. Full access, including editing roles and permissions.", sort: 1 },
+  { key: "manager", label: "Manager", description: "Runs day-to-day operations and can add staff and drivers.", sort: 2 },
+  { key: "staff", label: "Office staff", description: "Handles bookings, pickups and accounts.", sort: 3 },
+  { key: "warehouse", label: "Warehouse worker", description: "Receives, splits and ships parcels.", sort: 4 },
+  { key: "driver", label: "Driver", description: "Sees and completes only their own pickups.", sort: 5 },
+];
+const PERMISSIONS: Row[] = [
+  ["dashboard.view", "General", "View dashboard", "See the dashboard counts"],
+  ["bookings.view", "Bookings", "View bookings", "See the bookings list and details"],
+  ["bookings.create", "Bookings", "Create bookings", "Add new bookings"],
+  ["bookings.edit", "Bookings", "Edit bookings", "Change booking details, driver, bill and invoice amount"],
+  ["bookings.cancel", "Bookings", "Cancel bookings", "Cancel a booking (a reason is required)"],
+  ["bookings.delete", "Bookings", "Delete bookings", "Permanently delete a booking"],
+  ["pickups.view_all", "Pickups", "View all pickups", "See every drivers pickups"],
+  ["pickups.view_own", "Pickups", "View own pickups only", "See only pickups assigned to them (for drivers)"],
+  ["pickups.collect", "Pickups", "Record collections", "Add items, log payments and mark pickups collected"],
+  ["warehouse.view", "Warehouse", "View warehouse inventory", "See parcels in the warehouses"],
+  ["warehouse.manage", "Warehouse", "Receive and split parcels", "Receive bookings, split into parcels, print labels"],
+  ["containers.view", "Containers", "View containers", "See containers and their manifests"],
+  ["containers.manage", "Containers", "Manage containers", "Create containers, load, depart, arrive and deliver parcels"],
+  ["accounts.view", "Accounts", "View accounts", "See invoiced, collected and outstanding amounts"],
+  ["payments.manage", "Accounts", "Edit or delete payments", "Correct or remove recorded payments"],
+  ["drivers.manage", "People", "Manage driver records", "Add, edit or remove driver records"],
+  ["users.manage", "People", "Manage users", "Add users, change their role, deactivate, reset passwords"],
+  ["roles.manage", "People", "Edit roles and permissions", "Change which role can do what (super admin only by default)"],
+  ["activity.view", "People", "View activity log", "See who changed what"],
+].map(([key, group_name, label, description], i) => ({ key, group_name, label, description, sort: (i + 1) * 10 }));
+const GRANTS: Record<string, string[]> = {
+  super_admin: PERMISSIONS.map((p) => p.key),
+  manager: ["dashboard.view", "bookings.view", "bookings.create", "bookings.edit", "bookings.cancel", "pickups.view_all",
+    "pickups.collect", "warehouse.view", "warehouse.manage", "containers.view", "containers.manage", "accounts.view",
+    "payments.manage", "drivers.manage", "users.manage", "activity.view"],
+  staff: ["dashboard.view", "bookings.view", "bookings.create", "bookings.edit", "bookings.cancel", "pickups.view_all",
+    "pickups.collect", "warehouse.view", "containers.view", "accounts.view"],
+  warehouse: ["dashboard.view", "warehouse.view", "warehouse.manage", "containers.view", "containers.manage"],
+  driver: ["pickups.view_own", "pickups.collect"],
+};
+const ROLE_PERMISSIONS: Row[] = Object.entries(GRANTS).flatMap(([role, perms]) => perms.map((permission) => ({ role, permission })));
 
 // ---------------------------------------------------------------- seed data
 function seed(): Db {
@@ -83,7 +124,10 @@ function seed(): Db {
     parcels,
     parcel_events: events,
     audit_log: [],
-    profiles: [{ id: "mock-user", full_name: "Tester (admin)", role: "admin", active: true }],
+    profiles: [{ id: "mock-user", full_name: "Tester (super admin)", role: "super_admin", active: true }],
+    roles: ROLES,
+    permissions: PERMISSIONS,
+    role_permissions: ROLE_PERMISSIONS,
   } as Db;
 }
 

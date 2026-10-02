@@ -24,17 +24,17 @@ export default function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const session = useSession();
-  const { profile, loading: profileLoading } = useProfile(session);
+  const { profile, roleLabel, permissions, loading: profileLoading } = useProfile(session);
   const [menuOpen, setMenuOpen] = useState(false);
   const isPublic = isPublicPath(pathname);
 
-  const allowed = profile ? canAccess(profile.role, pathname) : true;
+  const allowed = profile ? canAccess(permissions, pathname) : true;
 
   useEffect(() => {
     if (isPublic) return;
     if (session === null) router.replace("/login");
-    else if (profile && !allowed) router.replace(homePath(profile.role));
-  }, [isPublic, session, profile, allowed, router]);
+    else if (profile && !allowed) router.replace(homePath(permissions));
+  }, [isPublic, session, profile, allowed, permissions, router]);
 
   if (isPublic) return <>{children}</>;
   if (!session || profileLoading) return <Centered>Loading…</Centered>;
@@ -53,7 +53,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
   if (!allowed) return <Centered>Loading…</Centered>;
 
   return (
-    <ProfileContext.Provider value={profile}>
+    <ProfileContext.Provider value={{ profile, roleLabel, permissions }}>
       <div className="flex h-full flex-1 flex-col md:flex-row">
         <header className="flex h-14 items-center gap-3 border-b border-slate-200 bg-white px-4 print:hidden md:hidden">
           <button onClick={() => setMenuOpen(true)} aria-label="Open menu">
@@ -61,7 +61,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
           </button>
           <span className="font-semibold text-slate-900">{site.name}</span>
         </header>
-        <Sidebar open={menuOpen} onClose={() => setMenuOpen(false)} profile={profile} />
+        <Sidebar open={menuOpen} onClose={() => setMenuOpen(false)} />
         <main className="flex-1 overflow-y-auto p-4 md:p-8 print:p-0">
           {isMock && (
             <div className="mb-4 flex items-center justify-between gap-3 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800 print:hidden">
