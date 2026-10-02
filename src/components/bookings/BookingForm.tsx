@@ -2,11 +2,13 @@
 
 import { useState, type FormEvent } from "react";
 import { LocateFixed } from "lucide-react";
+import PhoneInput from "@/components/ui/PhoneInput";
 import { Button, Card, ErrorMessage, Field, inputClass } from "@/components/ui/form";
 import { AREAS } from "@/config/areas";
 import { formatGeo, mapsUrl, parseGeo } from "@/lib/geo";
 import { todayISO } from "@/lib/format";
 import { useQuery } from "@/lib/hooks";
+import { formatPhone, parsePhone } from "@/lib/phone";
 import { supabase } from "@/lib/supabase";
 import type { Booking, Driver } from "@/lib/types";
 
@@ -25,6 +27,10 @@ export default function BookingForm({ booking, submitLabel, onSaved }: BookingFo
   const [conflict, setConflict] = useState(false);
   const [geoText, setGeoText] = useState(booking ? formatGeo(booking.geo_lat, booking.geo_lng) : "");
   const [locating, setLocating] = useState(false);
+  // Sender numbers: a call number, and a WhatsApp number only when it is a different one.
+  const [senderPhone, setSenderPhone] = useState(formatPhone(booking?.sender_phone));
+  const [sameWhatsapp, setSameWhatsapp] = useState(!booking?.sender_whatsapp);
+  const [whatsappPhone, setWhatsappPhone] = useState(formatPhone(booking?.sender_whatsapp));
 
   const geo = parseGeo(geoText);
   const geoInvalid = geoText.trim() !== "" && !geo;
@@ -54,12 +60,17 @@ export default function BookingForm({ booking, submitLabel, onSaved }: BookingFo
       return setError("Geo location: paste coordinates like 25.2048, 55.2708 or a full Google Maps link.");
     }
 
+    const call = parsePhone(senderPhone);
+    if (!call) return setError("Please enter a valid sender phone number, e.g. 050 123 4567.");
+    const whatsapp = sameWhatsapp ? null : parsePhone(whatsappPhone);
+    if (!sameWhatsapp && !whatsapp) return setError("The WhatsApp number is not valid.");
+
     const fields = {
       sender_name: text("sender_name"),
-      sender_phone: text("sender_phone"),
+      sender_phone: call.e164,
+      sender_whatsapp: whatsapp && whatsapp.e164 !== call.e164 ? whatsapp.e164 : null,
+      // Receiver: only the name at booking time. Phone and address are added later with the invoice/shipment details.
       receiver_name: text("receiver_name"),
-      receiver_phone: text("receiver_phone"),
-      receiver_address: text("receiver_address"),
       pickup_area: text("pickup_area"),
       pickup_address: text("pickup_address"),
       // When editing, the date can only change through Reschedule (reason + notification), so it is not sent.
@@ -105,8 +116,26 @@ export default function BookingForm({ booking, submitLabel, onSaved }: BookingFo
             <input name="sender_name" required defaultValue={booking?.sender_name} className={inputClass} />
           </Field>
           <Field label="Phone">
-            <input name="sender_phone" type="tel" defaultValue={booking?.sender_phone ?? ""} className={inputClass} />
+            <PhoneInput value={senderPhone} onChange={setSenderPhone} required />
           </Field>
+          <div className="sm:col-span-2">
+            <label className="flex items-center gap-2 text-sm text-slate-700">
+              <input
+                type="checkbox"
+                checked={sameWhatsapp}
+                onChange={(e) => setSameWhatsapp(e.target.checked)}
+                className="h-4 w-4"
+              />
+              WhatsApp is the same number
+            </label>
+            {!sameWhatsapp && (
+              <div className="mt-3 max-w-sm">
+                <Field label="WhatsApp number">
+                  <PhoneInput value={whatsappPhone} onChange={setWhatsappPhone} />
+                </Field>
+              </div>
+            )}
+          </div>
 
           <div className="border-t border-slate-100 pt-4 sm:col-span-2">
             <h3 className="text-sm font-semibold text-slate-900">Pickup</h3>
@@ -196,20 +225,13 @@ export default function BookingForm({ booking, submitLabel, onSaved }: BookingFo
       </Card>
 
       {/* 2. Where it is going (optional, can be filled in later) */}
-      <Card title="Receiver (optional, can be added later)">
-        <div className="grid gap-4 sm:grid-cols-2">
+      <Card title="Receiver (optional)">
+        <div className="max-w-sm">
           <Field label="Name">
             <input name="receiver_name" defaultValue={booking?.receiver_name ?? ""} className={inputClass} />
           </Field>
-          <Field label="Phone">
-            <input name="receiver_phone" type="tel" defaultValue={booking?.receiver_phone ?? ""} className={inputClass} />
-          </Field>
-          <div className="sm:col-span-2">
-            <Field label="Delivery address">
-              <textarea name="receiver_address" rows={2} defaultValue={booking?.receiver_address ?? ""} className={inputClass} />
-            </Field>
-          </div>
         </div>
+        <p className="mt-2 text-xs text-slate-500">Phone and address are added later with the invoice and shipment details.</p>
       </Card>
 
       {/* 3. Money and anything else worth noting */}

@@ -11,6 +11,7 @@ import { useQuery } from "@/lib/hooks";
 import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
 import { formatDate, formatDay, money, totalPaid } from "@/lib/format";
+import { phoneMatches } from "@/lib/phone";
 import type { Booking } from "@/lib/types";
 
 const STATUS_FILTERS = [
@@ -41,7 +42,9 @@ function BookingsContent() {
       (!term ||
         [b.code, b.sender_name, b.receiver_name, b.sender_phone, b.receiver_phone]
           .filter(Boolean)
-          .some((v) => v!.toLowerCase().includes(term)))
+          .some((v) => v!.toLowerCase().includes(term)) ||
+        // numbers match however they were typed: 0567375716, 56 737 5716, +971567375716
+        [b.sender_phone, b.sender_whatsapp, b.receiver_phone, b.receiver_whatsapp].some((n) => phoneMatches(search, n)))
   );
 
   return (

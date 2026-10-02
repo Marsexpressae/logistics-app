@@ -32,8 +32,10 @@ export type Booking = {
   code: string;
   sender_name: string;
   sender_phone: string | null;
+  sender_whatsapp: string | null; // only set when different from sender_phone
   receiver_name: string | null; // optional at booking time
   receiver_phone: string | null;
+  receiver_whatsapp: string | null;
   receiver_address: string | null;
   pickup_area: string;
   pickup_address: string;

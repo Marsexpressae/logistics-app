@@ -3,9 +3,10 @@
 import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { CalendarDays, MapPin, Navigation, Phone, User } from "lucide-react";
+import { CalendarDays, MapPin, Navigation, User } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
 import EmptyState from "@/components/ui/EmptyState";
+import ContactButtons from "@/components/contact/ContactButtons";
 import { ErrorMessage, StatusBadge, inputClass } from "@/components/ui/form";
 import { AREAS } from "@/config/areas";
 import { dayState, formatDay } from "@/lib/format";
@@ -98,9 +99,12 @@ function PickupsContent() {
         <ul className="space-y-3">
           {visible.map((b) => (
             <li key={b.id}>
-              <Link href={`/pickups/${b.id}`} className="block rounded-lg border border-slate-200 bg-white p-4 active:bg-slate-50">
+              {/* The whole card opens the pickup (stretched link), while Call / WhatsApp stay separately tappable. */}
+              <div className="relative rounded-lg border border-slate-200 bg-white p-4 active:bg-slate-50">
                 <div className="flex items-center justify-between">
-                  <span className="font-mono text-base font-semibold">{b.code}</span>
+                  <Link href={`/pickups/${b.id}`} className="font-mono text-base font-semibold after:absolute after:inset-0 after:content-['']">
+                    {b.code}
+                  </Link>
                   <StatusBadge status={b.status} />
                 </div>
                 <p className="mt-1 flex items-center gap-1.5 text-sm text-slate-700">
@@ -119,11 +123,6 @@ function PickupsContent() {
                     <span className="font-medium">{b.pickup_area}</span> · {b.pickup_address}
                   </span>
                 </p>
-                {b.sender_phone && (
-                  <p className="mt-1 flex items-center gap-1.5 text-sm text-slate-600">
-                    <Phone className="h-4 w-4" /> {b.sender_phone}
-                  </p>
-                )}
                 <p className="mt-1 flex items-center gap-1.5 text-sm text-slate-500">
                   <User className="h-4 w-4" /> {b.driver?.name ?? "Unassigned"}
                 </p>
@@ -132,7 +131,14 @@ function PickupsContent() {
                     <Navigation className="h-4 w-4" /> Pin saved
                   </span>
                 )}
-              </Link>
+                <ContactButtons
+                  phone={b.sender_phone}
+                  whatsapp={b.sender_whatsapp}
+                  name={b.sender_name}
+                  compact
+                  className="relative z-10 mt-3"
+                />
+              </div>
             </li>
           ))}
         </ul>

@@ -8,6 +8,7 @@ Cargo logistics app for Mars Express, handling personal cargo: bookings, pickups
 
 - **Bookings:** sender/receiver, pickup area (Dubai, Abu Dhabi, Sharjah, Ajman), assigned driver, estimated bill, auto codes like `BK-1001`
 - **Pickups:** mobile-friendly, by area; drivers record items/weights and payments, then print a receipt
+- **Contact numbers:** a call number plus an optional separate WhatsApp number, stored in international format (UAE default); one-tap Call and WhatsApp buttons on pickups, editable by the pickup team
 - **Reschedule & cancel:** office and pickup team can both reschedule or cancel a pickup, always with a reason; the other team is notified (in-app notifications, live while the app is open) and every change is kept in the booking's history
 - **Warehouse:** receive at Warehouse A/B, split one package into parcels with barcodes (`BK-1001-P1`, `-P2`), print labels
 - **Containers:** load by scanning/typing a barcode or picking from the warehouse list; depart, arrive, deliver

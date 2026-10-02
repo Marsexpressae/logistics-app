@@ -3,8 +3,9 @@
 import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { ArrowLeft, CalendarDays, CheckCircle2, MapPin, Navigation, Phone, Printer, Trash2 } from "lucide-react";
+import { ArrowLeft, CalendarDays, CheckCircle2, MapPin, Navigation, Printer, Trash2 } from "lucide-react";
 import BookingChangePanel from "@/components/bookings/BookingChangePanel";
+import ContactCard from "@/components/contact/ContactCard";
 import ScheduleHistory from "@/components/bookings/ScheduleHistory";
 import { Button, Card, ErrorMessage, Field, StatusBadge, inputClass } from "@/components/ui/form";
 import { useQuery } from "@/lib/hooks";
@@ -103,15 +104,28 @@ export default function PickupDetailPage() {
         >
           <Navigation className="h-4 w-4" /> {b.geo_lat !== null ? "Navigate to pin" : "Find on map"}
         </a>
-        {b.sender_phone && (
-          <a className="mt-1 flex items-center gap-1.5 text-sm text-blue-700" href={`tel:${b.sender_phone}`}>
-            <Phone className="h-4 w-4" /> {b.sender_phone}
-          </a>
-        )}
+        <ContactCard
+          bookingId={id}
+          party="sender"
+          name={b.sender_name}
+          phone={b.sender_phone}
+          whatsapp={b.sender_whatsapp}
+          onChanged={() => booking.reload()}
+        />
         <p className="mt-2 text-sm text-slate-500">
           To: {b.receiver_name ?? "receiver not set yet"}
           {b.receiver_address ? `, ${b.receiver_address}` : ""}
         </p>
+        {b.receiver_phone && (
+          <ContactCard
+            bookingId={id}
+            party="receiver"
+            name={b.receiver_name}
+            phone={b.receiver_phone}
+            whatsapp={b.receiver_whatsapp}
+            onChanged={() => booking.reload()}
+          />
+        )}
       </Card>
 
       <Card title="Package items">

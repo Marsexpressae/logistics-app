@@ -8,6 +8,7 @@ import { site } from "@/config/site";
 import { useQuery } from "@/lib/hooks";
 import { supabase } from "@/lib/supabase";
 import { formatDate, methodLabel, money, totalPaid } from "@/lib/format";
+import { formatPhone } from "@/lib/phone";
 import type { Booking, BookingItem } from "@/lib/types";
 
 export default function ReceiptPage() {
@@ -50,13 +51,13 @@ export default function ReceiptPage() {
           <div>
             <p className="text-xs uppercase text-slate-500">Sender</p>
             <p className="font-medium">{b.sender_name}</p>
-            <p>{b.sender_phone}</p>
+            <p>{formatPhone(b.sender_phone)}</p>
             <p>{b.pickup_address}</p>
           </div>
           <div>
             <p className="text-xs uppercase text-slate-500">Receiver</p>
             <p className="font-medium">{b.receiver_name ?? "To be confirmed"}</p>
-            <p>{b.receiver_phone}</p>
+            <p>{formatPhone(b.receiver_phone)}</p>
             <p>{b.receiver_address}</p>
           </div>
         </div>
