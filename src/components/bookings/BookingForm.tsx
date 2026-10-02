@@ -97,7 +97,8 @@ export default function BookingForm({ booking, submitLabel, onSaved }: BookingFo
 
   return (
     <form onSubmit={onSubmit} className="max-w-3xl space-y-4">
-      <Card title="Sender">
+      {/* 1. Who is sending, and everything about collecting from them */}
+      <Card title="Sender &amp; pickup">
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Name">
             <input name="sender_name" required defaultValue={booking?.sender_name} className={inputClass} />
@@ -105,27 +106,11 @@ export default function BookingForm({ booking, submitLabel, onSaved }: BookingFo
           <Field label="Phone">
             <input name="sender_phone" type="tel" defaultValue={booking?.sender_phone ?? ""} className={inputClass} />
           </Field>
-        </div>
-      </Card>
 
-      <Card title="Receiver (optional, can be added later)">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Name">
-            <input name="receiver_name" defaultValue={booking?.receiver_name ?? ""} className={inputClass} />
-          </Field>
-          <Field label="Phone">
-            <input name="receiver_phone" type="tel" defaultValue={booking?.receiver_phone ?? ""} className={inputClass} />
-          </Field>
-          <div className="sm:col-span-2">
-            <Field label="Delivery address">
-              <textarea name="receiver_address" rows={2} defaultValue={booking?.receiver_address ?? ""} className={inputClass} />
-            </Field>
+          <div className="border-t border-slate-100 pt-4 sm:col-span-2">
+            <h3 className="text-sm font-semibold text-slate-900">Pickup</h3>
+            <p className="text-xs text-slate-500">Where, when and by whom the sender&apos;s cargo is collected.</p>
           </div>
-        </div>
-      </Card>
-
-      <Card title="Pickup & billing">
-        <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Pickup area">
             <select name="pickup_area" required defaultValue={booking?.pickup_area ?? ""} className={inputClass}>
               <option value="" disabled>
@@ -200,6 +185,29 @@ export default function BookingForm({ booking, submitLabel, onSaved }: BookingFo
               ))}
             </select>
           </Field>
+        </div>
+      </Card>
+
+      {/* 2. Where it is going (optional, can be filled in later) */}
+      <Card title="Receiver (optional, can be added later)">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Name">
+            <input name="receiver_name" defaultValue={booking?.receiver_name ?? ""} className={inputClass} />
+          </Field>
+          <Field label="Phone">
+            <input name="receiver_phone" type="tel" defaultValue={booking?.receiver_phone ?? ""} className={inputClass} />
+          </Field>
+          <div className="sm:col-span-2">
+            <Field label="Delivery address">
+              <textarea name="receiver_address" rows={2} defaultValue={booking?.receiver_address ?? ""} className={inputClass} />
+            </Field>
+          </div>
+        </div>
+      </Card>
+
+      {/* 3. Money and anything else worth noting */}
+      <Card title="Billing &amp; notes">
+        <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Approx. bill (estimate)">
             <input
               name="estimated_bill"
