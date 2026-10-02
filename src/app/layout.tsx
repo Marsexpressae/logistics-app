@@ -1,7 +1,8 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import AppShell from "@/components/layout/AppShell";
+import PwaSetup from "@/components/pwa/PwaSetup";
 import { site } from "@/config/site";
 
 const geistSans = Geist({
@@ -18,6 +19,13 @@ export const metadata: Metadata = {
   title: { default: site.name, template: `%s | ${site.name}` },
   description: site.description,
   applicationName: site.name,
+  // iOS: "Add to Home Screen" opens full-screen with this title and icon.
+  appleWebApp: { capable: true, title: site.name, statusBarStyle: "default" },
+  icons: { icon: "/icons/192", apple: "/icons/180" },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#2563eb",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
@@ -28,6 +36,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="flex h-full flex-col bg-slate-50 text-slate-900">
         <AppShell>{children}</AppShell>
+        <PwaSetup />
       </body>
     </html>
   );
