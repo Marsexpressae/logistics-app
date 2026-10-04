@@ -8,6 +8,7 @@ import PageHeader from "@/components/ui/PageHeader";
 import EmptyState from "@/components/ui/EmptyState";
 import { Button, Card, ErrorMessage, StatusBadge } from "@/components/ui/form";
 import { formatDay, kg } from "@/lib/format";
+import ParcelPosition from "@/components/warehouse/ParcelPosition";
 import { useQuery } from "@/lib/hooks";
 import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
@@ -163,6 +164,7 @@ function WarehouseContent() {
                   <th className="px-4 py-3">Details</th>
                   <th className="px-4 py-3">Weight</th>
                   <th className="px-4 py-3">Warehouse</th>
+                  <th className="px-4 py-3">Position</th>
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3"></th>
                 </tr>
@@ -208,6 +210,7 @@ function WarehouseContent() {
                       </td>
                       <td className="px-4 py-3 font-medium">{kg(g.parcels.reduce((s, p) => s + Number(p.weight_kg), 0))}</td>
                       <td className="px-4 py-3">{places}</td>
+                      <td className="px-4 py-3 text-slate-600">{[...new Set(g.parcels.map((p) => p.position).filter(Boolean))].join(", ")}</td>
                       <td className="space-x-1 px-4 py-3">
                         {statuses.map((s) => (
                           <StatusBadge key={s} status={s} />
@@ -235,6 +238,9 @@ function WarehouseContent() {
                           <td className="px-4 py-2.5">{p.description ?? "—"}</td>
                           <td className="px-4 py-2.5">{kg(Number(p.weight_kg))}</td>
                           <td className="px-4 py-2.5">{p.warehouse?.code}</td>
+                          <td className="px-4 py-2.5">
+                            <ParcelPosition parcelId={p.id} barcode={p.barcode} position={p.position} canEdit={canOperate} onChanged={parcels.reload} />
+                          </td>
                           <td className="px-4 py-2.5">
                             <StatusBadge status={p.status} />
                           </td>

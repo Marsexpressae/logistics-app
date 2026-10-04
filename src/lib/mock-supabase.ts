@@ -11,7 +11,7 @@ type Db = {
   booking_events: Row[]; notifications: Row[]; app_settings: Row[]; returns: Row[]; booking_notes: Row[]; number_series: Row[]; organization: Row[];
 };
 
-const STORAGE_KEY = "logistics-mock-db-v23";
+const STORAGE_KEY = "logistics-mock-db-v24";
 const AUTH_KEY = "logistics-mock-signed-out";
 
 const uid = () => crypto.randomUUID();
@@ -630,6 +630,16 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
   },
 
   // Warehouses: the same rules as add_warehouse(), update_warehouse() and delete_warehouse().
+  set_parcel_position({ p_parcel_id, p_position }) {
+    const p = db().parcels.find((x) => x.id === p_parcel_id);
+    if (!p) return fail("Parcel not found");
+    const pos = String(p_position ?? "").trim();
+    if (pos.length > 60) return fail("The position can have up to 60 characters");
+    p.position = pos || null;
+    save();
+    return { data: null, error: null };
+  },
+
   add_warehouse({ p_name, p_code }) {
     const d = db();
     const nm = String(p_name ?? "").trim();

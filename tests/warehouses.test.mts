@@ -51,3 +51,14 @@ test("delete: allowed when unused, refused when parcels exist or it is the last 
   const refusal = (await c.rpc("delete_warehouse", { p_id: last.id })).error.message;
   assert.match(refusal, /has parcels|at least one active/);
 });
+
+test("a parcel position is optional free text: set, change, clear, and not too long", async () => {
+  const parcel = (await c.from("parcels").select("*")).data[0];
+  assert.equal((await c.rpc("set_parcel_position", { p_parcel_id: parcel.id, p_position: "  Rack 3 " })).error, null);
+  assert.equal((await c.from("parcels").select("*")).data.find((p: R) => p.id === parcel.id).position, "Rack 3");
+  assert.equal((await c.rpc("set_parcel_position", { p_parcel_id: parcel.id, p_position: "Left wall" })).error, null);
+  assert.equal((await c.rpc("set_parcel_position", { p_parcel_id: parcel.id, p_position: "   " })).error, null);
+  assert.equal((await c.from("parcels").select("*")).data.find((p: R) => p.id === parcel.id).position, null);
+  assert.match((await c.rpc("set_parcel_position", { p_parcel_id: parcel.id, p_position: "x".repeat(61) })).error.message, /60/);
+  assert.match((await c.rpc("set_parcel_position", { p_parcel_id: "nope", p_position: "A" })).error.message, /not found/);
+});

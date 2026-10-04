@@ -47,7 +47,7 @@ export default function SearchPage() {
   const foundParcels = !active
     ? []
     : (parcels.data ?? []).filter((p) =>
-        everyWord((w) => [p.barcode, p.description, p.booking?.invoice_no, p.booking?.code, p.booking?.sender_name].some((v) => has(v, w)))
+        everyWord((w) => [p.barcode, p.description, p.position, p.booking?.invoice_no, p.booking?.code, p.booking?.sender_name].some((v) => has(v, w)))
       );
   const foundContainers = !active ? [] : (containers.data ?? []).filter((c) => everyWord((w) => [c.code, c.destination].some((v) => has(v, w))));
 
@@ -56,7 +56,7 @@ export default function SearchPage() {
 
   return (
     <div className="max-w-3xl space-y-4">
-      <PageHeader title="Search" description="Invoice number, booking code, name, phone number, address, parcel barcode or container." />
+      <PageHeader title="Search" description="Invoice number, booking code, name, phone number, address, parcel barcode, position or container." />
       <div className="relative">
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
         <input

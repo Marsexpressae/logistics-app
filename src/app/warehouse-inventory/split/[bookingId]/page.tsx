@@ -7,6 +7,7 @@ import { ArrowLeft, PackageCheck, Plus, Printer, Trash2 } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
 import NotesCard from "@/components/bookings/NotesCard";
 import ParcelLabel from "@/components/ui/ParcelLabel";
+import ParcelPosition from "@/components/warehouse/ParcelPosition";
 import { Button, Card, ErrorMessage, Field, inputClass } from "@/components/ui/form";
 import { kg, round2 } from "@/lib/format";
 import { useQuery } from "@/lib/hooks";
@@ -191,6 +192,19 @@ export default function ReceivePage() {
       <div className="print:hidden">
         <NotesCard bookingId={bookingId} />
       </div>
+
+      {received && (
+        <Card title="Where did you put them? (optional)" className="print:hidden">
+          <ul className="divide-y divide-slate-100 text-sm">
+            {parcels.data!.map((p) => (
+              <li key={p.id} className="flex items-center justify-between gap-3 py-2">
+                <span className="font-mono">{p.barcode}</span>
+                <ParcelPosition parcelId={p.id} barcode={p.barcode} position={p.position} canEdit onChanged={parcels.reload} />
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
 
       {received && (
         <Card title="Parcel labels">
