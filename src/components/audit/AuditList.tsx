@@ -14,6 +14,7 @@ export const TABLE_LABELS: Record<string, string> = {
   organization: "Organization",
   warehouses: "Warehouse",
   returns: "Return",
+  deletion_reason: "Booking deleted",
 };
 
 const humanize = (key: string) => key.replace(/_/g, " ");
@@ -47,6 +48,10 @@ function rowSummary(table: string, row: Record<string, unknown>): string {
       return `${row.full_name ?? ""} (${row.role})`;
     case "role_permissions":
       return `${row.role}: ${row.permission}`;
+    case "deletion_reason":
+      return `${row.invoice ?? row.booking}: ${row.reason}${Number(row.payments_deleted) > 0 ? ` (${row.payments_deleted} payment(s), ${row.payments_total} deleted too)` : ""}`;
+    case "returns":
+      return String(row.code ?? "");
     default:
       return "";
   }

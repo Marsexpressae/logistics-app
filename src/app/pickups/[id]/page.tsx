@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ArrowLeft, CalendarDays, CheckCircle2, MapPin, Navigation, Printer } from "lucide-react";
 import BookingChangePanel from "@/components/bookings/BookingChangePanel";
+import DeleteBooking from "@/components/bookings/DeleteBooking";
 import NotesCard from "@/components/bookings/NotesCard";
 import TrackingLink from "@/components/bookings/TrackingLink";
 import ItemsCard from "@/components/bookings/ItemsCard";
@@ -132,8 +133,9 @@ export default function PickupDetailPage() {
           setChanges((n) => n + 1);
         }}
       />
-      <div className="pb-6">
+      <div className="space-y-4 pb-6">
         <ScheduleHistory bookingId={id} reloadKey={changes} />
+        <DeleteBooking booking={b} />
       </div>
     </div>
   );

@@ -8,6 +8,7 @@ import PageHeader from "@/components/ui/PageHeader";
 import AuditList from "@/components/audit/AuditList";
 import BookingChangePanel from "@/components/bookings/BookingChangePanel";
 import BookingForm from "@/components/bookings/BookingForm";
+import DeleteBooking from "@/components/bookings/DeleteBooking";
 import NotesCard from "@/components/bookings/NotesCard";
 import TrackingLink from "@/components/bookings/TrackingLink";
 import ItemsCard from "@/components/bookings/ItemsCard";
@@ -115,6 +116,7 @@ export default function EditBookingPage() {
             <AuditList entries={history.data} />
           </Card>
         )}
+        <DeleteBooking booking={b} />
       </div>
     </>
   );

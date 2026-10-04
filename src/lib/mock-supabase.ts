@@ -13,7 +13,7 @@ type Db = {
   booking_events: Row[]; notifications: Row[]; app_settings: Row[]; returns: Row[]; booking_notes: Row[]; number_series: Row[]; organization: Row[];
 };
 
-const STORAGE_KEY = "logistics-mock-db-v27";
+const STORAGE_KEY = "logistics-mock-db-v28";
 const AUTH_KEY = "logistics-mock-signed-out";
 
 const uid = () => crypto.randomUUID();
@@ -553,6 +553,33 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
     Object.assign(r, { status: "completed", completed_at: now(), completed_by_name: "You (sample data)", received_by_name: String(p_received_by).trim() });
     d.booking_events.push({ id: uid(), booking_id: r.booking_id, kind: "returned", reason: `${r.code}: ${ps.length} parcel(s) returned to ${r.received_by_name}`,
       old_date: null, new_date: null, actor_name: "You (sample data)", created_at: now() });
+    save();
+    return { data: null, error: null };
+  },
+
+  delete_booking({ p_booking_id, p_reason, p_with_payments }) {
+    const d = db();
+    const b = d.bookings.find((x) => x.id === p_booking_id);
+    if (!b) return fail("Booking not found");
+    if (!String(p_reason ?? "").trim()) return fail("Enter the reason for deleting this booking");
+    const name = b.invoice_no ?? b.code;
+    if (d.parcels.some((p) => p.booking_id === b.id && ["loaded", "in_transit", "arrived", "delivered"].includes(p.status)))
+      return fail(`Some packages of ${name} have shipped (in a container, in transit or delivered), so it cannot be deleted. Cancel it instead, or unload the packages from the container first.`);
+    const pays = d.payments.filter((p) => p.booking_id === b.id);
+    const total = pays.reduce((s, p) => s + Number(p.amount), 0);
+    if (pays.length && !p_with_payments) return fail(`PAYMENTS_EXIST : ${pays.length} payment(s) totalling ${total} are recorded on ${name}`);
+    d.audit_log.push({ id: uid(), table_name: "deletion_reason", row_id: b.id, booking_id: b.id, action: "delete", actor_name: "You (sample data)", changed_at: now(),
+      changes: { reason: String(p_reason).trim(), booking: b.code, invoice: b.invoice_no ?? null, payments_deleted: pays.length, payments_total: total } });
+    const parcelIds = d.parcels.filter((p) => p.booking_id === b.id).map((p) => p.id);
+    d.payments = d.payments.filter((p) => p.booking_id !== b.id);
+    d.returns = d.returns.filter((r) => r.booking_id !== b.id);
+    d.parcel_events = d.parcel_events.filter((e) => !parcelIds.includes(e.parcel_id));
+    d.parcels = d.parcels.filter((p) => p.booking_id !== b.id);
+    d.booking_items = d.booking_items.filter((i) => i.booking_id !== b.id);
+    d.booking_notes = d.booking_notes.filter((n) => n.booking_id !== b.id);
+    d.booking_events = d.booking_events.filter((e) => e.booking_id !== b.id);
+    d.notifications = d.notifications.filter((n) => n.booking_id !== b.id);
+    d.bookings = d.bookings.filter((x) => x !== b);
     save();
     return { data: null, error: null };
   },
