@@ -46,10 +46,12 @@ export default function TrackingPage() {
             <p className="font-mono text-lg font-semibold">{data.invoice_no ?? data.code}</p>
             {data.invoice_no && <p className="font-mono text-xs text-slate-500">Booking {data.code}</p>}
             <p className="text-sm text-slate-500">Booked {formatDate(data.booked_at)}</p>
-            {!data.parcels.length && (
-              <p className="mt-2 text-sm text-slate-600">
-                Status: <StatusBadge status={data.status} />. Parcels will appear once your cargo reaches our warehouse.
-              </p>
+            <p className="mt-2 text-sm text-slate-600">
+              Status: <StatusBadge status={data.status} />
+            </p>
+            {data.status === "cancelled" && <p className="mt-2 text-sm text-slate-600">This booking was cancelled.</p>}
+            {data.status !== "cancelled" && !data.parcels.length && (
+              <p className="mt-2 text-sm text-slate-600">Parcels will appear once your cargo reaches our warehouse.</p>
             )}
           </Card>
 

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ArrowLeft, CalendarDays, CheckCircle2, MapPin, Navigation, Printer } from "lucide-react";
 import BookingChangePanel from "@/components/bookings/BookingChangePanel";
+import TrackingLink from "@/components/bookings/TrackingLink";
 import ItemsCard from "@/components/bookings/ItemsCard";
 import PaymentsCard from "@/components/bookings/PaymentsCard";
 import ContactCard from "@/components/contact/ContactCard";
@@ -97,6 +98,8 @@ export default function PickupDetailPage() {
           />
         )}
       </Card>
+
+      {b.invoice_no && <TrackingLink booking={b} />}
 
       <ItemsCard bookingId={id} status={b.status} items={items.data ?? []} onChanged={() => items.reload()} />
 
