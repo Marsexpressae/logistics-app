@@ -5,13 +5,15 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ArrowLeft, CheckCheck, MapPinCheck, PackagePlus, Rocket, ScanLine, X } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
+import ListSearch from "@/components/ui/ListSearch";
+import { matchesSearch } from "@/lib/search";
 import { Button, Card, ErrorMessage, StatusBadge, inputClass } from "@/components/ui/form";
 import { useQuery } from "@/lib/hooks";
 import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
 import type { Container, Parcel } from "@/lib/types";
 
-type WarehouseParcel = Parcel & { warehouse: { code: string } | null };
+type WarehouseParcel = Parcel & { warehouse: { code: string; name?: string } | null; booking: { code: string; invoice_no: string | null; sender_name: string } | null };
 type CheckRow = { booking_id: string; booking_code: string; invoice_no: string | null; expected: number; loaded: number; missing: string[] };
 
 export default function ContainerManifestPage() {
@@ -23,13 +25,14 @@ export default function ContainerManifestPage() {
     supabase.from("parcels").select("*").eq("container_id", id).order("barcode")
   );
   const available = useQuery<WarehouseParcel[]>(() =>
-    supabase.from("parcels").select("*, warehouse:warehouses(code)").eq("status", "in_warehouse").order("barcode")
+    supabase.from("parcels").select("*, warehouse:warehouses(code, name), booking:bookings(code, invoice_no, sender_name)").eq("status", "in_warehouse").order("barcode")
   );
 
   // Per booking: how many of its parcels are in this container, and which are still in the warehouse.
   const check = useQuery<CheckRow[]>(() => supabase.rpc("container_check", { p_container_id: id }) as never);
 
   const [selected, setSelected] = useState<string[]>([]);
+  const [find, setFind] = useState("");
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const scanRef = useRef<HTMLInputElement>(null);
   // When "payment before loading" is on, a manager can load anyway by giving a reason. The reason is remembered
@@ -167,8 +170,11 @@ export default function ContainerManifestPage() {
               <p className="text-sm text-slate-500">No parcels waiting in the warehouse.</p>
             ) : (
               <>
+                <ListSearch value={find} onChange={setFind} placeholder="Invoice, barcode or name" className="mb-2 max-w-none sm:max-w-none" />
                 <ul className="max-h-56 divide-y divide-slate-100 overflow-y-auto text-sm">
-                  {available.data.map((p) => (
+                  {available.data
+                    .filter((p) => matchesSearch(find, [p.barcode, p.description, p.booking?.invoice_no, p.booking?.code, p.booking?.sender_name, p.warehouse?.name, p.warehouse?.code, p.position]))
+                    .map((p) => (
                     <li key={p.id}>
                       <label className="flex cursor-pointer items-center gap-3 py-2">
                         <input
@@ -180,7 +186,8 @@ export default function ContainerManifestPage() {
                         />
                         <span className="font-mono">{p.barcode}</span>
                         <span className="text-slate-500">
-                          WH {p.warehouse?.code} · {Number(p.weight_kg)} kg
+                          {p.booking?.invoice_no ? `${p.booking.invoice_no} · ` : ""}
+                          {p.warehouse?.name ?? p.warehouse?.code} · {Number(p.weight_kg)} kg
                         </span>
                       </label>
                     </li>

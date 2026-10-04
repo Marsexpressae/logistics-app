@@ -4,6 +4,8 @@ import { Suspense, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import PageHeader from "@/components/ui/PageHeader";
+import ListSearch from "@/components/ui/ListSearch";
+import { matchesSearch } from "@/lib/search";
 import EmptyState from "@/components/ui/EmptyState";
 import { Button, Card, ErrorMessage, StatusBadge, inputClass } from "@/components/ui/form";
 import { useQuery } from "@/lib/hooks";
@@ -21,7 +23,8 @@ function ContainersContent() {
   const [error, setError] = useState<string | null>(null);
   const initial = useSearchParams().get("status") ?? "all";
   const [status, setStatus] = useState(["loading", "departed", "arrived"].includes(initial) ? initial : "all");
-  const shown = (containers.data ?? []).filter((c) => status === "all" || c.status === status);
+  const [search, setSearch] = useState("");
+  const shown = (containers.data ?? []).filter((c) => (status === "all" || c.status === status) && matchesSearch(search, [c.code, c.destination]));
 
   async function create(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -60,6 +63,7 @@ function ContainersContent() {
             {f.label}
           </button>
         ))}
+        <ListSearch value={search} onChange={setSearch} placeholder="Container or destination" className="ml-auto" />
       </div>
 
       <ErrorMessage message={containers.error} />

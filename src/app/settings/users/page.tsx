@@ -6,6 +6,8 @@ import PageHeader from "@/components/ui/PageHeader";
 import { Button, Card, ErrorMessage, Field, inputClass } from "@/components/ui/form";
 import { useQuery } from "@/lib/hooks";
 import { useCurrentProfile, usePermissions } from "@/lib/profile-context";
+import ListSearch from "@/components/ui/ListSearch";
+import { matchesSearch } from "@/lib/search";
 import { formatDate } from "@/lib/format";
 import { isMock, supabase } from "@/lib/supabase";
 import { mockUsersApi } from "@/lib/mock-supabase";
@@ -59,6 +61,7 @@ export default function UsersPage() {
   const [busy, setBusy] = useState(false);
   // The person being edited (name and email), or null.
   // A role picked in the list but not saved yet.
+  const [find, setFind] = useState("");
   const [roleDraft, setRoleDraft] = useState<{ id: string; role: string } | null>(null);
   const [editing, setEditing] = useState<{ id: string; name: string; email: string } | null>(null);
 
@@ -184,6 +187,12 @@ export default function UsersPage() {
       {notice && <p className="mb-3 rounded-md bg-green-50 px-3 py-2 text-sm text-green-700">{notice}</p>}
 
       {users.data && (
+        <div className="mb-3">
+          <ListSearch value={find} onChange={setFind} placeholder="Name, email or role" />
+        </div>
+      )}
+
+      {users.data && (
         <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
           <table className="w-full text-left text-sm">
             <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase text-slate-500">
@@ -196,7 +205,7 @@ export default function UsersPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {users.data.users.map((u) => {
+              {users.data.users.filter((u) => matchesSearch(find, [u.full_name, u.email, roleLabel(u.role), u.driver])).map((u) => {
                 const isMe = u.id === me.id;
                 // Managers cannot modify a super admin.
                 const locked = isMe || (!isSuperAdmin && u.role === "super_admin");

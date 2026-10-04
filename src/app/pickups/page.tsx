@@ -6,6 +6,8 @@ import { useSearchParams } from "next/navigation";
 import { CalendarDays, MapPin, Navigation, User } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
 import EmptyState from "@/components/ui/EmptyState";
+import ListSearch from "@/components/ui/ListSearch";
+import { matchesSearch } from "@/lib/search";
 import ContactButtons from "@/components/contact/ContactButtons";
 import { ErrorMessage, StatusBadge, inputClass } from "@/components/ui/form";
 import { AREAS } from "@/config/areas";
@@ -31,6 +33,7 @@ function PickupsContent() {
   const initialStatus = useSearchParams().get("status");
   const [status, setStatus] = useState(initialStatus === "booked" || initialStatus === "collected" || initialStatus === "all" ? initialStatus : "booked");
   const [area, setArea] = useState("all");
+  const [search, setSearch] = useState("");
   const [driverChoice, setDriverChoice] = useState<string | null>(null);
 
   // A signed-in driver defaults to their own pickups; staff see everyone's.
@@ -39,7 +42,14 @@ function PickupsContent() {
   const driverId = seesAll ? (driverChoice ?? myDriver?.id ?? "all") : (myDriver?.id ?? "none");
 
   const open = (pickups.data ?? []).filter(
-    (b) => (driverId === "all" || b.driver_id === driverId) && (status === "all" || b.status === status)
+    (b) =>
+      (driverId === "all" || b.driver_id === driverId) &&
+      (status === "all" || b.status === status) &&
+      matchesSearch(
+        search,
+        [b.code, b.invoice_no, b.sender_name, b.receiver_name, b.pickup_area, b.pickup_address, b.receiver_address, b.notes],
+        [b.sender_phone, b.sender_whatsapp, b.receiver_phone, b.receiver_whatsapp]
+      )
   );
   const countFor = (a: string) => open.filter((b) => a === "all" || b.pickup_area === a).length;
   const visible = open.filter((b) => area === "all" || b.pickup_area === area);
@@ -63,6 +73,7 @@ function PickupsContent() {
       </div>
 
       <div className="mb-4 flex flex-wrap gap-2">
+        <ListSearch value={search} onChange={setSearch} placeholder="Invoice, booking, name or phone" />
         <select
           className={`${inputClass} w-auto`}
           value={status}

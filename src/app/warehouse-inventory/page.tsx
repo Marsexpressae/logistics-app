@@ -9,6 +9,8 @@ import EmptyState from "@/components/ui/EmptyState";
 import { Button, Card, ErrorMessage, StatusBadge, inputClass } from "@/components/ui/form";
 import { formatDay, kg } from "@/lib/format";
 import ParcelPosition from "@/components/warehouse/ParcelPosition";
+import ListSearch from "@/components/ui/ListSearch";
+import { matchesSearch } from "@/lib/search";
 import { useQuery } from "@/lib/hooks";
 import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
@@ -29,6 +31,7 @@ function WarehouseContent() {
   const asked = useSearchParams().get("tab");
   const [tab, setTab] = useState<Tab>(TABS.some((t) => t.key === asked) ? (asked as Tab) : "intake");
   const [filter, setFilter] = useState("all");
+  const [q, setQ] = useState("");
   const [picked, setPicked] = useState<string[]>([]);
   const [open, setOpen] = useState<string[]>([]); // invoices whose packages are showing
   const [openReturns, setOpenReturns] = useState<string[]>([]); // invoices whose returns are showing
@@ -62,6 +65,13 @@ function WarehouseContent() {
     packed: packed.length,
     returns: openReturnCount,
   };
+
+  const intake = (awaiting.data ?? []).filter((b) =>
+    matchesSearch(q, [b.code, b.invoice_no, b.sender_name, b.receiver_name, b.pickup_area, b.pickup_address], [b.sender_phone, b.sender_whatsapp, b.receiver_phone, b.receiver_whatsapp])
+  );
+  const returnList = (returns.data ?? []).filter((x) =>
+    matchesSearch(q, [x.code, x.booking?.invoice_no, x.booking?.code, x.booking?.sender_name, x.received_by_name, ...(x.parcels ?? []).flatMap((p) => [p.barcode, p.description])])
+  );
 
   // A return form covers the parcels of one booking.
   const pickedBookings = new Set(stock.filter((p) => picked.includes(p.id)).map((p) => p.booking_id));
@@ -134,7 +144,11 @@ function WarehouseContent() {
   }
 
   const renderParcels = (list: StockParcel[], empty: string) => {
-    const visible = list.filter((p) => filter === "all" || p.warehouse?.code === filter);
+    const visible = list.filter(
+      (p) =>
+        (filter === "all" || p.warehouse?.code === filter) &&
+        matchesSearch(q, [p.barcode, p.description, p.position, p.booking?.invoice_no, p.booking?.code, p.booking?.sender_name, p.warehouse?.name, p.warehouse?.code])
+    );
     return (
       <>
         <div className="mb-3 flex gap-2">
@@ -184,7 +198,7 @@ function WarehouseContent() {
         <ErrorMessage message={returnError} />
 
         {!visible.length ? (
-          <EmptyState message={empty} />
+          <EmptyState message={q.trim() ? "No packages match your search." : empty} />
         ) : (
           <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
             <table className="w-full text-left text-sm">
@@ -309,15 +323,22 @@ function WarehouseContent() {
           </button>
         ))}
       </div>
-      <p className="mb-4 text-sm text-slate-500">{TABS.find((t) => t.key === tab)!.hint}</p>
+      <p className="mb-3 text-sm text-slate-500">{TABS.find((t) => t.key === tab)!.hint}</p>
+      <div className="mb-3 flex">
+        <ListSearch
+          value={q}
+          onChange={setQ}
+          placeholder={tab === "returns" ? "Return, invoice or customer" : tab === "intake" ? "Invoice, booking or customer" : "Invoice, barcode, position or customer"}
+        />
+      </div>
 
       {tab === "intake" && (
         <Card id="awaiting-intake">
-          {!awaiting.data?.length ? (
-            <p className="text-sm text-slate-500">No collected bookings waiting.</p>
+          {!intake.length ? (
+            <p className="text-sm text-slate-500">{awaiting.data?.length ? "No bookings match your search." : "No collected bookings waiting."}</p>
           ) : (
             <ul className="divide-y divide-slate-100 text-sm">
-              {awaiting.data.map((b) => (
+              {intake.map((b) => (
                 <li key={b.id} className="flex items-center justify-between py-2">
                   <span>
                     <span className="font-mono font-medium">{b.invoice_no ?? b.code}</span>{" "}
@@ -341,11 +362,13 @@ function WarehouseContent() {
 
       {tab === "returns" && (
         <Card>
-          {!returns.data?.length ? (
-            <p className="text-sm text-slate-500">No returns yet. Tick parcels in Unpacked or Packed, then press Return selected.</p>
+          {!returnList.length ? (
+            <p className="text-sm text-slate-500">
+              {returns.data?.length ? "No returns match your search." : "No returns yet. Tick parcels in Unpacked or Packed, then press Return selected."}
+            </p>
           ) : (
             <ul className="divide-y divide-slate-100 text-sm">
-              {returnGroups(returns.data).map((g) => {
+              {returnGroups(returnList).map((g) => {
                 const isOpen = openReturns.includes(g.bookingId);
                 const statuses = [...new Set(g.returns.map((x) => x.status))];
                 const packages = g.returns.reduce((s, x) => s + (x.parcels?.length ?? 0), 0);

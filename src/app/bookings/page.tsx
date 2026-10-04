@@ -3,16 +3,17 @@
 import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Plus, Search } from "lucide-react";
+import { Plus } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
 import EmptyState from "@/components/ui/EmptyState";
+import ListSearch from "@/components/ui/ListSearch";
+import { matchesSearch } from "@/lib/search";
 import RowLimitNotice from "@/components/ui/RowLimitNotice";
 import { ErrorMessage, StatusBadge, inputClass } from "@/components/ui/form";
 import { useQuery } from "@/lib/hooks";
 import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
 import { formatDate, formatDay, money, totalPaid } from "@/lib/format";
-import { phoneMatches } from "@/lib/phone";
 import type { Booking } from "@/lib/types";
 
 const STATUS_FILTERS = [
@@ -36,16 +37,14 @@ function BookingsContent() {
   const initial = useSearchParams().get("status") ?? "all";
   const [status, setStatus] = useState(STATUS_FILTERS.some((f) => f.value === initial) ? initial : "all");
 
-  const term = search.trim().toLowerCase();
   const rows = (data ?? []).filter(
     (b) =>
       (status === "all" || b.status === status) &&
-      (!term ||
-        [b.code, b.invoice_no, b.sender_name, b.receiver_name, b.sender_phone, b.receiver_phone]
-          .filter(Boolean)
-          .some((v) => v!.toLowerCase().includes(term)) ||
-        // numbers match however they were typed: 0567375716, 56 737 5716, +971567375716
-        [b.sender_phone, b.sender_whatsapp, b.receiver_phone, b.receiver_whatsapp].some((n) => phoneMatches(search, n)))
+      matchesSearch(
+        search,
+        [b.code, b.invoice_no, b.sender_name, b.receiver_name, b.pickup_area, b.pickup_address, b.receiver_address, b.notes, b.driver?.name],
+        [b.sender_phone, b.sender_whatsapp, b.receiver_phone, b.receiver_whatsapp]
+      )
   );
 
   return (
@@ -63,15 +62,7 @@ function BookingsContent() {
       </div>
 
       <div className="mb-4 flex flex-wrap gap-2">
-        <div className="relative min-w-60 flex-1 sm:max-w-sm">
-          <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search code, name or phone"
-            className={`${inputClass} pl-9`}
-          />
-        </div>
+        <ListSearch value={search} onChange={setSearch} placeholder="Invoice, booking, name or phone" />
         <select value={status} onChange={(e) => setStatus(e.target.value)} className={`${inputClass} w-auto`}>
           {STATUS_FILTERS.map((s) => (
             <option key={s.value} value={s.value}>
