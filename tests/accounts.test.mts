@@ -34,6 +34,8 @@ test("invoice list: newest first, status per invoice, filters and search", async
   assert.equal(all[0].r_total, 3);
   assert.equal(all[2].r_balance, 400);
   assert.deepEqual((await invoices({ p_status: "partial" })).map((r) => r.r_invoice_no), ["INV-1001"]);
+  assert.deepEqual((await invoices({ p_status: "outstanding" })).map((r) => r.r_invoice_no), ["INV-1001"]); // what the Outstanding card counts
+  assert.deepEqual((await invoices({ p_status: "not_invoiced" })).map((r) => r.r_invoice_no), ["INV-1003"]);
   assert.deepEqual((await invoices({ p_search: "fatima" })).map((r) => r.r_invoice_no), ["INV-1002"]);
   assert.deepEqual((await invoices({ p_search: "bk-1004" })).map((r) => r.r_invoice_no), ["INV-1003"]);
 });

@@ -11,7 +11,7 @@ type Db = {
   booking_events: Row[]; notifications: Row[]; app_settings: Row[]; returns: Row[];
 };
 
-const STORAGE_KEY = "logistics-mock-db-v17";
+const STORAGE_KEY = "logistics-mock-db-v18";
 const AUTH_KEY = "logistics-mock-signed-out";
 
 const uid = () => crypto.randomUUID();
@@ -507,7 +507,11 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
         const status = amount === null ? "not_invoiced" : amount - paid <= 0 ? "paid" : paid > 0 ? "partial" : "unpaid";
         return { b, paid, amount, status };
       })
-      .filter((r) => p_status === "all" || r.status === p_status)
+      .filter((r) =>
+        p_status === "all" ? true
+        : p_status === "outstanding" ? ["unpaid", "partial"].includes(r.status) && r.b.status !== "cancelled"
+        : p_status === "not_invoiced" ? r.status === "not_invoiced" && r.b.status !== "cancelled"
+        : r.status === p_status)
       .sort((x, y) => Number(y.b.invoice_no.slice(4)) - Number(x.b.invoice_no.slice(4)));
     const page = list.slice(Math.max(p_offset, 0), Math.max(p_offset, 0) + Math.max(Math.min(p_limit, 100), 1));
     return {

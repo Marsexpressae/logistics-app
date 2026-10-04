@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Search } from "lucide-react";
+import { ChevronRight, Search } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
 import EmptyState from "@/components/ui/EmptyState";
-import { Button, Card, ErrorMessage, StatusBadge, inputClass } from "@/components/ui/form";
+import { Button, ErrorMessage, StatusBadge, inputClass } from "@/components/ui/form";
 import { useQuery } from "@/lib/hooks";
 import { supabase } from "@/lib/supabase";
 import { money } from "@/lib/format";
@@ -35,11 +35,33 @@ type InvoiceRow = {
 const PAGE = 25;
 const FILTERS = [
   { value: "all", label: "All" },
+  { value: "outstanding", label: "Outstanding" },
   { value: "unpaid", label: "Unpaid" },
   { value: "partial", label: "Partially paid" },
   { value: "paid", label: "Paid" },
   { value: "not_invoiced", label: "No amount yet" },
 ];
+
+/** A summary card. Pressing it shows the invoices behind the number. */
+function StatCard({ label, value, note, onOpen, active }: { label: string; value: string; note?: string; onOpen: () => void; active?: boolean }) {
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      aria-label={`${label}: ${value}. Show the list`}
+      className={`rounded-lg border bg-white p-4 text-left transition-colors hover:border-blue-300 hover:bg-blue-50/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
+        active ? "border-blue-400 ring-1 ring-blue-200" : "border-slate-200"
+      }`}
+    >
+      <span className="flex items-start justify-between gap-2">
+        <span className="text-sm text-slate-500">{label}</span>
+        <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />
+      </span>
+      <span className="block text-2xl font-semibold text-slate-900">{value}</span>
+      {note && <span className="block text-xs text-slate-500">{note}</span>}
+    </button>
+  );
+}
 
 export default function AccountsPage() {
   const [status, setStatus] = useState("all");
@@ -61,6 +83,17 @@ export default function AccountsPage() {
     [status, search, page]
   );
 
+  // A card sets the filter (or not) and scrolls to what it counts.
+  function show(filter: string | null, where: "invoices" | "collections") {
+    if (filter) {
+      setStatus(filter);
+      setText("");
+      setSearch("");
+      setPage(0);
+    }
+    document.getElementById(where)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
   const s = summary.data;
   const rows = invoices.data ?? [];
   const total = rows[0]?.r_total ?? 0;
@@ -73,26 +106,19 @@ export default function AccountsPage() {
       <ErrorMessage message={summary.error ?? invoices.error} />
 
       <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <p className="text-sm text-slate-500">Invoiced</p>
-          <p className="text-2xl font-semibold">{money(s?.invoiced ?? 0)}</p>
-        </Card>
-        <Card>
-          <p className="text-sm text-slate-500">Collected</p>
-          <p className="text-2xl font-semibold">{money(s?.collected ?? 0)}</p>
-        </Card>
-        <Card>
-          <p className="text-sm text-slate-500">Outstanding</p>
-          <p className="text-2xl font-semibold">{money(s?.outstanding ?? 0)}</p>
-        </Card>
-        <Card>
-          <p className="text-sm text-slate-500">Amount not set yet</p>
-          <p className="text-2xl font-semibold">{s?.no_amount_count ?? 0}</p>
-          <p className="text-xs text-slate-500">~{money(s?.estimated_pending ?? 0)} estimated</p>
-        </Card>
+        <StatCard label="Invoiced" value={money(s?.invoiced ?? 0)} onOpen={() => show("all", "invoices")} active={status === "all"} />
+        <StatCard label="Collected" value={money(s?.collected ?? 0)} onOpen={() => show(null, "collections")} />
+        <StatCard label="Outstanding" value={money(s?.outstanding ?? 0)} onOpen={() => show("outstanding", "invoices")} active={status === "outstanding"} />
+        <StatCard
+          label="Amount not set yet"
+          value={String(s?.no_amount_count ?? 0)}
+          note={`~${money(s?.estimated_pending ?? 0)} estimated`}
+          onOpen={() => show("not_invoiced", "invoices")}
+          active={status === "not_invoiced"}
+        />
       </div>
 
-      <h2 className="mb-2 text-base font-semibold">Invoices</h2>
+      <h2 id="invoices" className="mb-2 scroll-mt-4 text-base font-semibold">Invoices</h2>
       <div className="mb-3 flex flex-wrap items-center gap-2">
         {FILTERS.map((f) => (
           <button
@@ -176,7 +202,7 @@ export default function AccountsPage() {
         </>
       )}
 
-      <h2 className="mb-2 mt-6 text-base font-semibold">Collected, by who and how</h2>
+      <h2 id="collections" className="mb-2 mt-6 scroll-mt-4 text-base font-semibold">Collected, by who and how</h2>
       {!s?.collections.length ? (
         <EmptyState message="No payments recorded yet." />
       ) : (
