@@ -8,10 +8,10 @@ type Db = {
   [table: string]: any;
   drivers: Row[]; warehouses: Row[]; bookings: Row[]; booking_items: Row[]; payments: Row[];
   containers: Row[]; parcels: Row[]; parcel_events: Row[]; profiles: Row[]; audit_log: Row[]; roles: Row[]; permissions: Row[]; role_permissions: Row[];
-  booking_events: Row[]; notifications: Row[]; app_settings: Row[]; returns: Row[]; booking_notes: Row[];
+  booking_events: Row[]; notifications: Row[]; app_settings: Row[]; returns: Row[]; booking_notes: Row[]; number_series: Row[];
 };
 
-const STORAGE_KEY = "logistics-mock-db-v19";
+const STORAGE_KEY = "logistics-mock-db-v20";
 const AUTH_KEY = "logistics-mock-signed-out";
 
 const uid = () => crypto.randomUUID();
@@ -56,6 +56,7 @@ const PERMISSIONS: Row[] = [
   ["containers.override_departure", "Containers", "Depart with missing parcels", "Send a container even though some parcels of an invoice are not loaded (a reason is recorded on each booking)"],
   ["containers.override_payment", "Containers", "Load without full payment", "Load a parcel even when payment is required and not complete (a reason is recorded)"],
   ["notes.write", "Bookings", "Write notes on jobs", "Add notes to a booking or invoice and mention colleagues"],
+  ["numbers.edit", "Bookings", "Set invoice and booking numbers", "Type a custom invoice or booking number, or change one, for example to match the accounting system"],
   ["items.edit", "Pickups", "Edit package items (before collection)", "Add, change or remove items and weights until the pickup is collected"],
   ["items.edit_after", "Pickups", "Edit package items (after collection)", "Add, change or remove items and weights after the pickup is collected"],
 ].map(([key, group_name, label, description], i) => ({ key, group_name, label, description, sort: (i + 1) * 10 }));
@@ -64,7 +65,7 @@ const GRANTS: Record<string, string[]> = {
   manager: ["containers.override_payment", "containers.override_departure", "dashboard.view", "bookings.view", "bookings.create", "bookings.edit", "bookings.cancel", "pickups.view_all",
     "pickups.collect", "warehouse.view", "warehouse.manage", "containers.view", "containers.manage", "accounts.view",
     "payments.manage", "drivers.manage", "users.manage", "activity.view", "notifications.view", "bookings.reschedule",
-    "items.edit", "items.edit_after", "notes.write"],
+    "items.edit", "items.edit_after", "notes.write", "numbers.edit"],
   staff: ["dashboard.view", "bookings.view", "bookings.create", "bookings.edit", "bookings.cancel", "pickups.view_all",
     "pickups.collect", "warehouse.view", "containers.view", "accounts.view", "notifications.view", "bookings.reschedule", "items.edit", "items.edit_after", "notes.write"],
   warehouse: ["dashboard.view", "warehouse.view", "warehouse.manage", "containers.view", "containers.manage", "notifications.view", "notes.write"],
@@ -140,6 +141,10 @@ function seed(): Db {
     booking_events: [],
     returns: [],
     booking_notes: [],
+    number_series: [
+      { kind: "invoice", prefix: "INV-", next_number: 1004 },
+      { kind: "booking", prefix: "BK-", next_number: 1005 },
+    ],
     app_settings: [{ key: "require_payment_before_loading", value: false, label: "Require payment before loading into a container",
       description: "When on, a parcel can only be loaded if its booking has an invoice amount and it is paid in full. People with \"Load without full payment\" can override it with a reason.", updated_at: now() }],
     notifications: [],
@@ -183,6 +188,35 @@ export function resetMockData() {
   memory = seed();
   save();
   location.reload();
+}
+
+// ---------------------------------------------------------------- numbering (mirrors the database: series, typed numbers, uniqueness)
+const NUMBER_RE = /^[A-Z0-9][A-Z0-9._/-]{0,39}$/;
+function takeNumber(kind: "invoice" | "booking"): string {
+  const d = db();
+  const s = d.number_series.find((x) => x.kind === kind)!;
+  for (;;) {
+    const candidate = `${s.prefix}${s.next_number++}`;
+    if (!d.bookings.some((b) => (kind === "invoice" ? b.invoice_no : b.code) === candidate)) return candidate;
+  }
+}
+const duplicate = (column: "code" | "invoice_no") => ({ message: `duplicate key value violates unique constraint "bookings_${column}_key"`, code: "23505" });
+/** Checks a typed booking number or invoice number. Returns an error, or null when it is fine. */
+function checkNumbers(row: Row, old: Row | null): { message: string; code?: string } | null {
+  const d = db();
+  if (typeof row.code === "string") row.code = row.code.trim().toUpperCase();
+  if (typeof row.invoice_no === "string") row.invoice_no = row.invoice_no.trim().toUpperCase() || null;
+  if (old && old.invoice_no && !row.invoice_no) return { message: "An invoice number cannot be removed" };
+  if (row.code && row.code !== old?.code) {
+    if (!NUMBER_RE.test(row.code)) return { message: "Use letters, numbers, dashes or slashes for the booking number, for example BK-1050" };
+    if (old && d.parcels.some((p) => p.booking_id === old.id)) return { message: "The booking number cannot change once parcels exist, because their labels carry it" };
+    if (d.bookings.some((b) => b !== old && b.code === row.code)) return duplicate("code");
+  }
+  if (row.invoice_no && row.invoice_no !== old?.invoice_no) {
+    if (!NUMBER_RE.test(row.invoice_no)) return { message: "Use letters, numbers, dashes or slashes for the invoice number, for example INV-3603" };
+    if (d.bookings.some((b) => b !== old && b.invoice_no === row.invoice_no)) return duplicate("invoice_no");
+  }
+  return null;
 }
 
 // ---------------------------------------------------------------- relations used in select("... alias:table(cols)")
@@ -276,16 +310,34 @@ class Query implements PromiseLike<any> {
     if (this.op === "insert") {
       const items = Array.isArray(this.payload) ? this.payload : [this.payload];
       rows = items.map((it: Row) => withDefaults(this.table, it));
+      if (this.table === "bookings") {
+        for (const r of rows) {
+          const err = checkNumbers(r, null);
+          if (err) return { data: null, error: err, count: null };
+        }
+      }
       tableRows.push(...rows);
     } else {
       const matched = tableRows.filter((r) => this.filters.every((f) => f(r)));
       if (this.op === "update") {
         // bookings carry a version stamp, bumped on every update (like the database trigger)
+        if (this.table === "bookings") {
+          for (const r of matched) {
+            const err = checkNumbers({ ...r, ...this.payload }, r);
+            if (err) return { data: null, error: err, count: null };
+          }
+        }
         matched.forEach((r) => {
+          const before = r.invoice_no;
           Object.assign(r, this.payload, this.table === "bookings" ? { updated_at: now() } : {});
-          // Collecting a pickup issues the invoice number.
-          if (this.table === "bookings" && ["collected", "at_warehouse"].includes(r.status) && !r.invoice_no)
-            r.invoice_no = `INV-${db().seq.invoice++}`;
+          if (this.table === "bookings") {
+            if (typeof r.code === "string") r.code = r.code.trim().toUpperCase();
+            if (typeof r.invoice_no === "string") r.invoice_no = r.invoice_no.trim().toUpperCase();
+            // Collecting a pickup issues the invoice number.
+            if (["collected", "at_warehouse"].includes(r.status) && !r.invoice_no) r.invoice_no = takeNumber("invoice");
+            // Payments follow the invoice number.
+            if (r.invoice_no !== before) db().payments.filter((p) => p.booking_id === r.id).forEach((p) => (p.invoice_no = r.invoice_no));
+          }
         });
         rows = matched;
       } else if (this.op === "delete") {
@@ -321,7 +373,7 @@ function withDefaults(table: string, it: Row): Row {
   switch (table) {
     case "bookings":
       Object.assign(row, {
-        code: `BK-${d.seq.booking++}`, status: "booked", estimated_bill: null, invoice_amount: null, invoice_no: null,
+        code: takeNumber("booking"), status: "booked", estimated_bill: null, invoice_amount: null, invoice_no: null,
         sender_phone: null, receiver_phone: null, receiver_address: null, notes: null,
         driver_id: null, collected_at: null, cancellation_reason: null, cancelled_at: null,
         geo_lat: null, geo_lng: null, created_at: now(), updated_at: now(), ...stripNull(it),
@@ -343,7 +395,7 @@ function withDefaults(table: string, it: Row): Row {
     case "payments": {
       // A payment is recorded against the invoice; the first payment issues it if the booking has none yet.
       const bk = d.bookings.find((x) => x.id === it.booking_id);
-      if (bk && !bk.invoice_no) bk.invoice_no = `INV-${d.seq.invoice++}`;
+      if (bk && !bk.invoice_no) bk.invoice_no = takeNumber("invoice");
       Object.assign(row, { created_at: now(), invoice_no: bk?.invoice_no ?? null });
       break;
     }
@@ -533,6 +585,17 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
       })),
       error: null,
     };
+  },
+
+  set_number_series({ p_kind, p_prefix, p_next }) {
+    const s = db().number_series.find((x) => x.kind === p_kind);
+    const prefix = String(p_prefix ?? "").trim().toUpperCase();
+    if (!s) return fail("Unknown number series");
+    if (!/^[A-Z0-9._/-]{0,10}$/.test(prefix)) return fail("The prefix can have up to 10 letters, numbers, dashes or slashes");
+    if (!(Number(p_next) >= 1)) return fail("The next number must be 1 or more");
+    Object.assign(s, { prefix, next_number: Number(p_next) });
+    save();
+    return { data: null, error: null };
   },
 
   mentionable_users() {

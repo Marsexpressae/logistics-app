@@ -9,6 +9,7 @@ import { formatGeo, mapsUrl, parseGeo } from "@/lib/geo";
 import { todayISO } from "@/lib/format";
 import { useQuery } from "@/lib/hooks";
 import { formatPhone, parsePhone } from "@/lib/phone";
+import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
 import type { Booking, Driver } from "@/lib/types";
 
@@ -19,6 +20,7 @@ type BookingFormProps = {
 };
 
 export default function BookingForm({ booking, submitLabel, onSaved }: BookingFormProps) {
+  const canSetNumbers = usePermissions().can("numbers.edit");
   const drivers = useQuery<Driver[]>(() =>
     supabase.from("drivers").select("*").eq("active", true).order("name")
   );
@@ -49,6 +51,17 @@ export default function BookingForm({ booking, submitLabel, onSaved }: BookingFo
       },
       { enableHighAccuracy: true, timeout: 10000 }
     );
+  }
+
+  // Typed numbers. On a new booking, anything typed is sent. On an existing one, only what changed.
+  function customNumbers(f: FormData) {
+    const typed = (k: string) => String(f.get(k) ?? "").trim().toUpperCase();
+    const code = typed("booking_number");
+    const invoice = typed("invoice_number");
+    const out: { code?: string; invoice_no?: string } = {};
+    if (code && code !== booking?.code) out.code = code;
+    if (invoice && invoice !== (booking?.invoice_no ?? "")) out.invoice_no = invoice;
+    return out;
   }
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
@@ -82,6 +95,8 @@ export default function BookingForm({ booking, submitLabel, onSaved }: BookingFo
       // Only editable after the booking exists (set once the invoice is raised).
       ...(booking ? { invoice_amount: f.get("invoice_amount") ? Number(f.get("invoice_amount")) : null } : {}),
       notes: text("notes"),
+      // Custom numbers: only people with the permission see these fields. Empty = automatic.
+      ...(canSetNumbers ? customNumbers(f) : {}),
     };
 
     setBusy(true);
@@ -100,6 +115,12 @@ export default function BookingForm({ booking, submitLabel, onSaved }: BookingFo
       : await supabase.from("bookings").insert(fields).select("code").single();
     setBusy(false);
     if (error) {
+      // A number that is already used by another booking
+      if (error.code === "23505") {
+        return setError(
+          error.message.includes("invoice_no") ? "That invoice number is already used by another booking." : "That booking number is already used by another booking."
+        );
+      }
       // PGRST116 = the update matched no row: someone saved first (or the booking was removed).
       if (booking && error.code === "PGRST116") return setConflict(true);
       return setError(error.message);
@@ -233,6 +254,36 @@ export default function BookingForm({ booking, submitLabel, onSaved }: BookingFo
         </div>
         <p className="mt-2 text-xs text-slate-500">Phone and address are added later with the invoice and shipment details.</p>
       </Card>
+
+      {/* Custom numbers, like in an accounting system. Leave empty for automatic numbers. */}
+      {canSetNumbers && (
+        <Card title="Numbers">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Booking number">
+              <input
+                name="booking_number"
+                defaultValue={booking?.code ?? ""}
+                placeholder="Automatic"
+                className={`${inputClass} font-mono`}
+                autoCapitalize="characters"
+              />
+            </Field>
+            <Field label="Invoice number">
+              <input
+                name="invoice_number"
+                defaultValue={booking?.invoice_no ?? ""}
+                placeholder={booking ? "Automatic when collected" : "Automatic when collected, or type one"}
+                className={`${inputClass} font-mono`}
+                autoCapitalize="characters"
+              />
+            </Field>
+          </div>
+          <p className="mt-2 text-xs text-slate-500">
+            Leave empty for automatic numbers. A typed number must be unique. The booking number cannot change once parcels exist,
+            and an invoice number can be changed but not removed.
+          </p>
+        </Card>
+      )}
 
       {/* 3. Money and anything else worth noting */}
       <Card title="Billing &amp; notes">
