@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { ChevronRight, ShieldCheck, UserCog } from "lucide-react";
 import NumberingCard from "@/components/settings/NumberingCard";
+import OrganizationCard from "@/components/settings/OrganizationCard";
 import PageHeader from "@/components/ui/PageHeader";
 import { Button, Card, ErrorMessage } from "@/components/ui/form";
 import { useQuery } from "@/lib/hooks";
@@ -101,6 +102,8 @@ export default function SettingsPage() {
         )}
         {saved && changed === 0 && <p className="mt-3 text-sm text-green-700">Saved. It applies straight away.</p>}
       </Card>
+
+      <OrganizationCard />
 
       <NumberingCard />
 

@@ -11,6 +11,7 @@ export const TABLE_LABELS: Record<string, string> = {
   profiles: "User",
   role_permissions: "Role permission",
   app_settings: "Setting",
+  organization: "Organization",
   returns: "Return",
 };
 

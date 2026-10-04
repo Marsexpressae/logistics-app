@@ -8,10 +8,10 @@ type Db = {
   [table: string]: any;
   drivers: Row[]; warehouses: Row[]; bookings: Row[]; booking_items: Row[]; payments: Row[];
   containers: Row[]; parcels: Row[]; parcel_events: Row[]; profiles: Row[]; audit_log: Row[]; roles: Row[]; permissions: Row[]; role_permissions: Row[];
-  booking_events: Row[]; notifications: Row[]; app_settings: Row[]; returns: Row[]; booking_notes: Row[]; number_series: Row[];
+  booking_events: Row[]; notifications: Row[]; app_settings: Row[]; returns: Row[]; booking_notes: Row[]; number_series: Row[]; organization: Row[];
 };
 
-const STORAGE_KEY = "logistics-mock-db-v20";
+const STORAGE_KEY = "logistics-mock-db-v21";
 const AUTH_KEY = "logistics-mock-signed-out";
 
 const uid = () => crypto.randomUUID();
@@ -141,6 +141,7 @@ function seed(): Db {
     booking_events: [],
     returns: [],
     booking_notes: [],
+    organization: [{ id: uid(), legal_name: "", currency: "AED", country: "United Arab Emirates", updated_at: now() }],
     number_series: [
       { kind: "invoice", prefix: "INV-", next_number: 1004 },
       { kind: "booking", prefix: "BK-", next_number: 1005 },
@@ -585,6 +586,17 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
       })),
       error: null,
     };
+  },
+
+  set_organization({ p_legal_name, p_currency, p_country }) {
+    const cur = String(p_currency ?? "").trim().toUpperCase();
+    const land = String(p_country ?? "").trim();
+    if (String(p_legal_name ?? "").trim().length > 120) return fail("The organization name can have up to 120 characters");
+    if (!/^[A-Z]{3}$/.test(cur)) return fail("Choose a currency");
+    if (!land || land.length > 60) return fail("Enter the country");
+    Object.assign(db().organization[0], { legal_name: String(p_legal_name ?? "").trim(), currency: cur, country: land, updated_at: now() });
+    save();
+    return { data: null, error: null };
   },
 
   set_number_series({ p_kind, p_prefix, p_next }) {

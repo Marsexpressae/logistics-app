@@ -9,6 +9,7 @@ import { Button, ErrorMessage, StatusBadge, inputClass } from "@/components/ui/f
 import { useQuery } from "@/lib/hooks";
 import { supabase } from "@/lib/supabase";
 import { money } from "@/lib/format";
+import { useOrganization } from "@/lib/organization";
 
 // Totals and the invoice list are computed in the database (see ADR-0007), so they stay correct at any size.
 type Summary = {
@@ -64,6 +65,7 @@ function StatCard({ label, value, note, onOpen, active }: { label: string; value
 }
 
 export default function AccountsPage() {
+  const { org } = useOrganization();
   const [status, setStatus] = useState("all");
   const [text, setText] = useState("");
   const [search, setSearch] = useState(""); // the text, once typing pauses
@@ -102,7 +104,7 @@ export default function AccountsPage() {
 
   return (
     <>
-      <PageHeader title="Accounts" description="Invoices, payments received and outstanding balances." />
+      <PageHeader title="Accounts" description={`Invoices, payments received and outstanding balances.${org ? ` Amounts are in ${org.currency}.` : ""}`} />
       <ErrorMessage message={summary.error ?? invoices.error} />
 
       <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

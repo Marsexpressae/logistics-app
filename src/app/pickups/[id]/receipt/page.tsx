@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { ArrowLeft, Printer } from "lucide-react";
 import { Button, ErrorMessage } from "@/components/ui/form";
 import { site } from "@/config/site";
+import { useOrganization } from "@/lib/organization";
 import { useQuery } from "@/lib/hooks";
 import { supabase } from "@/lib/supabase";
 import { formatDate, kg, methodLabel, money, round2, totalPaid } from "@/lib/format";
@@ -13,6 +14,7 @@ import type { Booking, BookingItem } from "@/lib/types";
 
 export default function ReceiptPage() {
   const { id } = useParams<{ id: string }>();
+  const { org } = useOrganization();
   const booking = useQuery<Booking>(() =>
     supabase.from("bookings").select("*, driver:drivers(name), payments(*)").eq("id", id).single()
   );
@@ -42,6 +44,7 @@ export default function ReceiptPage() {
       <div className="rounded-lg border border-slate-200 bg-white p-6 text-sm print:border-0 print:p-0">
         <div className="border-b border-slate-300 pb-3 text-center">
           <p className="text-lg font-bold tracking-wide">{site.name}</p>
+          {org?.legal_name && <p className="text-xs text-slate-600">{org.legal_name}{org.country ? ` · ${org.country}` : ""}</p>}
           <h1 className="text-sm font-medium uppercase text-slate-600">Cargo Pickup Receipt</h1>
           <p className="font-mono text-lg">{b.invoice_no ?? b.code}</p>
           <p className="font-mono text-xs text-slate-500">

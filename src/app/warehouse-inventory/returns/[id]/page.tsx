@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import { ArrowLeft, CheckCircle2, Printer } from "lucide-react";
 import { Button, ErrorMessage, StatusBadge, inputClass } from "@/components/ui/form";
 import { site } from "@/config/site";
+import { useOrganization } from "@/lib/organization";
 import { formatDate, kg, round2 } from "@/lib/format";
 import { useQuery } from "@/lib/hooks";
 import { formatPhone } from "@/lib/phone";
@@ -21,6 +22,7 @@ export default function ReturnFormPage() {
       .eq("id", id)
       .single()
   );
+  const { org } = useOrganization();
   const [receivedBy, setReceivedBy] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -69,6 +71,7 @@ export default function ReturnFormPage() {
       <div className="rounded-lg border border-slate-200 bg-white p-6 text-sm print:border-0 print:p-0">
         <div className="border-b border-slate-300 pb-3 text-center">
           <p className="text-lg font-bold tracking-wide">{site.name}</p>
+          {org?.legal_name && <p className="text-xs text-slate-600">{org.legal_name}{org.country ? ` · ${org.country}` : ""}</p>}
           <h1 className="text-sm font-medium uppercase text-slate-600">Cargo Return Form</h1>
           <p className="font-mono text-lg">{r.code}</p>
           <p className="text-slate-500">
