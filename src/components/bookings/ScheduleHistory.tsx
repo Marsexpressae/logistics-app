@@ -23,7 +23,7 @@ export default function ScheduleHistory({ bookingId, reloadKey = 0 }: { bookingI
           <li key={e.id} className="flex gap-3 py-3">
             {e.kind === "rescheduled" ? (
               <CalendarClock className="mt-0.5 h-5 w-5 shrink-0 text-blue-600" />
-            ) : e.kind === "loaded_without_payment" ? (
+            ) : e.kind === "loaded_without_payment" || e.kind === "departed_with_missing" ? (
               <Container className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
             ) : (
               <Ban className="mt-0.5 h-5 w-5 shrink-0 text-red-600" />
@@ -34,7 +34,9 @@ export default function ScheduleHistory({ bookingId, reloadKey = 0 }: { bookingI
                   ? `Rescheduled: ${formatDay(e.old_date)} → ${formatDay(e.new_date)}`
                   : e.kind === "loaded_without_payment"
                     ? "Loaded without full payment"
-                    : "Cancelled"}
+                    : e.kind === "departed_with_missing"
+                      ? "Container left with parcels missing"
+                      : "Cancelled"}
               </p>
               <p className="text-slate-700">Reason: {e.reason}</p>
               <p className="text-xs text-slate-500">

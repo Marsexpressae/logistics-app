@@ -100,15 +100,24 @@ export default function ContainerManifestPage() {
   }
 
   async function depart() {
-    const short = (check.data ?? []).filter((r) => r.missing.length);
-    const warning = short.length
-      ? `
+    if (!confirm(`Depart ${c!.code}? All ${loaded.data?.length} loaded parcels will be marked In transit.`)) return;
+    let { error } = await supabase.rpc("depart_container", { p_container_id: id });
 
-MISSING: ${short.map((r) => `${r.booking_code} has ${r.loaded} of ${r.expected} parcels (${r.missing.join(", ")} still in the warehouse)`).join("; ")}.
-Depart anyway as a partial shipment?`
-      : "";
-    if (!confirm(`Depart ${c!.code}? All ${loaded.data?.length} loaded parcels will be marked In transit.${warning}`)) return;
-    const { error } = await supabase.rpc("depart_container", { p_container_id: id, p_allow_partial: short.length > 0 });
+    // Parcels of an invoice are still in the warehouse: only an authorised person can send it anyway, with a reason.
+    const missing = error?.message.match(/^PARCELS_MISSING : (.*)$/);
+    if (missing) {
+      const detail = (check.data ?? [])
+        .filter((r) => r.missing.length)
+        .map((r) => `${r.booking_code}: ${r.loaded} of ${r.expected} loaded, missing ${r.missing.join(", ")}`)
+        .join("\n");
+      if (can("containers.override_departure")) {
+        const reason = window.prompt(`Parcels are missing:\n${detail}\n\nTo send the container anyway, type the reason. It is recorded on each booking.`);
+        if (reason?.trim()) ({ error } = await supabase.rpc("depart_container", { p_container_id: id, p_override_reason: reason.trim() }));
+        else error = { message: `Not departed. Parcels missing: ${missing[1]}.` } as typeof error;
+      } else {
+        error = { message: `Not departed. Parcels missing: ${missing[1]}. Only a manager can send a container with missing parcels.` } as typeof error;
+      }
+    }
     setMessage(error ? { ok: false, text: error.message } : { ok: true, text: "Container departed" });
     refresh();
   }

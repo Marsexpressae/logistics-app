@@ -11,7 +11,7 @@ type Db = {
   booking_events: Row[]; notifications: Row[]; app_settings: Row[];
 };
 
-const STORAGE_KEY = "logistics-mock-db-v13";
+const STORAGE_KEY = "logistics-mock-db-v14";
 const AUTH_KEY = "logistics-mock-signed-out";
 
 const uid = () => crypto.randomUUID();
@@ -53,13 +53,14 @@ const PERMISSIONS: Row[] = [
   ["pickups.cancel", "Pickups", "Cancel own pickups", "Cancel a pickup that has not been collected yet (a reason is required)"],
   ["pickups.reschedule", "Pickups", "Reschedule own pickups", "Move a pickup to another date (a reason is required)"],
   ["settings.manage", "People", "Change app settings", "Turn app controls on or off on the Settings page"],
+  ["containers.override_departure", "Containers", "Depart with missing parcels", "Send a container even though some parcels of an invoice are not loaded (a reason is recorded on each booking)"],
   ["containers.override_payment", "Containers", "Load without full payment", "Load a parcel even when payment is required and not complete (a reason is recorded)"],
   ["items.edit", "Pickups", "Edit package items (before collection)", "Add, change or remove items and weights until the pickup is collected"],
   ["items.edit_after", "Pickups", "Edit package items (after collection)", "Add, change or remove items and weights after the pickup is collected"],
 ].map(([key, group_name, label, description], i) => ({ key, group_name, label, description, sort: (i + 1) * 10 }));
 const GRANTS: Record<string, string[]> = {
   super_admin: PERMISSIONS.map((p) => p.key),
-  manager: ["containers.override_payment", "dashboard.view", "bookings.view", "bookings.create", "bookings.edit", "bookings.cancel", "pickups.view_all",
+  manager: ["containers.override_payment", "containers.override_departure", "dashboard.view", "bookings.view", "bookings.create", "bookings.edit", "bookings.cancel", "pickups.view_all",
     "pickups.collect", "warehouse.view", "warehouse.manage", "containers.view", "containers.manage", "accounts.view",
     "payments.manage", "drivers.manage", "users.manage", "activity.view", "notifications.view", "bookings.reschedule",
     "items.edit", "items.edit_after"],
@@ -426,15 +427,18 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
     return { data: rows.sort((x, y) => x.booking_code.localeCompare(y.booking_code)), error: null };
   },
 
-  depart_container({ p_container_id, p_allow_partial }) {
+  depart_container({ p_container_id, p_override_reason }) {
     const d = db();
     const c = d.containers.find((x) => x.id === p_container_id && x.status === "loading");
     if (!c) return fail("Container is not open for loading");
-    if (!p_allow_partial) {
-      const short = (RPC.container_check({ p_container_id }).data as Row[])
-        .filter((r) => r.missing.length)
-        .map((r) => `${r.booking_code} (${r.loaded} of ${r.expected})`);
-      if (short.length) return fail(`Parcels still missing: ${short.join(", ")}. Load them, or confirm a partial shipment.`);
+    const short = (RPC.container_check({ p_container_id }).data as Row[]).filter((r) => r.missing.length);
+    if (short.length) {
+      if (!String(p_override_reason ?? "").trim())
+        return fail(`PARCELS_MISSING : ${short.map((r) => `${r.booking_code} (${r.loaded} of ${r.expected})`).join(", ")}`);
+      short.forEach((r) =>
+        d.booking_events.push({ id: uid(), booking_id: r.booking_id, kind: "departed_with_missing",
+          reason: `${String(p_override_reason).trim()} (${c.code} left without ${r.missing.join(", ")})`,
+          old_date: null, new_date: null, actor_name: "You (sample data)", created_at: now() }));
     }
     c.status = "departed";
     c.departed_at = now();
