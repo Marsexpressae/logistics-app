@@ -29,7 +29,7 @@ function PickupsContent() {
   );
 
   const initialStatus = useSearchParams().get("status");
-  const [status, setStatus] = useState(initialStatus === "booked" || initialStatus === "collected" ? initialStatus : "all");
+  const [status, setStatus] = useState(initialStatus === "booked" || initialStatus === "collected" || initialStatus === "all" ? initialStatus : "booked");
   const [area, setArea] = useState("all");
   const [driverChoice, setDriverChoice] = useState<string | null>(null);
 
