@@ -2,14 +2,15 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
-import { ArrowLeft, CheckCircle2, Printer } from "lucide-react";
+import { useParams, useRouter } from "next/navigation";
+import { ArrowLeft, CheckCircle2, Pencil, Printer, Trash2 } from "lucide-react";
 import { Button, ErrorMessage, StatusBadge, inputClass } from "@/components/ui/form";
 import { site } from "@/config/site";
 import { useOrganization } from "@/lib/organization";
-import { formatDate, kg, round2 } from "@/lib/format";
+import { formatDay, kg, round2 } from "@/lib/format";
 import { useQuery } from "@/lib/hooks";
 import { formatPhone } from "@/lib/phone";
+import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
 import type { ReturnForm } from "@/lib/types";
 
@@ -22,7 +23,11 @@ export default function ReturnFormPage() {
       .eq("id", id)
       .single()
   );
+  const router = useRouter();
+  const canManage = usePermissions().can("returns.manage");
   const { org } = useOrganization();
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState({ date: "", receivedBy: "", note: "" });
   const [receivedBy, setReceivedBy] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -44,6 +49,35 @@ export default function ReturnFormPage() {
     form.reload();
   }
 
+  function startEdit() {
+    setDraft({ date: r!.form_date, receivedBy: r!.received_by_name ?? "", note: r!.note ?? "" });
+    setError(null);
+    setEditing(true);
+  }
+
+  async function saveEdit() {
+    setBusy(true);
+    setError(null);
+    const { error } = await supabase.rpc("update_return", { p_return_id: id, p_form_date: draft.date, p_received_by: draft.receivedBy, p_note: draft.note });
+    setBusy(false);
+    if (error) return setError(error.message);
+    setEditing(false);
+    form.reload();
+  }
+
+  async function remove() {
+    const reason = window.prompt(
+      `Delete ${r!.code}?\n\nThe parcels go back into the warehouse stock, and the deletion is recorded on the booking.\nType the reason:`
+    );
+    if (!reason?.trim()) return;
+    setBusy(true);
+    setError(null);
+    const { error } = await supabase.rpc("delete_return", { p_return_id: id, p_reason: reason });
+    setBusy(false);
+    if (error) return setError(error.message);
+    router.push("/warehouse-inventory?tab=returns");
+  }
+
   const complete = () => {
     if (!confirm(`Confirm the parcels were handed to ${receivedBy.trim()} and the form is signed?\n\nThis marks the parcels as Returned.`)) return;
     act(supabase.rpc("complete_return", { p_return_id: id, p_received_by: receivedBy }));
@@ -61,6 +95,16 @@ export default function ReturnFormPage() {
         </Link>
         <span className="flex items-center gap-3">
           <StatusBadge status={r.status} />
+          {canManage && r.status !== "cancelled" && (
+            <>
+              <Button variant="secondary" onClick={startEdit} aria-label="Edit this return">
+                <Pencil className="h-4 w-4" /> Edit
+              </Button>
+              <Button variant="secondary" onClick={remove} aria-label="Delete this return">
+                <Trash2 className="h-4 w-4" /> Delete
+              </Button>
+            </>
+          )}
           <Button onClick={() => window.print()}>
             <Printer className="h-4 w-4" /> Print form
           </Button>
@@ -76,7 +120,7 @@ export default function ReturnFormPage() {
           <p className="font-mono text-lg">{r.code}</p>
           <p className="text-slate-500">
             Invoice <span className="font-mono font-medium">{r.booking?.invoice_no ?? "—"}</span> · Booking{" "}
-            <span className="font-mono">{r.booking?.code}</span> · {formatDate(r.created_at)}
+            <span className="font-mono">{r.booking?.code}</span> · {formatDay(r.form_date)}
           </p>
         </div>
 
@@ -129,9 +173,41 @@ export default function ReturnFormPage() {
           </div>
         </div>
         {r.status === "completed" && r.completed_at && (
-          <p className="mt-4 text-center text-xs text-slate-500">Handed over on {formatDate(r.completed_at)}</p>
+          <p className="mt-4 text-center text-xs text-slate-500">Handed over on {formatDay(r.form_date)}</p>
         )}
       </div>
+
+      {editing && (
+        <div className="space-y-3 rounded-lg border border-slate-200 bg-white p-4 print:hidden">
+          <h2 className="text-base font-semibold">Edit this return</h2>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="block text-sm">
+              <span className="mb-1 block font-medium text-slate-700">Date on the form</span>
+              <input type="date" className={inputClass} value={draft.date} onChange={(e) => setDraft({ ...draft, date: e.target.value })} />
+            </label>
+            {r.status === "completed" && (
+              <label className="block text-sm">
+                <span className="mb-1 block font-medium text-slate-700">Received by</span>
+                <input className={inputClass} value={draft.receivedBy} onChange={(e) => setDraft({ ...draft, receivedBy: e.target.value })} />
+              </label>
+            )}
+            <label className="block text-sm sm:col-span-2">
+              <span className="mb-1 block font-medium text-slate-700">Note</span>
+              <input className={inputClass} value={draft.note} onChange={(e) => setDraft({ ...draft, note: e.target.value })} />
+            </label>
+          </div>
+          <p className="text-xs text-slate-500">Use the real date when entering an old return. Every change is recorded in the Activity log.</p>
+          <ErrorMessage message={error} />
+          <div className="flex gap-2">
+            <Button onClick={saveEdit} disabled={busy || !draft.date}>
+              Save changes
+            </Button>
+            <Button variant="secondary" onClick={() => setEditing(false)} disabled={busy}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Hand-over confirmation, screen only */}
       {open && (

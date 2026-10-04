@@ -11,7 +11,7 @@ type Db = {
   booking_events: Row[]; notifications: Row[]; app_settings: Row[]; returns: Row[]; booking_notes: Row[]; number_series: Row[]; organization: Row[];
 };
 
-const STORAGE_KEY = "logistics-mock-db-v21";
+const STORAGE_KEY = "logistics-mock-db-v22";
 const AUTH_KEY = "logistics-mock-signed-out";
 
 const uid = () => crypto.randomUUID();
@@ -56,6 +56,7 @@ const PERMISSIONS: Row[] = [
   ["containers.override_departure", "Containers", "Depart with missing parcels", "Send a container even though some parcels of an invoice are not loaded (a reason is recorded on each booking)"],
   ["containers.override_payment", "Containers", "Load without full payment", "Load a parcel even when payment is required and not complete (a reason is recorded)"],
   ["notes.write", "Bookings", "Write notes on jobs", "Add notes to a booking or invoice and mention colleagues"],
+  ["returns.manage", "Warehouse", "Edit or delete returns", "Correct the date, note or receiver of a return, or delete a return (a reason is required)"],
   ["numbers.edit", "Bookings", "Set invoice and booking numbers", "Type a custom invoice or booking number, or change one, for example to match the accounting system"],
   ["items.edit", "Pickups", "Edit package items (before collection)", "Add, change or remove items and weights until the pickup is collected"],
   ["items.edit_after", "Pickups", "Edit package items (after collection)", "Add, change or remove items and weights after the pickup is collected"],
@@ -65,7 +66,7 @@ const GRANTS: Record<string, string[]> = {
   manager: ["containers.override_payment", "containers.override_departure", "dashboard.view", "bookings.view", "bookings.create", "bookings.edit", "bookings.cancel", "pickups.view_all",
     "pickups.collect", "warehouse.view", "warehouse.manage", "containers.view", "containers.manage", "accounts.view",
     "payments.manage", "drivers.manage", "users.manage", "activity.view", "notifications.view", "bookings.reschedule",
-    "items.edit", "items.edit_after", "notes.write", "numbers.edit"],
+    "items.edit", "items.edit_after", "notes.write", "numbers.edit", "returns.manage"],
   staff: ["dashboard.view", "bookings.view", "bookings.create", "bookings.edit", "bookings.cancel", "pickups.view_all",
     "pickups.collect", "warehouse.view", "containers.view", "accounts.view", "notifications.view", "bookings.reschedule", "items.edit", "items.edit_after", "notes.write"],
   warehouse: ["dashboard.view", "warehouse.view", "warehouse.manage", "containers.view", "containers.manage", "notifications.view", "notes.write"],
@@ -496,7 +497,7 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
     if (ps.length !== p_parcel_ids.length || ps.some((p) => p.booking_id !== p_booking_id || p.status !== "in_warehouse"))
       return fail("Only parcels of this booking that are in the warehouse can be returned");
     d.seq.ret = d.seq.ret ?? 1001;
-    const row = { id: uid(), code: `RT-${d.seq.ret++}`, booking_id: p_booking_id, status: "open", note: null, created_by_name: "You (sample data)",
+    const row = { id: uid(), code: `RT-${d.seq.ret++}`, booking_id: p_booking_id, status: "open", note: null, form_date: now().slice(0, 10), created_by_name: "You (sample data)",
       created_at: now(), completed_at: null, completed_by_name: null, received_by_name: null };
     d.returns.push(row);
     ps.forEach((p) => { p.return_id = row.id; setParcelStatus(p, "ready_for_return"); });
@@ -515,6 +516,32 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
     Object.assign(r, { status: "completed", completed_at: now(), completed_by_name: "You (sample data)", received_by_name: String(p_received_by).trim() });
     d.booking_events.push({ id: uid(), booking_id: r.booking_id, kind: "returned", reason: `${r.code}: ${ps.length} parcel(s) returned to ${r.received_by_name}`,
       old_date: null, new_date: null, actor_name: "You (sample data)", created_at: now() });
+    save();
+    return { data: null, error: null };
+  },
+
+  update_return({ p_return_id, p_form_date, p_received_by, p_note }) {
+    const r = db().returns.find((x) => x.id === p_return_id);
+    if (!r) return fail("Return not found");
+    if (r.status === "cancelled") return fail("A cancelled return cannot be edited");
+    if (!p_form_date) return fail("Enter the date");
+    if (r.status === "completed" && !String(p_received_by ?? "").trim()) return fail("Enter the name of the person who received the parcels");
+    Object.assign(r, { form_date: p_form_date, note: String(p_note ?? "").trim() || null });
+    if (r.status === "completed") r.received_by_name = String(p_received_by).trim();
+    save();
+    return { data: null, error: null };
+  },
+
+  delete_return({ p_return_id, p_reason }) {
+    const d = db();
+    const r = d.returns.find((x) => x.id === p_return_id);
+    if (!r) return fail("Return not found");
+    if (!String(p_reason ?? "").trim()) return fail("Enter the reason for deleting this return");
+    const back = d.parcels.filter((p) => p.return_id === r.id && ["ready_for_return", "returned"].includes(p.status));
+    back.forEach((p) => { p.return_id = null; setParcelStatus(p, "in_warehouse"); });
+    d.booking_events.push({ id: uid(), booking_id: r.booking_id, kind: "return_deleted",
+      reason: `${r.code} deleted (${back.length} parcel(s) back in the warehouse): ${String(p_reason).trim()}`, old_date: null, new_date: null, actor_name: "You (sample data)", created_at: now() });
+    d.returns = d.returns.filter((x) => x !== r);
     save();
     return { data: null, error: null };
   },

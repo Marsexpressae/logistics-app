@@ -114,3 +114,26 @@ test("notes: a mention reaches the colleague; only valid people are listed", asy
   assert.match(alert!.title, /mentioned you on INV-/);
   assert.match(alert!.body, /after 4pm/);
 });
+
+test("returns can be corrected and deleted; deleting needs a reason and puts parcels back", async () => {
+  const wh = (await rows("warehouses"))[0];
+  const bk = await booking("BK-1001"); // collected earlier in this file, no parcels yet
+  await rpc("split_booking", { p_booking_id: bk.id, p_warehouse_id: wh.id, p_parcels: [{ description: "Old box", weight_kg: 12 }] });
+  const parcel = (await rows("parcels")).find((p) => p.booking_id === bk.id && p.status === "in_warehouse")!;
+  const rid = (await rpc("prepare_return", { p_booking_id: bk.id, p_parcel_ids: [parcel.id] })).data;
+  assert.equal((await rpc("complete_return", { p_return_id: rid, p_received_by: "Old Customer" })).error, null);
+
+  assert.match((await rpc("update_return", { p_return_id: rid, p_form_date: "2025-12-31", p_received_by: " ", p_note: "" })).error.message, /name/);
+  assert.equal((await rpc("update_return", { p_return_id: rid, p_form_date: "2025-12-31", p_received_by: "Mubeen Akhtar", p_note: "Old paper receipt" })).error, null);
+  const edited = (await rows("returns")).find((x) => x.id === rid)!;
+  assert.equal(edited.form_date, "2025-12-31");
+  assert.equal(edited.received_by_name, "Mubeen Akhtar");
+  assert.equal(edited.note, "Old paper receipt");
+
+  assert.match((await rpc("delete_return", { p_return_id: rid, p_reason: "  " })).error.message, /reason/);
+  assert.equal((await rpc("delete_return", { p_return_id: rid, p_reason: "Entered by mistake" })).error, null);
+  assert.equal((await rows("returns")).some((x) => x.id === rid), false);
+  assert.equal((await rows("parcels")).find((p) => p.id === parcel.id)!.status, "in_warehouse");
+  const log = (await rows("booking_events")).find((e) => e.kind === "return_deleted")!;
+  assert.match(log.reason, /Entered by mistake/);
+});

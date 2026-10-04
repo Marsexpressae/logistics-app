@@ -7,7 +7,7 @@ import { ChevronDown, ChevronRight, Undo2 } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
 import EmptyState from "@/components/ui/EmptyState";
 import { Button, Card, ErrorMessage, StatusBadge } from "@/components/ui/form";
-import { kg } from "@/lib/format";
+import { formatDay, kg } from "@/lib/format";
 import { useQuery } from "@/lib/hooks";
 import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
@@ -30,6 +30,7 @@ function WarehouseContent() {
   const [filter, setFilter] = useState("all");
   const [picked, setPicked] = useState<string[]>([]);
   const [open, setOpen] = useState<string[]>([]); // invoices whose packages are showing
+  const [openReturns, setOpenReturns] = useState<string[]>([]); // invoices whose returns are showing
   const [returnError, setReturnError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const canOperate = usePermissions().can("warehouse.manage");
@@ -44,19 +45,19 @@ function WarehouseContent() {
       .order("barcode")
   );
   const returns = useQuery<ReturnForm[]>(() =>
-    supabase.from("returns").select("*, booking:bookings(code, invoice_no, sender_name)").order("created_at", { ascending: false }).limit(30)
+    supabase.from("returns").select("*, booking:bookings(code, invoice_no, sender_name), parcels(barcode, weight_kg, description)").order("created_at", { ascending: false }).limit(60)
   );
 
   // Unpacked = as collected (first round). Packed = repacked by the warehouse (a later round).
   const stock = parcels.data ?? [];
   const unpacked = stock.filter((p) => (p.round ?? 1) <= 1);
   const packed = stock.filter((p) => (p.round ?? 1) > 1);
-  const openReturns = (returns.data ?? []).filter((r) => r.status === "open").length;
+  const openReturnCount = (returns.data ?? []).filter((r) => r.status === "open").length;
   const counts: Record<Tab, number> = {
     intake: awaiting.data?.length ?? 0,
     unpacked: unpacked.length,
     packed: packed.length,
-    returns: openReturns,
+    returns: openReturnCount,
   };
 
   // A return form covers the parcels of one booking.
@@ -79,6 +80,23 @@ function WarehouseContent() {
     if (error) return setReturnError(error.message);
     router.push(`/warehouse-inventory/returns/${data}`);
   }
+
+  // One group per invoice (booking), newest first, with its returns inside.
+  const returnGroups = (list: ReturnForm[]) => {
+    const byBooking = new Map<string, { bookingId: string; invoice: string; code: string; customer: string; returns: ReturnForm[] }>();
+    for (const x of list) {
+      const g = byBooking.get(x.booking_id) ?? {
+        bookingId: x.booking_id,
+        invoice: x.booking?.invoice_no ?? x.booking?.code ?? "",
+        code: x.booking?.code ?? "",
+        customer: x.booking?.sender_name ?? "",
+        returns: [],
+      };
+      g.returns.push(x);
+      byBooking.set(x.booking_id, g);
+    }
+    return [...byBooking.values()].sort((a, b) => b.invoice.localeCompare(a.invoice, undefined, { numeric: true }));
+  };
 
   // One group per invoice (booking), in invoice order, with its packages inside.
   const groups = (list: StockParcel[]) => {
@@ -290,21 +308,60 @@ function WarehouseContent() {
             <p className="text-sm text-slate-500">No returns yet. Tick parcels in Unpacked or Packed, then press Return selected.</p>
           ) : (
             <ul className="divide-y divide-slate-100 text-sm">
-              {returns.data.map((r) => (
-                <li key={r.id} className="flex items-center justify-between py-2">
-                  <span>
-                    <span className="font-mono font-medium">{r.code}</span> · {r.booking?.invoice_no ?? r.booking?.code} · {r.booking?.sender_name}
-                  </span>
-                  <span className="flex items-center gap-3">
-                    <StatusBadge status={r.status} />
-                    {canOperate && (
-                      <Link href={`/warehouse-inventory/returns/${r.id}`} className="font-medium text-blue-700">
-                        {r.status === "open" ? "Form" : "View"}
-                      </Link>
+              {returnGroups(returns.data).map((g) => {
+                const isOpen = openReturns.includes(g.bookingId);
+                const statuses = [...new Set(g.returns.map((x) => x.status))];
+                const packages = g.returns.reduce((s, x) => s + (x.parcels?.length ?? 0), 0);
+                return (
+                  <li key={g.bookingId} className="py-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span>
+                        <button
+                          type="button"
+                          aria-expanded={isOpen}
+                          onClick={() => setOpenReturns(isOpen ? openReturns.filter((x) => x !== g.bookingId) : [...openReturns, g.bookingId])}
+                          className="inline-flex items-center gap-1 font-mono font-semibold text-blue-700"
+                        >
+                          {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                          {g.invoice}
+                        </button>{" "}
+                        <span className="text-slate-700">
+                          {g.customer} · <span className="font-mono text-xs text-slate-500">{g.code}</span> · {g.returns.length}{" "}
+                          {g.returns.length === 1 ? "return" : "returns"}, {packages} {packages === 1 ? "package" : "packages"}
+                        </span>
+                      </span>
+                      <span className="space-x-1">
+                        {statuses.map((s) => (
+                          <StatusBadge key={s} status={s} />
+                        ))}
+                      </span>
+                    </div>
+                    {isOpen && (
+                      <ul className="mt-2 space-y-2 border-l-2 border-slate-200 pl-4">
+                        {g.returns.map((x) => (
+                          <li key={x.id} className="flex flex-wrap items-start justify-between gap-2">
+                            <span>
+                              <span className="font-mono font-medium">{x.code}</span>
+                              <span className="ml-2 text-xs text-slate-500">{formatDay(x.form_date)}</span>
+                              <span className="block text-slate-600">
+                                {(x.parcels ?? []).map((p) => `${p.barcode} (${kg(Number(p.weight_kg))})`).join(", ") || "no packages"}
+                              </span>
+                            </span>
+                            <span className="flex items-center gap-3">
+                              <StatusBadge status={x.status} />
+                              {canOperate && (
+                                <Link href={`/warehouse-inventory/returns/${x.id}`} className="font-medium text-blue-700">
+                                  {x.status === "open" ? "Form" : "View"}
+                                </Link>
+                              )}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
                     )}
-                  </span>
-                </li>
-              ))}
+                  </li>
+                );
+              })}
             </ul>
           )}
         </Card>

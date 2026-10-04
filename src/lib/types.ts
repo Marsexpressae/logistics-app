@@ -119,7 +119,7 @@ export type PermissionRow = { key: string; group_name: string; label: string; de
 export type BookingEvent = {
   id: string;
   booking_id: string;
-  kind: "rescheduled" | "cancelled" | "loaded_without_payment" | "departed_with_missing" | "returned";
+  kind: "rescheduled" | "cancelled" | "loaded_without_payment" | "departed_with_missing" | "returned" | "return_deleted";
   reason: string;
   old_date: string | null;
   new_date: string | null;
@@ -144,6 +144,7 @@ export type ReturnForm = {
   booking_id: string;
   status: "open" | "completed" | "cancelled";
   note: string | null;
+  form_date: string; // the date on the form (set it to the real date for an old return)
   created_by_name: string | null;
   created_at: string;
   completed_at: string | null;
