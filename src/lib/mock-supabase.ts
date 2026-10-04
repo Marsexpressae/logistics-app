@@ -11,7 +11,7 @@ type Db = {
   booking_events: Row[]; notifications: Row[];
 };
 
-const STORAGE_KEY = "logistics-mock-db-v10";
+const STORAGE_KEY = "logistics-mock-db-v11";
 const AUTH_KEY = "logistics-mock-signed-out";
 
 const uid = () => crypto.randomUUID();
@@ -52,16 +52,19 @@ const PERMISSIONS: Row[] = [
   ["bookings.reschedule", "Bookings", "Reschedule bookings", "Move a booking to another pickup date (a reason is required)"],
   ["pickups.cancel", "Pickups", "Cancel own pickups", "Cancel a pickup that has not been collected yet (a reason is required)"],
   ["pickups.reschedule", "Pickups", "Reschedule own pickups", "Move a pickup to another date (a reason is required)"],
+  ["items.edit", "Pickups", "Edit package items (before collection)", "Add, change or remove items and weights until the pickup is collected"],
+  ["items.edit_after", "Pickups", "Edit package items (after collection)", "Add, change or remove items and weights after the pickup is collected"],
 ].map(([key, group_name, label, description], i) => ({ key, group_name, label, description, sort: (i + 1) * 10 }));
 const GRANTS: Record<string, string[]> = {
   super_admin: PERMISSIONS.map((p) => p.key),
   manager: ["dashboard.view", "bookings.view", "bookings.create", "bookings.edit", "bookings.cancel", "pickups.view_all",
     "pickups.collect", "warehouse.view", "warehouse.manage", "containers.view", "containers.manage", "accounts.view",
-    "payments.manage", "drivers.manage", "users.manage", "activity.view", "notifications.view", "bookings.reschedule"],
+    "payments.manage", "drivers.manage", "users.manage", "activity.view", "notifications.view", "bookings.reschedule",
+    "items.edit", "items.edit_after"],
   staff: ["dashboard.view", "bookings.view", "bookings.create", "bookings.edit", "bookings.cancel", "pickups.view_all",
-    "pickups.collect", "warehouse.view", "containers.view", "accounts.view", "notifications.view", "bookings.reschedule"],
+    "pickups.collect", "warehouse.view", "containers.view", "accounts.view", "notifications.view", "bookings.reschedule", "items.edit", "items.edit_after"],
   warehouse: ["dashboard.view", "warehouse.view", "warehouse.manage", "containers.view", "containers.manage", "notifications.view"],
-  driver: ["pickups.view_own", "pickups.collect", "pickups.cancel", "pickups.reschedule", "notifications.view", "pickups.edit_contact"],
+  driver: ["pickups.view_own", "pickups.collect", "pickups.cancel", "pickups.reschedule", "notifications.view", "pickups.edit_contact", "items.edit"],
 };
 const ROLE_PERMISSIONS: Row[] = Object.entries(GRANTS).flatMap(([role, perms]) => perms.map((permission) => ({ role, permission })));
 

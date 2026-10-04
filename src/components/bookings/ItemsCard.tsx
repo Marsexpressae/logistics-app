@@ -20,12 +20,11 @@ type ItemsCardProps = {
  * same list. Each row shows the weight of ONE package and the line total, so "2 x 40 kg" cannot be misread.
  *
  * Who can change it:
- *   - before collection: the pickup team (and the office)
- *   - after collection: only roles that can edit bookings (the office); who has that is set on the Roles page
+ *   - "Edit package items (before collection)" and "(after collection)": set per role on the Roles page
  */
 export default function ItemsCard({ bookingId, status, items, onChanged }: ItemsCardProps) {
   const { can } = usePermissions();
-  const canChange = can("bookings.edit") || (can("pickups.collect") && status === "booked");
+  const canChange = can("items.edit_after") || (can("items.edit") && status === "booked");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState({ description: "", quantity: "1", weight_kg: "" });
   const [error, setError] = useState<string | null>(null);
@@ -176,7 +175,7 @@ export default function ItemsCard({ bookingId, status, items, onChanged }: Items
         </form>
       ) : (
         status !== "booked" && (
-          <p className="text-xs text-slate-500">Locked after collection. The office can correct it if something is wrong.</p>
+          <p className="text-xs text-slate-500">Locked after collection. Ask the office to correct it.</p>
         )
       )}
       <ErrorMessage message={error} />
