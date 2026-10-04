@@ -15,6 +15,7 @@ export type Payment = {
   booking_id: string;
   amount: number;
   method: PaymentMethod;
+  received_by_driver: string | null;
   note: string | null;
   created_at: string;
 };

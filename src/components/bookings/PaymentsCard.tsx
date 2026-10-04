@@ -2,8 +2,8 @@
 
 import { useState, type FormEvent } from "react";
 import { Check, Pencil, Trash2, X } from "lucide-react";
-import { Button, Card, ErrorMessage, Field, inputClass } from "@/components/ui/form";
-import { formatDate, methodLabel, money, round2, totalPaid } from "@/lib/format";
+import { Button, Card, ErrorMessage, Field, StatusBadge, inputClass } from "@/components/ui/form";
+import { formatDate, invoiceStatus, methodLabel, money, round2, totalPaid } from "@/lib/format";
 import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
 import type { Booking, Payment } from "@/lib/types";
@@ -116,6 +116,15 @@ export default function PaymentsCard({ booking, payments, onChanged }: PaymentsC
           <p className="font-semibold">{invoiced ? money(Math.max(round2(Number(booking.invoice_amount) - paid), 0)) : "—"}</p>
         </div>
       </div>
+
+      {invoiced && (
+        <p className="-mt-1 mb-3 flex items-center justify-center gap-2 text-sm">
+          <StatusBadge status={invoiceStatus(Number(booking.invoice_amount), paid)} />
+          {round2(paid - Number(booking.invoice_amount)) > 0 && (
+            <span className="text-amber-700">Overpaid by {money(round2(paid - Number(booking.invoice_amount)))}</span>
+          )}
+        </p>
+      )}
 
       {sorted.length > 0 && (
         <ul className="mb-3 divide-y divide-slate-100 text-sm">

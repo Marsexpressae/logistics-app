@@ -15,6 +15,13 @@ export const kg = (n: number) => `${round2(n)} kg`;
 export const totalPaid = (payments: Pick<Payment, "amount">[] = []) =>
   round2(payments.reduce((sum, p) => sum + Number(p.amount), 0));
 
+/** Not invoiced / unpaid / partly paid / paid, from the invoice amount and what has been collected. */
+export const invoiceStatus = (invoice: number | null, paid: number): "not_invoiced" | "unpaid" | "partial" | "paid" => {
+  if (invoice === null) return "not_invoiced";
+  const due = round2(Number(invoice) - paid);
+  return due <= 0 ? "paid" : paid > 0 ? "partial" : "unpaid";
+};
+
 export const methodLabel = (m: string) => (m === "bank_transfer" ? "Bank transfer" : "Cash");
 
 /** Today as YYYY-MM-DD in the user's local time (what <input type="date"> uses). */
