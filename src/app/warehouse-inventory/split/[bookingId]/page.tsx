@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ArrowLeft, PackageCheck, Plus, Printer, Trash2 } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
+import NotesCard from "@/components/bookings/NotesCard";
 import ParcelLabel from "@/components/ui/ParcelLabel";
 import { Button, Card, ErrorMessage, Field, inputClass } from "@/components/ui/form";
 import { kg, round2 } from "@/lib/format";
@@ -185,6 +186,10 @@ export default function ReceivePage() {
       </div>
 
       {received && hasItems && renderReconcile()}
+
+      <div className="print:hidden">
+        <NotesCard bookingId={bookingId} />
+      </div>
 
       {received && (
         <Card title="Parcel labels">

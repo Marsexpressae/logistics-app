@@ -8,10 +8,10 @@ type Db = {
   [table: string]: any;
   drivers: Row[]; warehouses: Row[]; bookings: Row[]; booking_items: Row[]; payments: Row[];
   containers: Row[]; parcels: Row[]; parcel_events: Row[]; profiles: Row[]; audit_log: Row[]; roles: Row[]; permissions: Row[]; role_permissions: Row[];
-  booking_events: Row[]; notifications: Row[]; app_settings: Row[]; returns: Row[];
+  booking_events: Row[]; notifications: Row[]; app_settings: Row[]; returns: Row[]; booking_notes: Row[];
 };
 
-const STORAGE_KEY = "logistics-mock-db-v18";
+const STORAGE_KEY = "logistics-mock-db-v19";
 const AUTH_KEY = "logistics-mock-signed-out";
 
 const uid = () => crypto.randomUUID();
@@ -55,6 +55,7 @@ const PERMISSIONS: Row[] = [
   ["settings.manage", "People", "Change app settings", "Turn app controls on or off on the Settings page"],
   ["containers.override_departure", "Containers", "Depart with missing parcels", "Send a container even though some parcels of an invoice are not loaded (a reason is recorded on each booking)"],
   ["containers.override_payment", "Containers", "Load without full payment", "Load a parcel even when payment is required and not complete (a reason is recorded)"],
+  ["notes.write", "Bookings", "Write notes on jobs", "Add notes to a booking or invoice and mention colleagues"],
   ["items.edit", "Pickups", "Edit package items (before collection)", "Add, change or remove items and weights until the pickup is collected"],
   ["items.edit_after", "Pickups", "Edit package items (after collection)", "Add, change or remove items and weights after the pickup is collected"],
 ].map(([key, group_name, label, description], i) => ({ key, group_name, label, description, sort: (i + 1) * 10 }));
@@ -63,11 +64,11 @@ const GRANTS: Record<string, string[]> = {
   manager: ["containers.override_payment", "containers.override_departure", "dashboard.view", "bookings.view", "bookings.create", "bookings.edit", "bookings.cancel", "pickups.view_all",
     "pickups.collect", "warehouse.view", "warehouse.manage", "containers.view", "containers.manage", "accounts.view",
     "payments.manage", "drivers.manage", "users.manage", "activity.view", "notifications.view", "bookings.reschedule",
-    "items.edit", "items.edit_after"],
+    "items.edit", "items.edit_after", "notes.write"],
   staff: ["dashboard.view", "bookings.view", "bookings.create", "bookings.edit", "bookings.cancel", "pickups.view_all",
-    "pickups.collect", "warehouse.view", "containers.view", "accounts.view", "notifications.view", "bookings.reschedule", "items.edit", "items.edit_after"],
-  warehouse: ["dashboard.view", "warehouse.view", "warehouse.manage", "containers.view", "containers.manage", "notifications.view"],
-  driver: ["pickups.view_own", "pickups.collect", "pickups.cancel", "pickups.reschedule", "notifications.view", "pickups.edit_contact", "items.edit"],
+    "pickups.collect", "warehouse.view", "containers.view", "accounts.view", "notifications.view", "bookings.reschedule", "items.edit", "items.edit_after", "notes.write"],
+  warehouse: ["dashboard.view", "warehouse.view", "warehouse.manage", "containers.view", "containers.manage", "notifications.view", "notes.write"],
+  driver: ["pickups.view_own", "pickups.collect", "pickups.cancel", "pickups.reschedule", "notifications.view", "pickups.edit_contact", "items.edit", "notes.write"],
 };
 const ROLE_PERMISSIONS: Row[] = Object.entries(GRANTS).flatMap(([role, perms]) => perms.map((permission) => ({ role, permission })));
 
@@ -138,6 +139,7 @@ function seed(): Db {
     audit_log: [],
     booking_events: [],
     returns: [],
+    booking_notes: [],
     app_settings: [{ key: "require_payment_before_loading", value: false, label: "Require payment before loading into a container",
       description: "When on, a parcel can only be loaded if its booking has an invoice amount and it is paid in full. People with \"Load without full payment\" can override it with a reason.", updated_at: now() }],
     notifications: [],
@@ -327,6 +329,16 @@ function withDefaults(table: string, it: Row): Row {
       break;
     case "containers":
       Object.assign(row, { code: `CN-${d.seq.container++}`, status: "loading", departed_at: null, created_at: now(), ...it });
+      break;
+    case "booking_notes":
+      Object.assign(row, { author_id: "mock-user", author_name: "Tester (super admin)", mentions: it.mentions ?? [], created_at: now() });
+      // Like the database: each mentioned colleague gets a notification (in sample data these go to people who are not signed in).
+      for (const m of row.mentions) {
+        const bk = d.bookings.find((x) => x.id === it.booking_id);
+        d.notifications.push({ id: uid(), user_id: m, booking_id: it.booking_id, kind: "note_mention",
+          title: `${row.author_name} mentioned you on ${bk?.invoice_no ?? bk?.code}`, body: String(it.body).slice(0, 160),
+          actor_name: row.author_name, created_at: now(), read_at: null });
+      }
       break;
     case "payments": {
       // A payment is recorded against the invoice; the first payment issues it if the booking has none yet.
@@ -519,6 +531,13 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
         r_booking_id: r.b.id, r_invoice_no: r.b.invoice_no, r_code: r.b.code, r_customer: r.b.sender_name, r_amount: r.amount, r_paid: r.paid,
         r_balance: r.amount === null ? null : Math.max(r2(r.amount - r.paid), 0), r_booking_status: r.b.status, r_pay_status: r.status, r_total: list.length,
       })),
+      error: null,
+    };
+  },
+
+  mentionable_users() {
+    return {
+      data: db().profiles.filter((p) => p.active && p.id !== "mock-user").map((p) => ({ id: p.id, full_name: p.full_name, role_label: p.role })),
       error: null,
     };
   },

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Bell, CalendarClock, Ban } from "lucide-react";
+import { Bell, CalendarClock, Ban, MessageSquare } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
 import EmptyState from "@/components/ui/EmptyState";
 import { Button, Card } from "@/components/ui/form";
@@ -13,16 +13,20 @@ export default function NotificationsPage() {
   const { items, unread, loading, markRead, markAllRead } = useNotifications();
   const { can } = usePermissions();
 
-  // Office staff open the booking; the pickup team opens the pickup.
-  const hrefFor = (bookingId: string | null) =>
-    bookingId ? (can("bookings.view") ? `/bookings/${bookingId}` : `/pickups/${bookingId}`) : null;
+  // Office staff open the booking; the pickup team opens the pickup; the warehouse team opens the receive screen.
+  const hrefFor = (bookingId: string | null) => {
+    if (!bookingId) return null;
+    if (can("bookings.view")) return `/bookings/${bookingId}`;
+    if (can("pickups.view_all") || can("pickups.view_own")) return `/pickups/${bookingId}`;
+    return can("warehouse.manage") ? `/warehouse-inventory/split/${bookingId}` : null;
+  };
 
   return (
     <>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <PageHeader
           title="Notifications"
-          description="Changes to pickups made by the other team: reschedules and cancellations, with the reason."
+          description="Changes made by the other team, and notes where a colleague mentioned you."
         />
         {unread > 0 && (
           <Button variant="secondary" onClick={markAllRead}>
@@ -44,6 +48,8 @@ export default function NotificationsPage() {
                 <div className={`flex gap-3 px-4 py-3 ${n.read_at ? "" : "bg-blue-50/50"}`}>
                   {n.kind === "cancelled" ? (
                     <Ban className="mt-0.5 h-5 w-5 shrink-0 text-red-600" />
+                  ) : n.kind === "note_mention" ? (
+                    <MessageSquare className="mt-0.5 h-5 w-5 shrink-0 text-blue-600" />
                   ) : n.kind === "rescheduled" ? (
                     <CalendarClock className="mt-0.5 h-5 w-5 shrink-0 text-blue-600" />
                   ) : (

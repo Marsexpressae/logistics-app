@@ -99,3 +99,18 @@ test("returns: prepare, complete, cannot complete twice", async () => {
   assert.equal((await rows("parcels")).find((p) => p.id === first.id)!.status, "returned");
   assert.match((await rpc("complete_return", { p_return_id: rid, p_received_by: "x" })).error.message, /already completed/);
 });
+
+test("notes: a mention reaches the colleague; only valid people are listed", async () => {
+  const b = (await rows("bookings")).find((x) => x.code === "BK-1002")!;
+  const people = (await rpc("mentionable_users", { p_booking_id: b.id })).data;
+  assert.ok(people.length > 0);
+  assert.ok(!people.some((p: R) => p.id === "mock-user")); // you cannot mention yourself
+  const target = people[0];
+  const saved = await c.from("booking_notes").insert({ booking_id: b.id, body: `Customer wants it after 4pm @${target.full_name}`, mentions: [target.id] });
+  assert.equal(saved.error, null);
+  const note = (await rows("booking_notes"))[0];
+  assert.equal(note.author_name.length > 0, true);
+  const alert = (await rows("notifications")).find((n) => n.kind === "note_mention" && n.user_id === target.id);
+  assert.match(alert!.title, /mentioned you on INV-/);
+  assert.match(alert!.body, /after 4pm/);
+});

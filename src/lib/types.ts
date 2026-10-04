@@ -152,3 +152,13 @@ export type ReturnForm = {
   booking?: Pick<Booking, "code" | "invoice_no" | "sender_name" | "sender_phone" | "pickup_address" | "pickup_area"> | null;
   parcels?: Parcel[];
 };
+
+export type BookingNote = {
+  id: string;
+  booking_id: string;
+  author_id: string;
+  author_name: string;
+  body: string;
+  mentions: string[];
+  created_at: string;
+};
