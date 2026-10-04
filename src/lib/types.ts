@@ -63,6 +63,7 @@ export type Parcel = {
   id: string;
   booking_id: string;
   seq: number;
+  round?: number; // 1 = as collected, 2+ = repacked by the warehouse
   barcode: string;
   description: string | null;
   weight_kg: number;

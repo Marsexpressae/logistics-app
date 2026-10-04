@@ -15,8 +15,8 @@ const count = (table: string, column: string, value: string) =>
 // Each card opens the screen that lists exactly those items (filters travel in the link).
 const STATS = [
   { label: "Pending pickups", table: "bookings", column: "status", value: "booked", href: "/pickups?status=booked" },
-  { label: "Awaiting warehouse intake", table: "bookings", column: "status", value: "collected", href: "/warehouse-inventory#awaiting-intake" },
-  { label: "Parcels in warehouse", table: "parcels", column: "status", value: "in_warehouse", href: "/warehouse-inventory" },
+  { label: "Awaiting warehouse intake", table: "bookings", column: "status", value: "collected", href: "/warehouse-inventory?tab=intake" },
+  { label: "Parcels in warehouse", table: "parcels", column: "status", value: "in_warehouse", href: "/warehouse-inventory?tab=unpacked" },
   { label: "Containers loading", table: "containers", column: "status", value: "loading", href: "/containers?status=loading" },
   { label: "Parcels in transit", table: "parcels", column: "status", value: "in_transit", href: "/containers?status=departed" },
 ];
