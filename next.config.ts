@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Hides the little round "N" developer button in the local copy. Build and runtime errors still show.
+  devIndicators: false,
   async redirects() {
     // Some browsers and tools still ask for /favicon.ico directly.
     return [
