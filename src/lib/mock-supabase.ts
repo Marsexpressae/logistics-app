@@ -11,7 +11,7 @@ type Db = {
   booking_events: Row[]; notifications: Row[]; app_settings: Row[]; returns: Row[];
 };
 
-const STORAGE_KEY = "logistics-mock-db-v16";
+const STORAGE_KEY = "logistics-mock-db-v17";
 const AUTH_KEY = "logistics-mock-signed-out";
 
 const uid = () => crypto.randomUUID();
@@ -463,6 +463,60 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
     r.status = "cancelled";
     save();
     return { data: null, error: null };
+  },
+
+  // Accounts: the same rules as the database functions accounts_summary() and accounts_invoices().
+  accounts_summary() {
+    const d = db();
+    const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
+    const rows = d.bookings.map((b) => ({ b, paid: r2(d.payments.filter((p) => p.booking_id === b.id).reduce((s, p) => s + Number(p.amount), 0)) }));
+    const live = rows.filter((r) => r.b.status !== "cancelled");
+    const withAmount = live.filter((r) => r.b.invoice_amount != null);
+    const noAmount = live.filter((r) => r.b.invoice_no && r.b.invoice_amount == null);
+    const byWho = new Map<string, { name: string; cash: number; bank: number }>();
+    for (const p of d.payments) {
+      const key = p.received_by_driver ?? "office";
+      const name = p.received_by_driver ? (d.drivers.find((x) => x.id === key)?.name ?? "Office / not recorded") : "Office / not recorded";
+      const row = byWho.get(key) ?? { name, cash: 0, bank: 0 };
+      if (p.method === "cash") row.cash = r2(row.cash + Number(p.amount));
+      else row.bank = r2(row.bank + Number(p.amount));
+      byWho.set(key, row);
+    }
+    return {
+      data: {
+        invoiced: r2(withAmount.reduce((s, r) => s + Number(r.b.invoice_amount), 0)),
+        collected: r2(rows.reduce((s, r) => s + r.paid, 0)),
+        outstanding: r2(withAmount.reduce((s, r) => s + Math.max(Number(r.b.invoice_amount) - r.paid, 0), 0)),
+        no_amount_count: noAmount.length,
+        estimated_pending: r2(noAmount.reduce((s, r) => s + Number(r.b.estimated_bill ?? 0), 0)),
+        collections: [...byWho.values()].sort((a, b) => a.name.localeCompare(b.name)),
+      },
+      error: null,
+    };
+  },
+
+  accounts_invoices({ p_status = "all", p_search = null, p_limit = 25, p_offset = 0 }) {
+    const d = db();
+    const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
+    const q = String(p_search ?? "").trim().toLowerCase();
+    const list = d.bookings
+      .filter((b) => b.invoice_no && (!q || [b.invoice_no, b.code, b.sender_name].some((v) => String(v ?? "").toLowerCase().includes(q))))
+      .map((b) => {
+        const paid = r2(d.payments.filter((p) => p.booking_id === b.id).reduce((s, p) => s + Number(p.amount), 0));
+        const amount = b.invoice_amount == null ? null : Number(b.invoice_amount);
+        const status = amount === null ? "not_invoiced" : amount - paid <= 0 ? "paid" : paid > 0 ? "partial" : "unpaid";
+        return { b, paid, amount, status };
+      })
+      .filter((r) => p_status === "all" || r.status === p_status)
+      .sort((x, y) => Number(y.b.invoice_no.slice(4)) - Number(x.b.invoice_no.slice(4)));
+    const page = list.slice(Math.max(p_offset, 0), Math.max(p_offset, 0) + Math.max(Math.min(p_limit, 100), 1));
+    return {
+      data: page.map((r) => ({
+        r_booking_id: r.b.id, r_invoice_no: r.b.invoice_no, r_code: r.b.code, r_customer: r.b.sender_name, r_amount: r.amount, r_paid: r.paid,
+        r_balance: r.amount === null ? null : Math.max(r2(r.amount - r.paid), 0), r_booking_status: r.b.status, r_pay_status: r.status, r_total: list.length,
+      })),
+      error: null,
+    };
   },
 
   container_check({ p_container_id }) {
