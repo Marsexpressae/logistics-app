@@ -21,7 +21,7 @@ export default function TrackSearchPage() {
       <h1 className="mb-1 text-2xl font-semibold">Track your cargo</h1>
       <p className="mb-4 text-sm text-slate-500">Enter your booking code, e.g. BK-1001.</p>
       <form onSubmit={onSubmit} className="flex gap-2">
-        <input value={code} onChange={(e) => setCode(e.target.value)} placeholder="BK-1001" className={`${inputClass} font-mono`} />
+        <input value={code} onChange={(e) => setCode(e.target.value)} placeholder="INV-1001 or BK-1001" className={`${inputClass} font-mono`} />
         <Button type="submit">
           <Search className="h-4 w-4" /> Track
         </Button>

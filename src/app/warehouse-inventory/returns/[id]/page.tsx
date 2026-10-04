@@ -17,7 +17,7 @@ export default function ReturnFormPage() {
   const form = useQuery<ReturnForm>(() =>
     supabase
       .from("returns")
-      .select("*, booking:bookings(code, sender_name, sender_phone, pickup_address, pickup_area), parcels(*)")
+      .select("*, booking:bookings(code, invoice_no, sender_name, sender_phone, pickup_address, pickup_area), parcels(*)")
       .eq("id", id)
       .single()
   );
@@ -72,7 +72,8 @@ export default function ReturnFormPage() {
           <h1 className="text-sm font-medium uppercase text-slate-600">Cargo Return Form</h1>
           <p className="font-mono text-lg">{r.code}</p>
           <p className="text-slate-500">
-            Booking <span className="font-mono">{r.booking?.code}</span> · {formatDate(r.created_at)}
+            Invoice <span className="font-mono font-medium">{r.booking?.invoice_no ?? "—"}</span> · Booking{" "}
+            <span className="font-mono">{r.booking?.code}</span> · {formatDate(r.created_at)}
           </p>
         </div>
 

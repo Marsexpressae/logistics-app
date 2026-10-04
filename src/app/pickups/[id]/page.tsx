@@ -50,7 +50,10 @@ export default function PickupDetailPage() {
 
       <Card>
         <div className="flex items-center justify-between">
-          <h1 className="font-mono text-xl font-semibold">{b.code}</h1>
+          <div>
+            <h1 className="font-mono text-xl font-semibold">{b.invoice_no ?? b.code}</h1>
+            {b.invoice_no && <p className="font-mono text-xs text-slate-500">Booking {b.code}</p>}
+          </div>
           <StatusBadge status={b.status} />
         </div>
         <p className="mt-2 font-medium">{b.sender_name}</p>

@@ -4,14 +4,14 @@
 
 type Row = Record<string, any>;
 type Db = {
-  seq: { booking: number; container: number; ret?: number };
+  seq: { booking: number; container: number; invoice: number; ret?: number };
   [table: string]: any;
   drivers: Row[]; warehouses: Row[]; bookings: Row[]; booking_items: Row[]; payments: Row[];
   containers: Row[]; parcels: Row[]; parcel_events: Row[]; profiles: Row[]; audit_log: Row[]; roles: Row[]; permissions: Row[]; role_permissions: Row[];
   booking_events: Row[]; notifications: Row[]; app_settings: Row[]; returns: Row[];
 };
 
-const STORAGE_KEY = "logistics-mock-db-v15";
+const STORAGE_KEY = "logistics-mock-db-v16";
 const AUTH_KEY = "logistics-mock-signed-out";
 
 const uid = () => crypto.randomUUID();
@@ -85,15 +85,15 @@ function seed(): Db {
     estimated_bill: 450, invoice_amount: null, created_at: ago(5) };
   const b2 = { ...base, id: uid(), code: "BK-1002", sender_name: "John Mathew", sender_phone: "+971562223000", sender_whatsapp: "+971509998877",
     receiver_name: "Mary Mathew", receiver_address: "Kochi, Kerala", pickup_area: "Dubai", pickup_date: today(-1), pickup_address: "Apt 804, Marina Tower, Dubai",
-    driver_id: d2.id, status: "collected", estimated_bill: 800, invoice_amount: 800,
+    driver_id: d2.id, status: "collected", estimated_bill: 800, invoice_amount: 800, invoice_no: "INV-1001",
     created_at: ago(30), collected_at: ago(3) };
   const b3 = { ...base, id: uid(), code: "BK-1003", sender_name: "Fatima Noor", sender_phone: "+971524005000",
     receiver_name: "Hamza Noor", receiver_address: "Block 7, Karachi", pickup_area: "Dubai", pickup_date: today(-2), pickup_address: "Shop 3, Deira, Dubai",
-    driver_id: d1.id, status: "at_warehouse", estimated_bill: 600, invoice_amount: 600,
+    driver_id: d1.id, status: "at_warehouse", estimated_bill: 600, invoice_amount: 600, invoice_no: "INV-1002",
     created_at: ago(60), collected_at: ago(48) };
   const b4 = { ...base, id: uid(), code: "BK-1004", sender_name: "Ravi Kumar", sender_phone: "+971506007000",
     receiver_name: "Anita Kumar", receiver_address: "Chennai, Tamil Nadu", pickup_area: "Sharjah", pickup_date: today(-4), pickup_address: "Warehouse St 9, Sharjah",
-    driver_id: d2.id, status: "at_warehouse", estimated_bill: 300, invoice_amount: null,
+    driver_id: d2.id, status: "at_warehouse", estimated_bill: 300, invoice_amount: null, invoice_no: "INV-1003",
     created_at: ago(120), collected_at: ago(100) };
 
   const c1 = { id: uid(), code: "CN-101", destination: "Karachi", status: "departed", departed_at: ago(20), created_at: ago(90) };
@@ -119,7 +119,7 @@ function seed(): Db {
   }
 
   return {
-    seq: { booking: 1005, container: 103 },
+    seq: { booking: 1005, container: 103, invoice: 1004 },
     drivers: [d1, d2],
     warehouses: [wA, wB],
     bookings: [b1, b2, b3, b4],
@@ -129,8 +129,8 @@ function seed(): Db {
       { id: uid(), booking_id: b3.id, description: "Mixed goods", quantity: 2, weight_kg: 20 },
     ],
     payments: [
-      { id: uid(), booking_id: b2.id, amount: 400, method: "bank_transfer", received_by_driver: d2.id, note: null, created_at: ago(3) },
-      { id: uid(), booking_id: b3.id, amount: 600, method: "cash", received_by_driver: d1.id, note: null, created_at: ago(48) },
+      { id: uid(), booking_id: b2.id, invoice_no: "INV-1001", amount: 400, method: "bank_transfer", received_by_driver: d2.id, note: null, created_at: ago(3) },
+      { id: uid(), booking_id: b3.id, invoice_no: "INV-1002", amount: 600, method: "cash", received_by_driver: d1.id, note: null, created_at: ago(48) },
     ],
     containers: [c1, c2],
     parcels,
@@ -279,7 +279,12 @@ class Query implements PromiseLike<any> {
       const matched = tableRows.filter((r) => this.filters.every((f) => f(r)));
       if (this.op === "update") {
         // bookings carry a version stamp, bumped on every update (like the database trigger)
-        matched.forEach((r) => Object.assign(r, this.payload, this.table === "bookings" ? { updated_at: now() } : {}));
+        matched.forEach((r) => {
+          Object.assign(r, this.payload, this.table === "bookings" ? { updated_at: now() } : {});
+          // Collecting a pickup issues the invoice number.
+          if (this.table === "bookings" && ["collected", "at_warehouse"].includes(r.status) && !r.invoice_no)
+            r.invoice_no = `INV-${db().seq.invoice++}`;
+        });
         rows = matched;
       } else if (this.op === "delete") {
         db()[this.table] = tableRows.filter((r) => !matched.includes(r));
@@ -314,7 +319,7 @@ function withDefaults(table: string, it: Row): Row {
   switch (table) {
     case "bookings":
       Object.assign(row, {
-        code: `BK-${d.seq.booking++}`, status: "booked", estimated_bill: null, invoice_amount: null,
+        code: `BK-${d.seq.booking++}`, status: "booked", estimated_bill: null, invoice_amount: null, invoice_no: null,
         sender_phone: null, receiver_phone: null, receiver_address: null, notes: null,
         driver_id: null, collected_at: null, cancellation_reason: null, cancelled_at: null,
         geo_lat: null, geo_lng: null, created_at: now(), updated_at: now(), ...stripNull(it),
@@ -323,9 +328,13 @@ function withDefaults(table: string, it: Row): Row {
     case "containers":
       Object.assign(row, { code: `CN-${d.seq.container++}`, status: "loading", departed_at: null, created_at: now(), ...it });
       break;
-    case "payments":
-      Object.assign(row, { created_at: now() });
+    case "payments": {
+      // A payment is recorded against the invoice; the first payment issues it if the booking has none yet.
+      const bk = d.bookings.find((x) => x.id === it.booking_id);
+      if (bk && !bk.invoice_no) bk.invoice_no = `INV-${d.seq.invoice++}`;
+      Object.assign(row, { created_at: now(), invoice_no: bk?.invoice_no ?? null });
       break;
+    }
   }
   return row;
 }
@@ -463,7 +472,7 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
       const b = d.bookings.find((x) => x.id === id)!;
       const rel = d.parcels.filter((p) => p.booking_id === id && (p.container_id === p_container_id || p.status === "in_warehouse"));
       return {
-        booking_id: id, booking_code: b.code, expected: rel.length,
+        booking_id: id, booking_code: b.code, invoice_no: b.invoice_no ?? null, expected: rel.length,
         loaded: rel.filter((p) => p.container_id === p_container_id).length,
         missing: rel.filter((p) => p.status === "in_warehouse").sort((x, y) => x.seq - y.seq).map((p) => p.barcode),
       };
@@ -561,7 +570,7 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
 
   track_booking({ p_code }) {
     const d = db();
-    const b = d.bookings.find((x) => x.code === p_code.trim().toUpperCase());
+    const b = d.bookings.find((x) => x.code === p_code.trim().toUpperCase() || x.invoice_no === p_code.trim().toUpperCase());
     if (!b) return { data: null, error: null };
     const parcels = d.parcels
       .filter((p) => p.booking_id === b.id && p.status !== "repacked")
@@ -575,7 +584,7 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
           .sort((x, y) => x.created_at.localeCompare(y.created_at))
           .map((e) => ({ status: e.status, at: e.created_at })),
       }));
-    return { data: { code: b.code, status: b.status, booked_at: b.created_at, parcels }, error: null };
+    return { data: { code: b.code, invoice_no: b.invoice_no ?? null, status: b.status, booked_at: b.created_at, parcels }, error: null };
   },
 };
 

@@ -15,6 +15,7 @@ export type Payment = {
   booking_id: string;
   amount: number;
   method: PaymentMethod;
+  invoice_no: string | null;
   received_by_driver: string | null;
   note: string | null;
   created_at: string;
@@ -31,6 +32,7 @@ export type BookingItem = {
 export type Booking = {
   id: string;
   code: string;
+  invoice_no: string | null; // issued when the pickup is collected
   sender_name: string;
   sender_phone: string | null;
   sender_whatsapp: string | null; // only set when different from sender_phone
@@ -93,6 +95,7 @@ export type TrackedParcel = {
 
 export type TrackedBooking = {
   code: string;
+  invoice_no: string | null;
   status: BookingStatus;
   booked_at: string;
   parcels: TrackedParcel[];
@@ -145,6 +148,6 @@ export type ReturnForm = {
   completed_at: string | null;
   completed_by_name: string | null;
   received_by_name: string | null;
-  booking?: Pick<Booking, "code" | "sender_name" | "sender_phone" | "pickup_address" | "pickup_area"> | null;
+  booking?: Pick<Booking, "code" | "invoice_no" | "sender_name" | "sender_phone" | "pickup_address" | "pickup_area"> | null;
   parcels?: Parcel[];
 };

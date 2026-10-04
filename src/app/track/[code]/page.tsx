@@ -43,7 +43,8 @@ export default function TrackingPage() {
       ) : (
         <>
           <Card>
-            <p className="font-mono text-lg font-semibold">{data.code}</p>
+            <p className="font-mono text-lg font-semibold">{data.invoice_no ?? data.code}</p>
+            {data.invoice_no && <p className="font-mono text-xs text-slate-500">Booking {data.code}</p>}
             <p className="text-sm text-slate-500">Booked {formatDate(data.booked_at)}</p>
             {!data.parcels.length && (
               <p className="mt-2 text-sm text-slate-600">

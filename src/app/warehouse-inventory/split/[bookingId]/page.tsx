@@ -81,7 +81,7 @@ export default function ReceivePage() {
         <ArrowLeft className="h-4 w-4" /> Warehouse
       </Link>
       <PageHeader
-        title={`Receive ${b.code}`}
+        title={`Receive ${b.invoice_no ?? b.code}`}
         description={
           hasItems
             ? `Collected: ${collected.length} ${collected.length === 1 ? "package" : "packages"} · ${kg(collectedWeight)}`

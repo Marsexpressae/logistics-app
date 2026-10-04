@@ -43,7 +43,10 @@ export default function ReceiptPage() {
         <div className="border-b border-slate-300 pb-3 text-center">
           <p className="text-lg font-bold tracking-wide">{site.name}</p>
           <h1 className="text-sm font-medium uppercase text-slate-600">Cargo Pickup Receipt</h1>
-          <p className="font-mono text-lg">{b.code}</p>
+          <p className="font-mono text-lg">{b.invoice_no ?? b.code}</p>
+          <p className="font-mono text-xs text-slate-500">
+            {b.invoice_no ? `Invoice ${b.invoice_no} · Booking ${b.code}` : `Booking ${b.code} · invoice number is issued when collected`}
+          </p>
           <p className="text-slate-500">{formatDate(b.collected_at ?? b.created_at)}</p>
         </div>
 

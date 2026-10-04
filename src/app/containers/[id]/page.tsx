@@ -12,7 +12,7 @@ import { supabase } from "@/lib/supabase";
 import type { Container, Parcel } from "@/lib/types";
 
 type WarehouseParcel = Parcel & { warehouse: { code: string } | null };
-type CheckRow = { booking_id: string; booking_code: string; expected: number; loaded: number; missing: string[] };
+type CheckRow = { booking_id: string; booking_code: string; invoice_no: string | null; expected: number; loaded: number; missing: string[] };
 
 export default function ContainerManifestPage() {
   const { id } = useParams<{ id: string }>();
@@ -108,7 +108,7 @@ export default function ContainerManifestPage() {
     if (missing) {
       const detail = (check.data ?? [])
         .filter((r) => r.missing.length)
-        .map((r) => `${r.booking_code}: ${r.loaded} of ${r.expected} loaded, missing ${r.missing.join(", ")}`)
+        .map((r) => `${r.invoice_no ?? r.booking_code}: ${r.loaded} of ${r.expected} loaded, missing ${r.missing.join(", ")}`)
         .join("\n");
       if (can("containers.override_departure")) {
         const reason = window.prompt(`Parcels are missing:\n${detail}\n\nTo send the container anyway, type the reason. It is recorded on each booking.`);
@@ -201,7 +201,7 @@ export default function ContainerManifestPage() {
             {check.data.map((r) => (
               <li key={r.booking_id} className="flex flex-wrap items-center justify-between gap-2 py-2">
                 <span>
-                  <span className="font-mono font-medium">{r.booking_code}</span>{" "}
+                  <span className="font-mono font-medium">{r.invoice_no ?? r.booking_code}</span>{" "}
                   <span className={r.missing.length ? "font-medium text-amber-700" : "text-green-700"}>
                     {r.loaded} of {r.expected} parcels loaded
                   </span>

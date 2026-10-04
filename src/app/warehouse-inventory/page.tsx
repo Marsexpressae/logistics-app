@@ -24,15 +24,15 @@ export default function WarehouseInventoryPage() {
   const awaiting = useQuery<Booking[]>(() =>
     supabase.from("bookings").select("*").eq("status", "collected").order("collected_at")
   );
-  const parcels = useQuery<(Parcel & { booking: { code: string } })[]>(() =>
+  const parcels = useQuery<(Parcel & { booking: { code: string; invoice_no: string | null } })[]>(() =>
     supabase
       .from("parcels")
-      .select("*, warehouse:warehouses(code), booking:bookings(code)")
+      .select("*, warehouse:warehouses(code), booking:bookings(code, invoice_no)")
       .in("status", ["in_warehouse", "ready_for_return"]) // both are physically in the warehouse
       .order("barcode")
   );
   const returns = useQuery<ReturnForm[]>(() =>
-    supabase.from("returns").select("*, booking:bookings(code, sender_name)").order("created_at", { ascending: false }).limit(8)
+    supabase.from("returns").select("*, booking:bookings(code, invoice_no, sender_name)").order("created_at", { ascending: false }).limit(8)
   );
 
   // A return form covers the parcels of one booking.
@@ -65,7 +65,7 @@ export default function WarehouseInventoryPage() {
             {awaiting.data.map((b) => (
               <li key={b.id} className="flex items-center justify-between py-2">
                 <span>
-                  <span className="font-mono font-medium">{b.code}</span> · {b.sender_name} → {b.receiver_name ?? "receiver not set"}
+                  <span className="font-mono font-medium">{b.invoice_no ?? b.code}</span> <span className="font-mono text-xs text-slate-500">{b.invoice_no ? b.code : ""}</span> · {b.sender_name} → {b.receiver_name ?? "receiver not set"}
                 </span>
                 {canOperate && (
                   <Link href={`/warehouse-inventory/split/${b.id}`} className="font-medium text-blue-700">
@@ -84,7 +84,7 @@ export default function WarehouseInventoryPage() {
             {returns.data.map((r) => (
               <li key={r.id} className="flex items-center justify-between py-2">
                 <span>
-                  <span className="font-mono font-medium">{r.code}</span> · {r.booking?.code} · {r.booking?.sender_name}
+                  <span className="font-mono font-medium">{r.code}</span> · {r.booking?.invoice_no ?? r.booking?.code} · {r.booking?.sender_name}
                 </span>
                 <span className="flex items-center gap-3">
                   <StatusBadge status={r.status} />
@@ -140,6 +140,7 @@ export default function WarehouseInventoryPage() {
             <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase text-slate-500">
               <tr>
                 {canOperate && <th className="w-8 px-4 py-3"></th>}
+                <th className="px-4 py-3">Invoice</th>
                 <th className="px-4 py-3">Barcode</th>
                 <th className="px-4 py-3">Description</th>
                 <th className="px-4 py-3">Weight</th>
@@ -158,6 +159,7 @@ export default function WarehouseInventoryPage() {
                       )}
                     </td>
                   )}
+                  <td className="px-4 py-3 font-mono text-xs">{p.booking?.invoice_no ?? p.booking?.code}</td>
                   <td className="px-4 py-3 font-mono font-medium">{p.barcode}</td>
                   <td className="px-4 py-3">{p.description ?? "—"}</td>
                   <td className="px-4 py-3">{Number(p.weight_kg)} kg</td>

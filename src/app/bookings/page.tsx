@@ -40,7 +40,7 @@ function BookingsContent() {
     (b) =>
       (status === "all" || b.status === status) &&
       (!term ||
-        [b.code, b.sender_name, b.receiver_name, b.sender_phone, b.receiver_phone]
+        [b.code, b.invoice_no, b.sender_name, b.receiver_name, b.sender_phone, b.receiver_phone]
           .filter(Boolean)
           .some((v) => v!.toLowerCase().includes(term)) ||
         // numbers match however they were typed: 0567375716, 56 737 5716, +971567375716
@@ -109,6 +109,7 @@ function BookingsContent() {
                       <Link href={`/bookings/${b.id}`} className="font-mono font-medium text-blue-700">
                         {b.code}
                       </Link>
+                      {b.invoice_no && <span className="block font-mono text-xs text-slate-500">{b.invoice_no}</span>}
                     </td>
                     <td className="px-4 py-3">
                       {b.sender_name} → {b.receiver_name ?? <span className="text-slate-400">receiver not set</span>}

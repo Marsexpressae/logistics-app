@@ -10,7 +10,7 @@ export const STATUS: Record<string, { label: string; className: string }> = {
   in_transit: { label: "In transit", className: "bg-emerald-100 text-emerald-800" },
   ready_for_return: { label: "Ready for return", className: "bg-orange-100 text-orange-800" },
   returned: { label: "Returned", className: "bg-slate-200 text-slate-700" },
-  not_invoiced: { label: "Not invoiced", className: "bg-slate-100 text-slate-600" },
+  not_invoiced: { label: "No amount yet", className: "bg-slate-100 text-slate-600" },
   unpaid: { label: "Unpaid", className: "bg-red-100 text-red-700" },
   partial: { label: "Partially paid", className: "bg-amber-100 text-amber-800" },
   paid: { label: "Paid", className: "bg-green-100 text-green-800" },

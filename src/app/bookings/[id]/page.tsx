@@ -52,7 +52,7 @@ export default function EditBookingPage() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <PageHeader
           title={`${canEdit ? "Edit" : "View"} ${b.code}`}
-          description={canEdit ? "Update details, reassign the driver, reschedule or cancel." : "You can view this booking but not change it."}
+          description={`${b.invoice_no ? `Invoice ${b.invoice_no}. ` : "No invoice yet (issued when collected). "}${canEdit ? "Update details, reassign the driver, reschedule or cancel." : "You can view this booking but not change it."}`}
         />
         <div className="flex items-center gap-3">
           <StatusBadge status={b.status} />
