@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { Bell } from "lucide-react";
+import { Bell, Search, X } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import Sidebar from "./Sidebar";
 import BottomNav from "./BottomNav";
 import BrandMark from "@/components/brand/BrandMark";
 import NotificationToast from "@/components/notifications/NotificationToast";
+import GlobalSearch from "@/components/search/GlobalSearch";
 import InstallBanner from "@/components/pwa/InstallBanner";
 import CountBadge from "@/components/ui/CountBadge";
 import { canAccess, homePath } from "@/config/navigation";
@@ -34,6 +35,8 @@ export default function AppShell({ children }: { children: ReactNode }) {
   const session = useSession();
   const { profile, roleLabel, permissions, loading: profileLoading } = useProfile(session);
   const isPublic = isPublicPath(pathname);
+  const [phoneSearch, setPhoneSearch] = useState(false);
+  const wantsSearch = !!profile && permissions.some((p) => ["bookings.view", "warehouse.view", "containers.view", "pickups.view_all", "pickups.view_own"].includes(p));
   const badges = useBadgeCounts(permissions, !!profile);
   const wantsNotifications = !!profile && permissions.includes("notifications.view");
   const notifications = useNotificationsState(session?.user.id, wantsNotifications);
@@ -72,23 +75,50 @@ export default function AppShell({ children }: { children: ReactNode }) {
           className="flex h-14 shrink-0 items-center border-b border-slate-200 bg-white px-4 print:hidden md:hidden"
           style={{ paddingTop: "env(safe-area-inset-top)" }}
         >
+          {phoneSearch ? (
+            <div className="flex w-full items-center gap-2">
+              <GlobalSearch autoFocus onDone={() => setPhoneSearch(false)} />
+              <button aria-label="Close search" onClick={() => setPhoneSearch(false)} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate-600 active:bg-slate-100">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+          ) : (
+            <>
           <Link href={homePath(permissions)} aria-label={`${site.name} home`} className="flex items-center gap-2">
             <BrandMark size={28} />
             <span className="font-semibold text-slate-900">{site.name}</span>
           </Link>
+          {wantsSearch && (
+            <button
+              aria-label="Search"
+              onClick={() => setPhoneSearch(true)}
+              className="ml-auto flex h-11 w-11 items-center justify-center rounded-full text-slate-600 active:bg-slate-100"
+            >
+              <Search className="h-6 w-6" />
+            </button>
+          )}
           {wantsNotifications && (
             <Link
               href="/notifications"
               aria-label={`Notifications${notifications.unread ? `, ${notifications.unread} unread` : ""}`}
-              className="relative ml-auto flex h-11 w-11 items-center justify-center rounded-full text-slate-600 active:bg-slate-100"
+              className={`relative flex h-11 w-11 items-center justify-center rounded-full text-slate-600 active:bg-slate-100 ${wantsSearch ? "" : "ml-auto"}`}
             >
               <Bell className="h-6 w-6" />
               <CountBadge count={notifications.unread} label="unread" className="absolute right-0.5 top-0.5 ring-2 ring-white" />
             </Link>
           )}
+            </>
+          )}
         </header>
         <NotificationToast />
         <Sidebar />
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        {/* Desktop top bar: search from any screen. (On phones it is the magnifier in the header.) */}
+        {wantsSearch && (
+          <div className="hidden h-16 shrink-0 items-center border-b border-slate-200 bg-white px-8 print:hidden md:flex">
+            <GlobalSearch className="max-w-xl" />
+          </div>
+        )}
         {/* Extra bottom padding on phones keeps the last content clear of the bottom bar. */}
         <main className="flex-1 overflow-y-auto p-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:p-8 md:pb-8 print:p-0">
           <InstallBanner className="mb-4" />
@@ -102,6 +132,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
           )}
           {children}
         </main>
+        </div>
         <BottomNav />
       </div>
       </BadgeProvider>

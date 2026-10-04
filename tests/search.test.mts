@@ -38,3 +38,9 @@ test("words and a phone number can be combined", () => {
   assert.equal(matchesSearch("mubeen 3221017", fields, phones), true);
   assert.equal(matchesSearch("zzz 3221017", fields, phones), false);
 });
+
+test("digits inside a code are not mistaken for a phone number", () => {
+  assert.equal(matchesSearch("inv-3221", [], phones), false);
+  assert.equal(matchesSearch("inv-3221017", [], phones), false);
+  assert.equal(matchesSearch("3221017", [], phones), true);
+});

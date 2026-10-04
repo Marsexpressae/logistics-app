@@ -6,7 +6,6 @@ import {
   History,
   LayoutDashboard,
   MapPinned,
-  Search,
   Settings,
   Truck,
   Wallet,
@@ -29,7 +28,6 @@ export const navItems: NavItem[] = [
   { label: "Pickups", shortLabel: "Pickups", href: "/pickups", icon: Truck, anyOf: ["pickups.view_all", "pickups.view_own"] },
   { label: "Warehouse", shortLabel: "Warehouse", href: "/warehouse-inventory", icon: Boxes, anyOf: ["warehouse.view"] },
   { label: "Containers", shortLabel: "Containers", href: "/containers", icon: Container, anyOf: ["containers.view", "containers.manage"] },
-  { label: "Search", shortLabel: "Search", href: "/search", icon: Search, anyOf: ["bookings.view", "warehouse.view", "containers.view", "pickups.view_all", "pickups.view_own"] },
   { label: "Tracking", shortLabel: "Tracking", href: "/tracking", icon: MapPinned, anyOf: ["bookings.view", "warehouse.view", "pickups.view_all", "pickups.view_own"] },
   { label: "Accounts", shortLabel: "Accounts", href: "/accounts", icon: Wallet, anyOf: ["accounts.view"] },
   { label: "Activity", shortLabel: "Activity", href: "/activity", icon: History, anyOf: ["activity.view"] },
@@ -40,6 +38,8 @@ export const navItems: NavItem[] = [
 // Pages that are not in the sidebar but need tighter rules than their parent.
 const extraRules: { prefix: string; anyOf: string[] }[] = [
   { prefix: "/bookings/new", anyOf: ["bookings.create"] },
+  // The results page behind the search box in the top bar.
+  { prefix: "/search", anyOf: ["bookings.view", "warehouse.view", "containers.view", "pickups.view_all", "pickups.view_own"] },
   { prefix: "/warehouse-inventory/split", anyOf: ["warehouse.manage"] },
   { prefix: "/warehouse-inventory/returns", anyOf: ["warehouse.manage"] },
   { prefix: "/settings/users", anyOf: ["users.manage"] },

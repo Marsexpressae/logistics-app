@@ -14,5 +14,5 @@ export function matchesSearch(text: string, fields: Field[], phones: Field[] = [
   // the whole text as one number, spaces and all (only when it is made of digits, not mixed with words)
   if (/^[\d\s+()-]+$/.test(q) && phones.some((p) => phone(text, p))) return true;
   const haystack = fields.map((f) => String(f ?? "").toLowerCase());
-  return q.split(/\s+/).every((word) => haystack.some((f) => f.includes(word)) || phones.some((p) => phone(word, p)));
+  return q.split(/\s+/).every((word) => haystack.some((f) => f.includes(word)) || (/^[\d+()-]+$/.test(word) && phones.some((p) => phone(word, p))));
 }

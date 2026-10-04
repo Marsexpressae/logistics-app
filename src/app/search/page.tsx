@@ -1,86 +1,73 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
-import { Search } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 import PageHeader from "@/components/ui/PageHeader";
-import RowLimitNotice from "@/components/ui/RowLimitNotice";
-import { Card, ErrorMessage, StatusBadge, inputClass } from "@/components/ui/form";
-import { formatDay, invoiceStatus, totalPaid } from "@/lib/format";
-import { useQuery } from "@/lib/hooks";
-import { formatPhone, phoneMatches } from "@/lib/phone";
+import ListSearch from "@/components/ui/ListSearch";
+import { Card, ErrorMessage, StatusBadge } from "@/components/ui/form";
+import { formatDay } from "@/lib/format";
+import { EMPTY_RESULT, jobHref, type SearchResult } from "@/lib/job-link";
+import { formatPhone } from "@/lib/phone";
+import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
-import type { Booking, Container, Parcel } from "@/lib/types";
-
-type ParcelRow = Parcel & { booking: Pick<Booking, "code" | "invoice_no" | "sender_name"> | null };
 
 const LIMIT = 25;
 
 /**
- * One box for everything: invoice number, booking code, names, phone numbers (any format), addresses,
- * parcel barcodes and container codes. Several words narrow the result: "ismail 0567".
+ * All the results for what was typed in the top bar. The search itself runs in the database
+ * (invoice, booking, name, phone in any format, address, notes, package barcode, position, place, container).
  */
-export default function SearchPage() {
-  const [text, setText] = useState("");
-  const bookings = useQuery<Booking[]>(() => supabase.from("bookings").select("*, payments(*)").order("created_at", { ascending: false }));
-  const parcels = useQuery<ParcelRow[]>(() =>
-    supabase.from("parcels").select("*, booking:bookings(code, invoice_no, sender_name)").neq("status", "repacked").order("barcode")
-  );
-  const containers = useQuery<Container[]>(() => supabase.from("containers").select("*").order("created_at", { ascending: false }));
+function SearchResults({ initial }: { initial: string }) {
+  const { can } = usePermissions();
+  const [text, setText] = useState(initial);
+  const [typed, setTyped] = useState(initial); // the text once typing pauses
+  const [answer, setAnswer] = useState<{ q: string; result: SearchResult; error: string | null } | null>(null);
+  const seesMoney = can("accounts.view");
+  const seesContainers = can("containers.view") || can("containers.manage");
 
-  const words = text.trim().toLowerCase().split(/\s+/).filter(Boolean);
-  const active = words.join("").length >= 2;
-  const has = (value: string | null | undefined, w: string) => !!value && value.toLowerCase().includes(w);
-  const everyWord = (match: (w: string) => boolean) => words.every(match);
+  useEffect(() => {
+    const t = setTimeout(() => setTyped(text.trim()), 300);
+    return () => clearTimeout(t);
+  }, [text]);
 
-  const foundBookings = !active
-    ? []
-    : (bookings.data ?? []).filter((b) =>
-        // the whole text as one phone number ("50 123 4567", "0501234567", "+971501234567"), or every word somewhere
-        [b.sender_phone, b.sender_whatsapp, b.receiver_phone, b.receiver_whatsapp].some((n) => phoneMatches(text, n)) ||
-        everyWord(
-          (w) =>
-            [b.invoice_no, b.code, b.sender_name, b.receiver_name, b.pickup_address, b.pickup_area, b.receiver_address].some((v) => has(v, w)) ||
-            [b.sender_phone, b.sender_whatsapp, b.receiver_phone, b.receiver_whatsapp].some((n) => phoneMatches(w, n))
-        )
-      );
-  const foundParcels = !active
-    ? []
-    : (parcels.data ?? []).filter((p) =>
-        everyWord((w) => [p.barcode, p.description, p.position, p.booking?.invoice_no, p.booking?.code, p.booking?.sender_name].some((v) => has(v, w)))
-      );
-  const foundContainers = !active ? [] : (containers.data ?? []).filter((c) => everyWord((w) => [c.code, c.destination].some((v) => has(v, w))));
+  useEffect(() => {
+    if (typed.replace(/\s/g, "").length < 2) return;
+    let stale = false;
+    supabase.rpc("global_search", { p_query: typed, p_limit: LIMIT }).then(({ data, error }) => {
+      if (stale) return;
+      setAnswer({ q: typed, result: error || !data ? EMPTY_RESULT : (data as SearchResult), error: error?.message ?? null });
+    });
+    return () => {
+      stale = true;
+    };
+  }, [typed]);
 
-  const nothing = active && !foundBookings.length && !foundParcels.length && !foundContainers.length;
-  const loading = bookings.loading || parcels.loading || containers.loading;
+  const ready = typed.replace(/\s/g, "").length >= 2;
+  const result = ready && answer ? answer.result : EMPTY_RESULT;
+  const error = ready ? (answer?.error ?? null) : null;
+  const loading = ready && answer?.q !== typed;
+
+  const active = ready;
+  const total = result.bookings_total + result.parcels_total + (seesContainers ? result.containers_total : 0);
 
   return (
     <div className="max-w-3xl space-y-4">
-      <PageHeader title="Search" description="Invoice number, booking code, name, phone number, address, parcel barcode, position or container." />
-      <div className="relative">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-        <input
-          autoFocus
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder="INV-1001, BK-1002, Ismail, 0567375716, BK-1002-P1…"
-          aria-label="Search"
-          className={`${inputClass} pl-9`}
-        />
-      </div>
-      <ErrorMessage message={bookings.error ?? parcels.error ?? containers.error} />
-      <RowLimitNotice count={Math.max(bookings.data?.length ?? 0, parcels.data?.length ?? 0, containers.data?.length ?? 0)} what="records in a list" effect="the search can miss older ones." />
+      <PageHeader title="Search results" description="Invoice number, booking code, name, phone number, address, notes, package barcode, position, place or container." />
+      <ListSearch value={text} onChange={setText} placeholder="Search everything" className="max-w-none sm:max-w-none" />
+      <ErrorMessage message={error} />
 
       {!active && <p className="text-sm text-slate-500">Type at least two characters. Several words narrow the result, for example &quot;ismail 0567&quot;.</p>}
-      {active && loading && <p className="text-sm text-slate-500">Searching…</p>}
-      {nothing && !loading && <p className="text-sm text-slate-600">Nothing found for &quot;{text.trim()}&quot;.</p>}
+      {active && loading && !total && <p className="text-sm text-slate-500">Searching…</p>}
+      {active && !loading && !total && !error && <p className="text-sm text-slate-600">Nothing found for &quot;{typed}&quot;.</p>}
 
-      {foundBookings.length > 0 && (
-        <Card title={`Invoices and bookings (${foundBookings.length})`}>
+      {result.bookings.length > 0 && (
+        <Card title={`Invoices and bookings (${result.bookings_total})`}>
           <ul className="divide-y divide-slate-100 text-sm">
-            {foundBookings.slice(0, LIMIT).map((b) => (
-              <li key={b.id}>
-                <Link href={`/bookings/${b.id}`} className="flex flex-wrap items-center justify-between gap-2 py-3">
+            {result.bookings.map((b) => {
+              const href = jobHref(can, b.id);
+              const body = (
+                <>
                   <span>
                     <span className="font-mono font-medium text-blue-700">{b.invoice_no ?? b.code}</span>
                     {b.invoice_no && <span className="ml-2 font-mono text-xs text-slate-500">{b.code}</span>}
@@ -93,41 +80,64 @@ export default function SearchPage() {
                   </span>
                   <span className="flex flex-col items-end gap-1">
                     <StatusBadge status={b.status} />
-                    {b.invoice_no && <StatusBadge status={invoiceStatus(b.invoice_amount === null ? null : Number(b.invoice_amount), totalPaid(b.payments))} />}
+                    {seesMoney && b.pay_status && <StatusBadge status={b.pay_status} />}
                   </span>
-                </Link>
-              </li>
-            ))}
+                </>
+              );
+              return (
+                <li key={b.id}>
+                  {href ? (
+                    <Link href={href} className="flex flex-wrap items-center justify-between gap-2 py-3">
+                      {body}
+                    </Link>
+                  ) : (
+                    <div className="flex flex-wrap items-center justify-between gap-2 py-3">{body}</div>
+                  )}
+                </li>
+              );
+            })}
           </ul>
-          {foundBookings.length > LIMIT && <p className="mt-2 text-xs text-slate-500">Showing the first {LIMIT}. Add more words to narrow it.</p>}
+          {result.bookings_total > LIMIT && <p className="mt-2 text-xs text-slate-500">Showing the first {LIMIT} of {result.bookings_total}. Add more words to narrow it.</p>}
         </Card>
       )}
 
-      {foundParcels.length > 0 && (
-        <Card title={`Parcels (${foundParcels.length})`}>
+      {result.parcels.length > 0 && (
+        <Card title={`Packages (${result.parcels_total})`}>
           <ul className="divide-y divide-slate-100 text-sm">
-            {foundParcels.slice(0, LIMIT).map((p) => (
-              <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 py-3">
-                <span>
-                  <span className="font-mono font-medium">{p.barcode}</span>
-                  <span className="block text-slate-700">
-                    {p.description ?? "Parcel"} · {Number(p.weight_kg)} kg
+            {result.parcels.map((p) => {
+              const href = jobHref(can, p.booking_id);
+              return (
+                <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 py-3">
+                  <span>
+                    <span className="font-mono font-medium">{p.barcode}</span>
+                    <span className="block text-slate-700">
+                      {p.description ?? "Package"} · {Number(p.weight_kg)} kg
+                      {p.place ? ` · ${p.place}` : ""}
+                      {p.position ? ` · ${p.position}` : ""}
+                    </span>
+                    {href ? (
+                      <Link href={href} className="font-mono text-xs text-blue-700">
+                        {p.invoice_no ?? p.booking_code} · {p.sender_name}
+                      </Link>
+                    ) : (
+                      <span className="font-mono text-xs text-slate-500">
+                        {p.invoice_no ?? p.booking_code} · {p.sender_name}
+                      </span>
+                    )}
                   </span>
-                  <Link href={`/bookings/${p.booking_id}`} className="font-mono text-xs text-blue-700">
-                    {p.booking?.invoice_no ?? p.booking?.code} · {p.booking?.sender_name}
-                  </Link>
-                </span>
-                <StatusBadge status={p.status} />
-              </li>
-            ))}
+                  <StatusBadge status={p.status} />
+                </li>
+              );
+            })}
           </ul>
+          {result.parcels_total > LIMIT && <p className="mt-2 text-xs text-slate-500">Showing the first {LIMIT} of {result.parcels_total}. Add more words to narrow it.</p>}
         </Card>
       )}
 
-      {foundContainers.length > 0 && (
-        <Card title={`Containers (${foundContainers.length})`}>
+      {seesContainers && result.containers.length > 0 && (
+        <Card title={`Containers (${result.containers_total})`}>
           <ul className="divide-y divide-slate-100 text-sm">
-            {foundContainers.slice(0, LIMIT).map((c) => (
+            {result.containers.map((c) => (
               <li key={c.id}>
                 <Link href={`/containers/${c.id}`} className="flex items-center justify-between gap-2 py-3">
                   <span>
@@ -143,4 +153,18 @@ export default function SearchPage() {
       )}
     </div>
   );
+}
+
+export default function SearchPage() {
+  return (
+    <Suspense fallback={null}>
+      <SearchPageInner />
+    </Suspense>
+  );
+}
+
+// A new question from the top bar starts a fresh page (the key changes with the question).
+function SearchPageInner() {
+  const asked = useSearchParams().get("q") ?? "";
+  return <SearchResults key={asked} initial={asked} />;
 }

@@ -2,6 +2,8 @@
 // In-browser stand-in for the parts of supabase-js this app uses, so the UI can be tested
 // without a backend. Data lives in localStorage. Used automatically when no Supabase keys are set.
 
+import { matchesSearch } from "./search.ts";
+
 type Row = Record<string, any>;
 type Db = {
   seq: { booking: number; container: number; invoice: number; ret?: number };
@@ -11,7 +13,7 @@ type Db = {
   booking_events: Row[]; notifications: Row[]; app_settings: Row[]; returns: Row[]; booking_notes: Row[]; number_series: Row[]; organization: Row[];
 };
 
-const STORAGE_KEY = "logistics-mock-db-v26";
+const STORAGE_KEY = "logistics-mock-db-v27";
 const AUTH_KEY = "logistics-mock-signed-out";
 
 const uid = () => crypto.randomUUID();
@@ -448,6 +450,8 @@ function backdate(parcelIds: string[], status: string, ts: string | null) {
 
 const fail = (message: string) => ({ data: null, error: { message } });
 
+const PHONE_FIELDS = (b: Row) => [b.sender_phone, b.sender_whatsapp, b.receiver_phone, b.receiver_whatsapp];
+
 // Mirrors the database: keep a history row, and tell the other party. Offline there is only one user, so the
 // notification goes to that user, which lets the notification screens be tried without a second account.
 function recordChange(b: Row, kind: string, reason: string, oldDate: string | null, newDate: string | null, title: string, body: string) {
@@ -736,6 +740,39 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
     Object.assign(s, { prefix, next_number: Number(p_next) });
     save();
     return { data: null, error: null };
+  },
+
+  // The same search as the database function global_search().
+  global_search({ p_query, p_limit = 6 }) {
+    const d = db();
+    const q = String(p_query ?? "").trim();
+    const empty = { bookings: [], parcels: [], containers: [], bookings_total: 0, parcels_total: 0, containers_total: 0 };
+    if (q.replace(/\s/g, "").length < 2) return { data: empty, error: null };
+    const lim = Math.max(1, Math.min(Number(p_limit) || 6, 50));
+    const paid = (id: string) => d.payments.filter((p) => p.booking_id === id).reduce((s, p) => s + Number(p.amount), 0);
+    const hits = d.bookings
+      .filter((b) => matchesSearch(q, [b.invoice_no, b.code, b.sender_name, b.receiver_name, b.pickup_area, b.pickup_address, b.receiver_address, b.notes], PHONE_FIELDS(b)))
+      .sort((x, y) => String(y.created_at).localeCompare(String(x.created_at)));
+    const pay = (b: Row) => (!b.invoice_no ? null : b.invoice_amount == null ? "not_invoiced" : Number(b.invoice_amount) - paid(b.id) <= 0 ? "paid" : paid(b.id) > 0 ? "partial" : "unpaid");
+    const parcelHits = d.parcels
+      .filter((p) => p.status !== "repacked")
+      .map((p) => ({ p, b: d.bookings.find((x) => x.id === p.booking_id)!, w: d.warehouses.find((x) => x.id === p.warehouse_id) }))
+      .filter(({ p, b, w }) => matchesSearch(q, [p.barcode, p.description, p.position, b?.invoice_no, b?.code, b?.sender_name, w?.name, p.delivery_tracking]))
+      .sort((x, y) => x.p.barcode.localeCompare(y.p.barcode));
+    const containerHits = d.containers
+      .filter((c) => matchesSearch(q, [c.code, c.destination]))
+      .sort((x, y) => String(y.created_at).localeCompare(String(x.created_at)));
+    return {
+      data: {
+        bookings: hits.slice(0, lim).map((b) => ({ id: b.id, code: b.code, invoice_no: b.invoice_no ?? null, sender_name: b.sender_name, receiver_name: b.receiver_name ?? null,
+          sender_phone: b.sender_phone ?? null, status: b.status, pickup_date: b.pickup_date, pickup_area: b.pickup_area, pay_status: pay(b) })),
+        parcels: parcelHits.slice(0, lim).map(({ p, b, w }) => ({ id: p.id, barcode: p.barcode, description: p.description ?? null, weight_kg: p.weight_kg, status: p.status,
+          position: p.position ?? null, booking_id: p.booking_id, invoice_no: b?.invoice_no ?? null, booking_code: b?.code, sender_name: b?.sender_name, place: w?.name ?? null })),
+        containers: containerHits.slice(0, lim).map((c) => ({ id: c.id, code: c.code, destination: c.destination ?? null, status: c.status })),
+        bookings_total: hits.length, parcels_total: parcelHits.length, containers_total: containerHits.length,
+      },
+      error: null,
+    };
   },
 
   mentionable_users() {
