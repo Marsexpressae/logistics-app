@@ -114,7 +114,7 @@ export type PermissionRow = { key: string; group_name: string; label: string; de
 export type BookingEvent = {
   id: string;
   booking_id: string;
-  kind: "rescheduled" | "cancelled";
+  kind: "rescheduled" | "cancelled" | "loaded_without_payment";
   reason: string;
   old_date: string | null;
   new_date: string | null;

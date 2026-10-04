@@ -16,7 +16,8 @@ type CheckRow = { booking_id: string; booking_code: string; expected: number; lo
 
 export default function ContainerManifestPage() {
   const { id } = useParams<{ id: string }>();
-  const canOperate = usePermissions().can("containers.manage");
+  const { can } = usePermissions();
+  const canOperate = can("containers.manage");
   const container = useQuery<Container>(() => supabase.from("containers").select("*").eq("id", id).single());
   const loaded = useQuery<Parcel[]>(() =>
     supabase.from("parcels").select("*").eq("container_id", id).order("barcode")
@@ -31,6 +32,9 @@ export default function ContainerManifestPage() {
   const [selected, setSelected] = useState<string[]>([]);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const scanRef = useRef<HTMLInputElement>(null);
+  // When "payment before loading" is on, a manager can load anyway by giving a reason. The reason is remembered
+  // for the same booking while this page stays open, so a batch of parcels asks once.
+  const overrides = useRef<Record<string, string>>({});
 
   const c = container.data;
   if (container.loading) return <p className="text-sm text-slate-500">Loading…</p>;
@@ -46,7 +50,27 @@ export default function ContainerManifestPage() {
   };
 
   async function load(barcode: string) {
-    const { error } = await supabase.rpc("load_parcel", { p_container_id: id, p_barcode: barcode });
+    const code = barcode.trim().toUpperCase().replace(/-(R\d+-)?P\d+$/, "");
+    const attempt = (reason?: string) =>
+      supabase.rpc("load_parcel", { p_container_id: id, p_barcode: barcode, p_override_reason: reason ?? overrides.current[code] ?? null });
+    let { error } = await attempt();
+
+    const needsPayment = error?.message.match(/^PAYMENT_REQUIRED (\S+) : (.*)$/);
+    if (needsPayment) {
+      const [, booking, why] = needsPayment;
+      const stop = { message: `${booking} is not fully paid (${why}). Not loaded. Payment is required first.` };
+      if (can("containers.override_payment")) {
+        const reason = window.prompt(`${booking} is not fully paid (${why}).\n\nTo load it anyway, type the reason. It is recorded on the booking.`);
+        if (reason?.trim()) {
+          overrides.current[code] = reason.trim();
+          ({ error } = await attempt(reason.trim()));
+        } else {
+          error = stop as typeof error;
+        }
+      } else {
+        error = { message: stop.message + " Ask a manager." } as typeof error;
+      }
+    }
     setMessage(error ? { ok: false, text: error.message } : { ok: true, text: `Loaded ${barcode.toUpperCase()}` });
     return !error;
   }

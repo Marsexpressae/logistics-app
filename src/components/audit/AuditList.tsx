@@ -10,6 +10,7 @@ export const TABLE_LABELS: Record<string, string> = {
   drivers: "Driver",
   profiles: "User",
   role_permissions: "Role permission",
+  app_settings: "Setting",
 };
 
 const humanize = (key: string) => key.replace(/_/g, " ");

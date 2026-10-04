@@ -5,9 +5,8 @@ import {
   Container,
   History,
   LayoutDashboard,
-  ShieldCheck,
+  Settings,
   Truck,
-  UserCog,
   Wallet,
   type LucideIcon,
 } from "lucide-react";
@@ -29,16 +28,17 @@ export const navItems: NavItem[] = [
   { label: "Warehouse", shortLabel: "Warehouse", href: "/warehouse-inventory", icon: Boxes, anyOf: ["warehouse.view"] },
   { label: "Containers", shortLabel: "Containers", href: "/containers", icon: Container, anyOf: ["containers.view", "containers.manage"] },
   { label: "Accounts", shortLabel: "Accounts", href: "/accounts", icon: Wallet, anyOf: ["accounts.view"] },
-  { label: "Users", shortLabel: "Users", href: "/users", icon: UserCog, anyOf: ["users.manage"] },
-  { label: "Roles & Permissions", shortLabel: "Roles", href: "/roles", icon: ShieldCheck, anyOf: ["roles.manage"] },
   { label: "Activity", shortLabel: "Activity", href: "/activity", icon: History, anyOf: ["activity.view"] },
   { label: "Notifications", shortLabel: "Alerts", href: "/notifications", icon: Bell, anyOf: ["notifications.view"] },
+  { label: "Settings", shortLabel: "Settings", href: "/settings", icon: Settings, anyOf: ["settings.manage", "users.manage", "roles.manage"] },
 ];
 
 // Pages that are not in the sidebar but need tighter rules than their parent.
 const extraRules: { prefix: string; anyOf: string[] }[] = [
   { prefix: "/bookings/new", anyOf: ["bookings.create"] },
   { prefix: "/warehouse-inventory/split", anyOf: ["warehouse.manage"] },
+  { prefix: "/settings/users", anyOf: ["users.manage"] },
+  { prefix: "/settings/roles", anyOf: ["roles.manage"] },
 ];
 
 /** Can someone holding these permissions open this path? The longest matching rule wins. */

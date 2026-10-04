@@ -8,10 +8,10 @@ type Db = {
   [table: string]: any;
   drivers: Row[]; warehouses: Row[]; bookings: Row[]; booking_items: Row[]; payments: Row[];
   containers: Row[]; parcels: Row[]; parcel_events: Row[]; profiles: Row[]; audit_log: Row[]; roles: Row[]; permissions: Row[]; role_permissions: Row[];
-  booking_events: Row[]; notifications: Row[];
+  booking_events: Row[]; notifications: Row[]; app_settings: Row[];
 };
 
-const STORAGE_KEY = "logistics-mock-db-v12";
+const STORAGE_KEY = "logistics-mock-db-v13";
 const AUTH_KEY = "logistics-mock-signed-out";
 
 const uid = () => crypto.randomUUID();
@@ -52,12 +52,14 @@ const PERMISSIONS: Row[] = [
   ["bookings.reschedule", "Bookings", "Reschedule bookings", "Move a booking to another pickup date (a reason is required)"],
   ["pickups.cancel", "Pickups", "Cancel own pickups", "Cancel a pickup that has not been collected yet (a reason is required)"],
   ["pickups.reschedule", "Pickups", "Reschedule own pickups", "Move a pickup to another date (a reason is required)"],
+  ["settings.manage", "People", "Change app settings", "Turn app controls on or off on the Settings page"],
+  ["containers.override_payment", "Containers", "Load without full payment", "Load a parcel even when payment is required and not complete (a reason is recorded)"],
   ["items.edit", "Pickups", "Edit package items (before collection)", "Add, change or remove items and weights until the pickup is collected"],
   ["items.edit_after", "Pickups", "Edit package items (after collection)", "Add, change or remove items and weights after the pickup is collected"],
 ].map(([key, group_name, label, description], i) => ({ key, group_name, label, description, sort: (i + 1) * 10 }));
 const GRANTS: Record<string, string[]> = {
   super_admin: PERMISSIONS.map((p) => p.key),
-  manager: ["dashboard.view", "bookings.view", "bookings.create", "bookings.edit", "bookings.cancel", "pickups.view_all",
+  manager: ["containers.override_payment", "dashboard.view", "bookings.view", "bookings.create", "bookings.edit", "bookings.cancel", "pickups.view_all",
     "pickups.collect", "warehouse.view", "warehouse.manage", "containers.view", "containers.manage", "accounts.view",
     "payments.manage", "drivers.manage", "users.manage", "activity.view", "notifications.view", "bookings.reschedule",
     "items.edit", "items.edit_after"],
@@ -134,6 +136,8 @@ function seed(): Db {
     parcel_events: events,
     audit_log: [],
     booking_events: [],
+    app_settings: [{ key: "require_payment_before_loading", value: false, label: "Require payment before loading into a container",
+      description: "When on, a parcel can only be loaded if its booking has an invoice amount and it is paid in full. People with \"Load without full payment\" can override it with a reason.", updated_at: now() }],
     notifications: [],
     profiles: [
       { id: "mock-user", full_name: "Tester (super admin)", role: "super_admin", active: true, email: "tester@example.test" },
@@ -373,7 +377,7 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
     return { data: p_parcels.length, error: null };
   },
 
-  load_parcel({ p_container_id, p_barcode }) {
+  load_parcel({ p_container_id, p_barcode, p_override_reason }) {
     const d = db();
     const c = d.containers.find((x) => x.id === p_container_id);
     if (!c) return fail("Container not found");
@@ -382,6 +386,16 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
     if (!p) return fail(`No parcel with barcode ${p_barcode}`);
     if (p.status === "repacked") return fail(`Parcel ${p.barcode} was repacked. Scan the new label instead.`);
     if (p.status !== "in_warehouse") return fail(`Parcel ${p.barcode} is not in a warehouse (status: ${p.status})`);
+    if (d.app_settings.find((s) => s.key === "require_payment_before_loading")?.value === true) {
+      const b = d.bookings.find((x) => x.id === p.booking_id)!;
+      const paid = d.payments.filter((x) => x.booking_id === b.id).reduce((s, x) => s + Number(x.amount), 0);
+      if (b.invoice_amount === null || paid < Number(b.invoice_amount)) {
+        if (!String(p_override_reason ?? "").trim())
+          return fail(`PAYMENT_REQUIRED ${b.code} : ${b.invoice_amount === null ? "no invoice amount is set yet" : `paid ${paid} of ${b.invoice_amount}`}`);
+        d.booking_events.push({ id: uid(), booking_id: b.id, kind: "loaded_without_payment", reason: `${String(p_override_reason).trim()} (${p.barcode} into ${c.code})`,
+          old_date: null, new_date: null, actor_name: "You (sample data)", created_at: now() });
+      }
+    }
     p.container_id = c.id;
     setParcelStatus(p, "loaded");
     save();
