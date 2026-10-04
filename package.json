@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "db:migrate": "node scripts/migrate.mjs",
+    "db:backup": "node scripts/backup.mjs",
     "test": "node --no-warnings --experimental-transform-types --test tests/*.test.mts"
   },
   "dependencies": {
