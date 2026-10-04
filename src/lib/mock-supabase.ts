@@ -11,7 +11,7 @@ type Db = {
   booking_events: Row[]; notifications: Row[]; app_settings: Row[]; returns: Row[]; booking_notes: Row[]; number_series: Row[]; organization: Row[];
 };
 
-const STORAGE_KEY = "logistics-mock-db-v22";
+const STORAGE_KEY = "logistics-mock-db-v23";
 const AUTH_KEY = "logistics-mock-signed-out";
 
 const uid = () => crypto.randomUUID();
@@ -190,6 +190,20 @@ export function resetMockData() {
   memory = seed();
   save();
   location.reload();
+}
+
+// A short warehouse code: typed, or the first letters of the words ("Tarpal 2" gives T2), made unique.
+function warehouseCode(name: string, typed: string | null, ignore: string | null): string {
+  const d = db();
+  let base = String(typed ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (!base) {
+    base = name.replace(/[^A-Za-z0-9 ]/g, "").split(/\s+/).filter(Boolean).map((w) => (/^[0-9]+$/.test(w) ? w : w[0].toUpperCase())).join("");
+  }
+  base = base.slice(0, 6);
+  if (!base) return "";
+  let candidate = base;
+  for (let n = 2; d.warehouses.some((w) => w.id !== ignore && w.code.toUpperCase() === candidate); n++) candidate = base.slice(0, 6 - String(n).length) + n;
+  return candidate;
 }
 
 // ---------------------------------------------------------------- numbering (mirrors the database: series, typed numbers, uniqueness)
@@ -613,6 +627,43 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
       })),
       error: null,
     };
+  },
+
+  // Warehouses: the same rules as add_warehouse(), update_warehouse() and delete_warehouse().
+  add_warehouse({ p_name, p_code }) {
+    const d = db();
+    const nm = String(p_name ?? "").trim();
+    if (nm.length < 1 || nm.length > 40) return fail("Enter a name of up to 40 characters");
+    if (d.warehouses.some((w) => w.name.toLowerCase() === nm.toLowerCase())) return fail("A warehouse with this name already exists");
+    const code = warehouseCode(nm, p_code, null);
+    if (!code) return fail("Enter a short code for this warehouse");
+    const row = { id: uid(), code, name: nm, active: true };
+    d.warehouses.push(row);
+    save();
+    return { data: row.id, error: null };
+  },
+
+  update_warehouse({ p_id, p_name, p_code, p_active }) {
+    const d = db();
+    const w = d.warehouses.find((x) => x.id === p_id);
+    if (!w) return fail("Warehouse not found");
+    const nm = String(p_name ?? "").trim();
+    if (nm.length < 1 || nm.length > 40) return fail("Enter a name of up to 40 characters");
+    if (d.warehouses.some((x) => x.id !== p_id && x.name.toLowerCase() === nm.toLowerCase())) return fail("A warehouse with this name already exists");
+    if (!p_active && !d.warehouses.some((x) => x.id !== p_id && x.active !== false)) return fail("There must be at least one active warehouse");
+    Object.assign(w, { name: nm, code: warehouseCode(nm, p_code, p_id), active: p_active !== false });
+    save();
+    return { data: null, error: null };
+  },
+
+  delete_warehouse({ p_id }) {
+    const d = db();
+    if (!d.warehouses.some((x) => x.id === p_id)) return fail("Warehouse not found");
+    if (d.parcels.some((p) => p.warehouse_id === p_id)) return fail("This warehouse has parcels, now or in the past, so it cannot be deleted. Deactivate it instead.");
+    if (!d.warehouses.some((x) => x.id !== p_id && x.active !== false)) return fail("There must be at least one active warehouse");
+    d.warehouses = d.warehouses.filter((x) => x.id !== p_id);
+    save();
+    return { data: null, error: null };
   },
 
   set_organization({ p_legal_name, p_currency, p_country }) {

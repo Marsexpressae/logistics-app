@@ -8,7 +8,7 @@ export type ParcelStatus = "in_warehouse" | "loaded" | "in_transit" | "arrived" 
 export type ContainerStatus = "loading" | "departed" | "arrived";
 
 export type Driver = { id: string; name: string; phone: string | null; user_id: string | null };
-export type Warehouse = { id: string; code: string; name: string };
+export type Warehouse = { id: string; code: string; name: string; active?: boolean };
 
 export type Payment = {
   id: string;

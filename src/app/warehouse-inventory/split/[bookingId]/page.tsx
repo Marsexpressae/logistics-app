@@ -50,7 +50,8 @@ export default function ReceivePage() {
   const hasItems = collected.length > 0;
   const collectedWeight = round2(collected.reduce((s, r) => s + Number(r.weight_kg), 0));
   const rowsWeight = round2(rows.reduce((s, r) => s + Number(r.weight_kg || 0), 0));
-  const warehouse = warehouseId || warehouses.data?.[0]?.id || "";
+  const choices = (warehouses.data ?? []).filter((w) => w.active !== false);
+  const warehouse = warehouseId || choices[0]?.id || "";
 
   const update = (i: number, patch: Partial<Row>) =>
     setCustom(rows.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
@@ -96,7 +97,7 @@ export default function ReceivePage() {
             <div className="mb-3 max-w-xs">
               <Field label="Arrives at">
                 <select className={inputClass} value={warehouse} onChange={(e) => setWarehouseId(e.target.value)}>
-                  {warehouses.data?.map((w) => (
+                  {choices.map((w) => (
                     <option key={w.id} value={w.id}>
                       {w.name}
                     </option>
