@@ -17,13 +17,13 @@ type PaymentsCardProps = {
 /**
  * Money recorded against a booking. Shared by the pickup page and the booking page.
  *   - recording a payment: the pickup team and the office
- *   - correcting or removing one: the same people; the Activity log records every change
+ *   - correcting or removing one: only roles granted "Edit or delete payments" on the Roles page
  * Every change is saved straight away and recorded in the Activity log.
  */
 export default function PaymentsCard({ booking, payments, onChanged }: PaymentsCardProps) {
   const { can } = usePermissions();
-  const canRecord = can("pickups.collect") || can("payments.manage") || can("bookings.edit");
-  const canCorrect = canRecord; // the whole team can correct; the Activity log keeps every change
+  const canRecord = can("pickups.collect") || can("payments.manage");
+  const canCorrect = can("payments.manage"); // who has it is set on the Roles page
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState({ amount: "", method: "cash", note: "" });
@@ -198,6 +198,9 @@ export default function PaymentsCard({ booking, payments, onChanged }: PaymentsC
             </Button>
           </div>
         </form>
+      )}
+      {!canCorrect && sorted.length > 0 && (
+        <p className="mt-2 text-xs text-slate-500">Wrong amount? Ask the office to correct it.</p>
       )}
       <ErrorMessage message={error} />
     </Card>
