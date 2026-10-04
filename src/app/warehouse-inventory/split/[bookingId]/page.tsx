@@ -25,8 +25,12 @@ export default function ReceivePage() {
   const booking = useQuery<Booking>(() => supabase.from("bookings").select("*").eq("id", bookingId).single());
   const items = useQuery<BookingItem[]>(() => supabase.from("booking_items").select("*").eq("booking_id", bookingId).order("id"));
   const warehouses = useQuery<Warehouse[]>(() => supabase.from("warehouses").select("*").order("code"));
+  // Repacked parcels stay in the database as history, but only the live ones are shown here.
   const parcels = useQuery<(Parcel & { warehouse: { code: string } | null })[]>(() =>
-    supabase.from("parcels").select("*, warehouse:warehouses(code)").eq("booking_id", bookingId).order("seq")
+    supabase.from("parcels").select("*, warehouse:warehouses(code)").eq("booking_id", bookingId).neq("status", "repacked").order("seq")
+  );
+  const history = useQuery<{ id: string }[]>(() =>
+    supabase.from("parcels").select("id").eq("booking_id", bookingId).eq("status", "repacked")
   );
 
   const [warehouseId, setWarehouseId] = useState("");
@@ -66,6 +70,7 @@ export default function ReceivePage() {
     setCustom(null);
     booking.reload();
     parcels.reload();
+    history.reload();
   }
 
   const nothingToReceive = !hasItems && !repack;
@@ -179,6 +184,8 @@ export default function ReceivePage() {
         )}
       </div>
 
+      {received && hasItems && renderReconcile()}
+
       {received && (
         <Card title="Parcel labels">
           <div className="grid gap-3 sm:grid-cols-2">
@@ -193,6 +200,23 @@ export default function ReceivePage() {
       )}
     </div>
   );
+
+  // Collected vs received: the same cargo should add up. A difference is shown, not blocked (a re-weigh can be legitimate).
+  function renderReconcile() {
+    const live = parcels.data ?? [];
+    const liveKg = round2(live.reduce((s, p) => s + Number(p.weight_kg), 0));
+    const sameCount = live.length === collected.length;
+    const sameKg = Math.abs(liveKg - collectedWeight) <= 0.01;
+    const ok = sameKg && sameCount;
+    return (
+      <p className={`rounded-md px-3 py-2 text-sm print:hidden ${ok ? "bg-green-50 text-green-700" : "bg-amber-50 text-amber-800"}`}>
+        {ok
+          ? `Matches the pickup: ${collected.length} ${collected.length === 1 ? "package" : "packages"}, ${kg(collectedWeight)}.`
+          : `Does not match the pickup. Collected ${collected.length} ${collected.length === 1 ? "package" : "packages"}, ${kg(collectedWeight)}. Received ${live.length} ${live.length === 1 ? "parcel" : "parcels"}, ${kg(liveKg)}.`}
+        {(history.data?.length ?? 0) > 0 && ` Repacked before (${history.data!.length} earlier ${history.data!.length === 1 ? "parcel" : "parcels"} kept as history).`}
+      </p>
+    );
+  }
 
   // The rare case: the cargo is packed differently from how it was collected.
   // A plain function (not a component) so the text boxes keep focus while typing.

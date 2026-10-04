@@ -12,6 +12,7 @@ import { supabase } from "@/lib/supabase";
 import type { Container, Parcel } from "@/lib/types";
 
 type WarehouseParcel = Parcel & { warehouse: { code: string } | null };
+type CheckRow = { booking_id: string; booking_code: string; expected: number; loaded: number; missing: string[] };
 
 export default function ContainerManifestPage() {
   const { id } = useParams<{ id: string }>();
@@ -23,6 +24,9 @@ export default function ContainerManifestPage() {
   const available = useQuery<WarehouseParcel[]>(() =>
     supabase.from("parcels").select("*, warehouse:warehouses(code)").eq("status", "in_warehouse").order("barcode")
   );
+
+  // Per booking: how many of its parcels are in this container, and which are still in the warehouse.
+  const check = useQuery<CheckRow[]>(() => supabase.rpc("container_check", { p_container_id: id }) as never);
 
   const [selected, setSelected] = useState<string[]>([]);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
@@ -38,6 +42,7 @@ export default function ContainerManifestPage() {
     container.reload();
     loaded.reload();
     available.reload();
+    check.reload();
   };
 
   async function load(barcode: string) {
@@ -71,8 +76,15 @@ export default function ContainerManifestPage() {
   }
 
   async function depart() {
-    if (!confirm(`Depart ${c!.code}? All ${loaded.data?.length} loaded parcels will be marked In transit.`)) return;
-    const { error } = await supabase.rpc("depart_container", { p_container_id: id });
+    const short = (check.data ?? []).filter((r) => r.missing.length);
+    const warning = short.length
+      ? `
+
+MISSING: ${short.map((r) => `${r.booking_code} has ${r.loaded} of ${r.expected} parcels (${r.missing.join(", ")} still in the warehouse)`).join("; ")}.
+Depart anyway as a partial shipment?`
+      : "";
+    if (!confirm(`Depart ${c!.code}? All ${loaded.data?.length} loaded parcels will be marked In transit.${warning}`)) return;
+    const { error } = await supabase.rpc("depart_container", { p_container_id: id, p_allow_partial: short.length > 0 });
     setMessage(error ? { ok: false, text: error.message } : { ok: true, text: "Container departed" });
     refresh();
   }
@@ -148,6 +160,24 @@ export default function ContainerManifestPage() {
             )}
           </Card>
         </div>
+      )}
+
+      {!!check.data?.length && (
+        <Card title="Check against invoices">
+          <ul className="divide-y divide-slate-100 text-sm">
+            {check.data.map((r) => (
+              <li key={r.booking_id} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                <span>
+                  <span className="font-mono font-medium">{r.booking_code}</span>{" "}
+                  <span className={r.missing.length ? "font-medium text-amber-700" : "text-green-700"}>
+                    {r.loaded} of {r.expected} parcels loaded
+                  </span>
+                </span>
+                {r.missing.length > 0 && <span className="font-mono text-xs text-amber-700">Missing: {r.missing.join(", ")}</span>}
+              </li>
+            ))}
+          </ul>
+        </Card>
       )}
 
       <Card title={`Manifest (${loaded.data?.length ?? 0} parcels)`}>

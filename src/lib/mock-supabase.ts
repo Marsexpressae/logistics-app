@@ -11,7 +11,7 @@ type Db = {
   booking_events: Row[]; notifications: Row[];
 };
 
-const STORAGE_KEY = "logistics-mock-db-v11";
+const STORAGE_KEY = "logistics-mock-db-v12";
 const AUTH_KEY = "logistics-mock-signed-out";
 
 const uid = () => crypto.randomUUID();
@@ -350,12 +350,20 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
     if (d.parcels.some((p) => p.booking_id === b.id && p.status !== "in_warehouse"))
       return fail(`Some parcels of ${b.code} have already left the warehouse; cannot re-split`);
 
-    const old = d.parcels.filter((p) => p.booking_id === b.id).map((p) => p.id);
-    d.parcels = d.parcels.filter((p) => p.booking_id !== b.id);
-    d.parcel_events = d.parcel_events.filter((e) => !old.includes(e.parcel_id));
+    if (p_parcels.some((p: Row) => Number(p.weight_kg ?? 0) < 0)) return fail("A parcel weight cannot be negative");
+
+    // Repacking keeps history: the old parcels are marked repacked, the new ones get the next round and new barcodes.
+    const mine = d.parcels.filter((p) => p.booking_id === b.id);
+    const round = Math.max(0, ...mine.map((p) => p.round ?? 1)) + 1;
+    const lastSeq = Math.max(0, ...mine.map((p) => p.seq));
+    mine.filter((p) => p.status === "in_warehouse").forEach((p) => {
+      p.container_id = null;
+      setParcelStatus(p, "repacked");
+    });
 
     p_parcels.forEach((p: Row, i: number) => {
-      const row = { id: uid(), booking_id: b.id, seq: i + 1, barcode: `${b.code}-P${i + 1}`, description: p.description,
+      const barcode = round === 1 ? `${b.code}-P${i + 1}` : `${b.code}-R${round}-P${i + 1}`;
+      const row = { id: uid(), booking_id: b.id, seq: lastSeq + i + 1, round, barcode, description: p.description || null,
         weight_kg: p.weight_kg ?? 0, status: "in_warehouse", warehouse_id: p_warehouse_id, container_id: null, updated_at: now() };
       d.parcels.push(row);
       d.parcel_events.push({ id: uid(), parcel_id: row.id, status: "in_warehouse", created_at: now() });
@@ -372,6 +380,7 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
     if (c.status !== "loading") return fail(`Container ${c.code} has already departed`);
     const p = d.parcels.find((x) => x.barcode === p_barcode.trim().toUpperCase());
     if (!p) return fail(`No parcel with barcode ${p_barcode}`);
+    if (p.status === "repacked") return fail(`Parcel ${p.barcode} was repacked. Scan the new label instead.`);
     if (p.status !== "in_warehouse") return fail(`Parcel ${p.barcode} is not in a warehouse (status: ${p.status})`);
     p.container_id = c.id;
     setParcelStatus(p, "loaded");
@@ -388,10 +397,31 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
     return { data: null, error: null };
   },
 
-  depart_container({ p_container_id }) {
+  container_check({ p_container_id }) {
+    const d = db();
+    const ids = [...new Set(d.parcels.filter((p) => p.container_id === p_container_id).map((p) => p.booking_id))];
+    const rows = ids.map((id) => {
+      const b = d.bookings.find((x) => x.id === id)!;
+      const rel = d.parcels.filter((p) => p.booking_id === id && (p.container_id === p_container_id || p.status === "in_warehouse"));
+      return {
+        booking_id: id, booking_code: b.code, expected: rel.length,
+        loaded: rel.filter((p) => p.container_id === p_container_id).length,
+        missing: rel.filter((p) => p.status === "in_warehouse").sort((x, y) => x.seq - y.seq).map((p) => p.barcode),
+      };
+    });
+    return { data: rows.sort((x, y) => x.booking_code.localeCompare(y.booking_code)), error: null };
+  },
+
+  depart_container({ p_container_id, p_allow_partial }) {
     const d = db();
     const c = d.containers.find((x) => x.id === p_container_id && x.status === "loading");
     if (!c) return fail("Container is not open for loading");
+    if (!p_allow_partial) {
+      const short = (RPC.container_check({ p_container_id }).data as Row[])
+        .filter((r) => r.missing.length)
+        .map((r) => `${r.booking_code} (${r.loaded} of ${r.expected})`);
+      if (short.length) return fail(`Parcels still missing: ${short.join(", ")}. Load them, or confirm a partial shipment.`);
+    }
     c.status = "departed";
     c.departed_at = now();
     const loaded = d.parcels.filter((p) => p.container_id === c.id && p.status === "loaded");
@@ -472,7 +502,7 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
     const b = d.bookings.find((x) => x.code === p_code.trim().toUpperCase());
     if (!b) return { data: null, error: null };
     const parcels = d.parcels
-      .filter((p) => p.booking_id === b.id)
+      .filter((p) => p.booking_id === b.id && p.status !== "repacked")
       .sort((x, y) => x.seq - y.seq)
       .map((p) => ({
         barcode: p.barcode, description: p.description, weight_kg: p.weight_kg, status: p.status,

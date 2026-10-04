@@ -4,7 +4,7 @@ export type Profile = { id: string; full_name: string; role: Role; active: boole
 
 export type PaymentMethod = "cash" | "bank_transfer";
 export type BookingStatus = "booked" | "collected" | "at_warehouse" | "cancelled";
-export type ParcelStatus = "in_warehouse" | "loaded" | "in_transit" | "arrived" | "delivered";
+export type ParcelStatus = "in_warehouse" | "loaded" | "in_transit" | "arrived" | "delivered" | "repacked";
 export type ContainerStatus = "loading" | "departed" | "arrived";
 
 export type Driver = { id: string; name: string; phone: string | null; user_id: string | null };
