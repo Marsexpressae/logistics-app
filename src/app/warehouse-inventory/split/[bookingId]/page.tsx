@@ -169,7 +169,7 @@ export default function ReceivePage() {
                       setRepack(true);
                     }}
                   >
-                    Repack (rare)
+                    Repack
                   </button>
                 </>
               )}
