@@ -4,7 +4,7 @@ export type Profile = { id: string; full_name: string; role: Role; active: boole
 
 export type PaymentMethod = "cash" | "bank_transfer";
 export type BookingStatus = "booked" | "collected" | "at_warehouse" | "cancelled";
-export type ParcelStatus = "in_warehouse" | "loaded" | "in_transit" | "arrived" | "delivered" | "repacked";
+export type ParcelStatus = "in_warehouse" | "loaded" | "in_transit" | "arrived" | "delivered" | "repacked" | "ready_for_return" | "returned";
 export type ContainerStatus = "loading" | "departed" | "arrived";
 
 export type Driver = { id: string; name: string; phone: string | null; user_id: string | null };
@@ -114,7 +114,7 @@ export type PermissionRow = { key: string; group_name: string; label: string; de
 export type BookingEvent = {
   id: string;
   booking_id: string;
-  kind: "rescheduled" | "cancelled" | "loaded_without_payment" | "departed_with_missing";
+  kind: "rescheduled" | "cancelled" | "loaded_without_payment" | "departed_with_missing" | "returned";
   reason: string;
   old_date: string | null;
   new_date: string | null;
@@ -131,4 +131,19 @@ export type NotificationRow = {
   actor_name: string | null;
   created_at: string;
   read_at: string | null;
+};
+
+export type ReturnForm = {
+  id: string;
+  code: string;
+  booking_id: string;
+  status: "open" | "completed" | "cancelled";
+  note: string | null;
+  created_by_name: string | null;
+  created_at: string;
+  completed_at: string | null;
+  completed_by_name: string | null;
+  received_by_name: string | null;
+  booking?: Pick<Booking, "code" | "sender_name" | "sender_phone" | "pickup_address" | "pickup_area"> | null;
+  parcels?: Parcel[];
 };

@@ -37,6 +37,7 @@ export const navItems: NavItem[] = [
 const extraRules: { prefix: string; anyOf: string[] }[] = [
   { prefix: "/bookings/new", anyOf: ["bookings.create"] },
   { prefix: "/warehouse-inventory/split", anyOf: ["warehouse.manage"] },
+  { prefix: "/warehouse-inventory/returns", anyOf: ["warehouse.manage"] },
   { prefix: "/settings/users", anyOf: ["users.manage"] },
   { prefix: "/settings/roles", anyOf: ["roles.manage"] },
 ];

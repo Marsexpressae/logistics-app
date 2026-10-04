@@ -4,14 +4,14 @@
 
 type Row = Record<string, any>;
 type Db = {
-  seq: { booking: number; container: number };
+  seq: { booking: number; container: number; ret?: number };
   [table: string]: any;
   drivers: Row[]; warehouses: Row[]; bookings: Row[]; booking_items: Row[]; payments: Row[];
   containers: Row[]; parcels: Row[]; parcel_events: Row[]; profiles: Row[]; audit_log: Row[]; roles: Row[]; permissions: Row[]; role_permissions: Row[];
-  booking_events: Row[]; notifications: Row[]; app_settings: Row[];
+  booking_events: Row[]; notifications: Row[]; app_settings: Row[]; returns: Row[];
 };
 
-const STORAGE_KEY = "logistics-mock-db-v14";
+const STORAGE_KEY = "logistics-mock-db-v15";
 const AUTH_KEY = "logistics-mock-signed-out";
 
 const uid = () => crypto.randomUUID();
@@ -137,6 +137,7 @@ function seed(): Db {
     parcel_events: events,
     audit_log: [],
     booking_events: [],
+    returns: [],
     app_settings: [{ key: "require_payment_before_loading", value: false, label: "Require payment before loading into a container",
       description: "When on, a parcel can only be loaded if its booking has an invoice amount and it is paid in full. People with \"Load without full payment\" can override it with a reason.", updated_at: now() }],
     notifications: [],
@@ -189,6 +190,8 @@ const RELATIONS: Record<string, { fk: string; kind: "one" | "many"; from?: strin
   "parcels.warehouses": { kind: "one", fk: "warehouse_id" },
   "parcels.bookings": { kind: "one", fk: "booking_id" },
   "containers.parcels": { kind: "many", fk: "container_id" },
+  "returns.bookings": { kind: "one", fk: "booking_id" },
+  "returns.parcels": { kind: "many", fk: "return_id" },
 };
 
 function splitTopLevel(s: string): string[] {
@@ -408,6 +411,47 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
     if (!p) return fail("Parcel cannot be unloaded");
     p.container_id = null;
     setParcelStatus(p, "in_warehouse");
+    save();
+    return { data: null, error: null };
+  },
+
+  prepare_return({ p_booking_id, p_parcel_ids }) {
+    const d = db();
+    if (!p_parcel_ids?.length) return fail("Select at least one parcel");
+    const ps = d.parcels.filter((p) => p_parcel_ids.includes(p.id));
+    if (ps.length !== p_parcel_ids.length || ps.some((p) => p.booking_id !== p_booking_id || p.status !== "in_warehouse"))
+      return fail("Only parcels of this booking that are in the warehouse can be returned");
+    d.seq.ret = d.seq.ret ?? 1001;
+    const row = { id: uid(), code: `RT-${d.seq.ret++}`, booking_id: p_booking_id, status: "open", note: null, created_by_name: "You (sample data)",
+      created_at: now(), completed_at: null, completed_by_name: null, received_by_name: null };
+    d.returns.push(row);
+    ps.forEach((p) => { p.return_id = row.id; setParcelStatus(p, "ready_for_return"); });
+    save();
+    return { data: row.id, error: null };
+  },
+
+  complete_return({ p_return_id, p_received_by }) {
+    const d = db();
+    const r = d.returns.find((x) => x.id === p_return_id);
+    if (!r) return fail("Return not found");
+    if (!String(p_received_by ?? "").trim()) return fail("Enter the name of the person who received the parcels");
+    if (r.status !== "open") return fail(`This return is already ${r.status}`);
+    const ps = d.parcels.filter((p) => p.return_id === r.id && p.status === "ready_for_return");
+    ps.forEach((p) => setParcelStatus(p, "returned"));
+    Object.assign(r, { status: "completed", completed_at: now(), completed_by_name: "You (sample data)", received_by_name: String(p_received_by).trim() });
+    d.booking_events.push({ id: uid(), booking_id: r.booking_id, kind: "returned", reason: `${r.code}: ${ps.length} parcel(s) returned to ${r.received_by_name}`,
+      old_date: null, new_date: null, actor_name: "You (sample data)", created_at: now() });
+    save();
+    return { data: null, error: null };
+  },
+
+  cancel_return({ p_return_id }) {
+    const d = db();
+    const r = d.returns.find((x) => x.id === p_return_id);
+    if (!r) return fail("Return not found");
+    if (r.status !== "open") return fail(`This return is already ${r.status}`);
+    d.parcels.filter((p) => p.return_id === r.id && p.status === "ready_for_return").forEach((p) => { p.return_id = null; setParcelStatus(p, "in_warehouse"); });
+    r.status = "cancelled";
     save();
     return { data: null, error: null };
   },
