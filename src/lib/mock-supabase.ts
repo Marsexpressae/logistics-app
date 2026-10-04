@@ -11,7 +11,7 @@ type Db = {
   booking_events: Row[]; notifications: Row[]; app_settings: Row[]; returns: Row[]; booking_notes: Row[]; number_series: Row[]; organization: Row[];
 };
 
-const STORAGE_KEY = "logistics-mock-db-v24";
+const STORAGE_KEY = "logistics-mock-db-v25";
 const AUTH_KEY = "logistics-mock-signed-out";
 
 const uid = () => crypto.randomUUID();
@@ -630,6 +630,27 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
   },
 
   // Warehouses: the same rules as add_warehouse(), update_warehouse() and delete_warehouse().
+  move_parcels({ p_parcel_ids, p_warehouse_id }) {
+    const d = db();
+    if (!p_parcel_ids?.length) return fail("Select at least one package");
+    const dest = d.warehouses.find((w) => w.id === p_warehouse_id);
+    if (!dest) return fail("Choose where to move them");
+    if (dest.active === false) return fail(`${dest.name} is not active`);
+    const ps = d.parcels.filter((p) => p_parcel_ids.includes(p.id));
+    if (ps.length !== p_parcel_ids.length || ps.some((p) => p.status !== "in_warehouse")) return fail("Only packages that are in the warehouse can be moved");
+    const moving = ps.filter((p) => p.warehouse_id !== dest.id);
+    const groups = new Map<string, Row[]>();
+    for (const p of moving) groups.set(`${p.booking_id}|${p.warehouse_id}`, [...(groups.get(`${p.booking_id}|${p.warehouse_id}`) ?? []), p]);
+    for (const list of groups.values()) {
+      const from = d.warehouses.find((w) => w.id === list[0].warehouse_id)?.name ?? "no place";
+      d.booking_events.push({ id: uid(), booking_id: list[0].booking_id, kind: "moved", old_date: null, new_date: null, actor_name: "You (sample data)", created_at: now(),
+        reason: `Moved ${list.length} ${list.length === 1 ? "package" : "packages"} from ${from} to ${dest.name}: ${list.sort((a, b) => a.seq - b.seq).map((p) => p.barcode).join(", ")}` });
+    }
+    moving.forEach((p) => Object.assign(p, { warehouse_id: dest.id, position: null }));
+    save();
+    return { data: moving.length, error: null };
+  },
+
   set_parcel_position({ p_parcel_id, p_position }) {
     const p = db().parcels.find((x) => x.id === p_parcel_id);
     if (!p) return fail("Parcel not found");

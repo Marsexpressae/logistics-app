@@ -62,3 +62,45 @@ test("a parcel position is optional free text: set, change, clear, and not too l
   assert.match((await c.rpc("set_parcel_position", { p_parcel_id: parcel.id, p_position: "x".repeat(61) })).error.message, /60/);
   assert.match((await c.rpc("set_parcel_position", { p_parcel_id: "nope", p_position: "A" })).error.message, /not found/);
 });
+
+test("moving packages: a whole invoice, one package, different places; history is written; position clears", async () => {
+  const wh = (await c.from("warehouses").select("*")).data as R[];
+  await c.rpc("add_warehouse", { p_name: "Maxpol", p_code: null });
+  await c.rpc("add_warehouse", { p_name: "Sea Prince", p_code: null });
+  const maxpol = (await c.from("warehouses").select("*")).data.find((w: R) => w.name === "Maxpol");
+  const sea = (await c.from("warehouses").select("*")).data.find((w: R) => w.name === "Sea Prince");
+  const home = wh.find((w) => w.code === "A")!;
+  await c.rpc("update_warehouse", { p_id: home.id, p_name: home.name, p_code: home.code, p_active: true });
+
+  const bk = (await c.from("bookings").select("*")).data.find((b: R) => b.code === "BK-1003")!;
+  const wsplit = await c.rpc("split_booking", { p_booking_id: bk.id, p_warehouse_id: home.id, p_parcels: [{ description: "a", weight_kg: 10 }, { description: "b", weight_kg: 10 }, { description: "c", weight_kg: 10 }] });
+  assert.equal(wsplit.error, null);
+  const mine = () => c.from("parcels").select("*").then((r: R) => (r.data as R[]).filter((p) => p.booking_id === bk.id && p.status === "in_warehouse").sort((x, y) => x.seq - y.seq));
+  let ps = await mine();
+  assert.equal(ps.length, 3);
+  await c.rpc("set_parcel_position", { p_parcel_id: ps[0].id, p_position: "Rack 3" });
+
+  // all three to one place
+  assert.equal((await c.rpc("move_parcels", { p_parcel_ids: ps.map((p) => p.id), p_warehouse_id: maxpol.id })).data, 3);
+  ps = await mine();
+  assert.ok(ps.every((p) => p.warehouse_id === maxpol.id));
+  assert.equal(ps[0].position, null); // the old position described the old place
+  // one package to a different place
+  assert.equal((await c.rpc("move_parcels", { p_parcel_ids: [ps[1].id], p_warehouse_id: sea.id })).data, 1);
+  // and one to a third place
+  assert.equal((await c.rpc("move_parcels", { p_parcel_ids: [ps[2].id], p_warehouse_id: home.id })).data, 1);
+  ps = await mine();
+  assert.deepEqual(ps.map((p) => p.warehouse_id), [maxpol.id, sea.id, home.id]); // three packages, three places
+  // already there: nothing to do
+  assert.equal((await c.rpc("move_parcels", { p_parcel_ids: [ps[0].id], p_warehouse_id: maxpol.id })).data, 0);
+
+  const log = (await c.from("booking_events").select("*")).data.filter((e: R) => e.kind === "moved");
+  assert.equal(log.length, 3);
+  assert.match(log[0].reason, /Moved 3 packages from .* to Maxpol/);
+
+  // rules
+  assert.match((await c.rpc("move_parcels", { p_parcel_ids: [], p_warehouse_id: sea.id })).error.message, /at least one/);
+  assert.match((await c.rpc("move_parcels", { p_parcel_ids: [ps[0].id], p_warehouse_id: "nope" })).error.message, /Choose where/);
+  await c.rpc("update_warehouse", { p_id: sea.id, p_name: "Sea Prince", p_code: sea.code, p_active: false });
+  assert.match((await c.rpc("move_parcels", { p_parcel_ids: [ps[0].id], p_warehouse_id: sea.id })).error.message, /not active/);
+});

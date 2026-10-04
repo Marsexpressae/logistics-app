@@ -3,10 +3,10 @@
 import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ChevronDown, ChevronRight, Undo2 } from "lucide-react";
+import { ChevronDown, ChevronRight, MoveRight, Undo2 } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
 import EmptyState from "@/components/ui/EmptyState";
-import { Button, Card, ErrorMessage, StatusBadge } from "@/components/ui/form";
+import { Button, Card, ErrorMessage, StatusBadge, inputClass } from "@/components/ui/form";
 import { formatDay, kg } from "@/lib/format";
 import ParcelPosition from "@/components/warehouse/ParcelPosition";
 import { useQuery } from "@/lib/hooks";
@@ -33,6 +33,8 @@ function WarehouseContent() {
   const [open, setOpen] = useState<string[]>([]); // invoices whose packages are showing
   const [openReturns, setOpenReturns] = useState<string[]>([]); // invoices whose returns are showing
   const [returnError, setReturnError] = useState<string | null>(null);
+  const [moveTo, setMoveTo] = useState("");
+  const [moved, setMoved] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const canOperate = usePermissions().can("warehouse.manage");
 
@@ -41,7 +43,7 @@ function WarehouseContent() {
   const parcels = useQuery<StockParcel[]>(() =>
     supabase
       .from("parcels")
-      .select("*, warehouse:warehouses(code), booking:bookings(code, invoice_no, sender_name)")
+      .select("*, warehouse:warehouses(code, name), booking:bookings(code, invoice_no, sender_name)")
       .in("status", ["in_warehouse", "ready_for_return"]) // both are physically in the warehouse
       .order("barcode")
   );
@@ -116,6 +118,21 @@ function WarehouseContent() {
     return [...byBooking.values()].sort((a, b) => b.invoice.localeCompare(a.invoice, undefined, { numeric: true }));
   };
 
+  // Move the ticked packages to another place. They can belong to different invoices; each move goes to one place.
+  async function moveSelected() {
+    setBusy(true);
+    setReturnError(null);
+    setMoved(null);
+    const { data, error } = await supabase.rpc("move_parcels", { p_parcel_ids: picked, p_warehouse_id: moveTo });
+    setBusy(false);
+    if (error) return setReturnError(error.message);
+    const place = warehouses.data?.find((w) => w.id === moveTo)?.name ?? "the new place";
+    setMoved(data === 0 ? `They were already in ${place}.` : `Moved ${data} ${data === 1 ? "package" : "packages"} to ${place}.`);
+    setPicked([]);
+    setMoveTo("");
+    parcels.reload();
+  }
+
   const renderParcels = (list: StockParcel[], empty: string) => {
     const visible = list.filter((p) => filter === "all" || p.warehouse?.code === filter);
     return (
@@ -138,18 +155,32 @@ function WarehouseContent() {
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-orange-200 bg-orange-50 px-4 py-3 text-sm">
             <span>
               {picked.length} selected
-              {!oneBooking && <span className="ml-2 text-orange-800">Select parcels from one booking per return form.</span>}
+              {!oneBooking && <span className="ml-2 text-orange-800">A return form covers one invoice at a time.</span>}
             </span>
-            <span className="flex gap-2">
+            <span className="flex flex-wrap items-center gap-2">
+              <select aria-label="Move to" value={moveTo} onChange={(e) => setMoveTo(e.target.value)} className={`${inputClass} w-auto`} disabled={busy}>
+                <option value="">Move to…</option>
+                {(warehouses.data ?? [])
+                  .filter((w) => w.active !== false)
+                  .map((w) => (
+                    <option key={w.id} value={w.id}>
+                      {w.name}
+                    </option>
+                  ))}
+              </select>
+              <Button onClick={moveSelected} disabled={busy || !moveTo}>
+                <MoveRight className="h-4 w-4" /> Move
+              </Button>
               <Button variant="secondary" onClick={() => setPicked([])} disabled={busy}>
                 Clear
               </Button>
-              <Button onClick={prepareReturn} disabled={busy || !oneBooking}>
-                <Undo2 className="h-4 w-4" /> {busy ? "Preparing…" : "Return selected"}
+              <Button variant="secondary" onClick={prepareReturn} disabled={busy || !oneBooking}>
+                <Undo2 className="h-4 w-4" /> Return selected
               </Button>
             </span>
           </div>
         )}
+        {moved && <p className="mb-3 text-sm text-green-700">{moved}</p>}
         <ErrorMessage message={returnError} />
 
         {!visible.length ? (
@@ -163,7 +194,7 @@ function WarehouseContent() {
                   <th className="px-4 py-3">Invoice / package</th>
                   <th className="px-4 py-3">Details</th>
                   <th className="px-4 py-3">Weight</th>
-                  <th className="px-4 py-3">Warehouse</th>
+                  <th className="px-4 py-3">Place</th>
                   <th className="px-4 py-3">Position</th>
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3"></th>
@@ -174,7 +205,7 @@ function WarehouseContent() {
                 const selectable = g.parcels.filter((p) => p.status === "in_warehouse");
                 const ticked = selectable.filter((p) => picked.includes(p.id)).length;
                 const statuses = [...new Set(g.parcels.map((p) => p.status))];
-                const places = [...new Set(g.parcels.map((p) => p.warehouse?.code).filter(Boolean))].join(", ");
+                const places = [...new Set(g.parcels.map((p) => p.warehouse?.name ?? p.warehouse?.code).filter(Boolean))].join(", ");
                 return (
                   <tbody key={g.bookingId} className="divide-y divide-slate-100 border-t border-slate-200">
                     <tr className="bg-slate-50/60">
@@ -237,7 +268,7 @@ function WarehouseContent() {
                           <td className="py-2.5 pl-10 pr-4 font-mono font-medium">{p.barcode}</td>
                           <td className="px-4 py-2.5">{p.description ?? "—"}</td>
                           <td className="px-4 py-2.5">{kg(Number(p.weight_kg))}</td>
-                          <td className="px-4 py-2.5">{p.warehouse?.code}</td>
+                          <td className="px-4 py-2.5">{p.warehouse?.name ?? p.warehouse?.code}</td>
                           <td className="px-4 py-2.5">
                             <ParcelPosition parcelId={p.id} barcode={p.barcode} position={p.position} canEdit={canOperate} onChanged={parcels.reload} />
                           </td>

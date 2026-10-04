@@ -71,7 +71,7 @@ export type Parcel = {
   status: ParcelStatus;
   warehouse_id: string | null;
   container_id: string | null;
-  warehouse?: { code: string } | null;
+  warehouse?: { code: string; name?: string } | null;
 };
 
 export type Container = {
@@ -120,7 +120,7 @@ export type PermissionRow = { key: string; group_name: string; label: string; de
 export type BookingEvent = {
   id: string;
   booking_id: string;
-  kind: "rescheduled" | "cancelled" | "loaded_without_payment" | "departed_with_missing" | "returned" | "return_deleted";
+  kind: "rescheduled" | "cancelled" | "loaded_without_payment" | "departed_with_missing" | "returned" | "return_deleted" | "moved";
   reason: string;
   old_date: string | null;
   new_date: string | null;
