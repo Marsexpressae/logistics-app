@@ -28,9 +28,11 @@ function ContainersContent() {
 
   async function create(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const destination = String(new FormData(e.currentTarget).get("destination") ?? "").trim() || null;
-    const { data, error } = await supabase.from("containers").insert({ destination }).select("id").single();
-    if (error) return setError(error.message);
+    const f = new FormData(e.currentTarget);
+    const destination = String(f.get("destination") ?? "").trim() || null;
+    const code = String(f.get("code") ?? "").trim().toUpperCase();
+    const { data, error } = await supabase.from("containers").insert({ destination, ...(code ? { code } : {}) }).select("id").single();
+    if (error) return setError(error.code === "23505" ? "That container number is already used." : error.message);
     router.push(`/containers/${data.id}`);
   }
 
@@ -40,6 +42,7 @@ function ContainersContent() {
 
       {canOperate && <Card className="mb-6">
         <form onSubmit={create} className="flex flex-wrap gap-2">
+          <input name="code" placeholder="Number (optional, e.g. 38)" aria-label="Container number" className={`${inputClass} max-w-[11rem] font-mono`} />
           <input name="destination" placeholder="Destination (optional)" className={`${inputClass} max-w-xs`} />
           <Button type="submit">New container</Button>
         </form>

@@ -65,6 +65,9 @@ export type Parcel = {
   seq: number;
   round?: number; // 1 = as collected, 2+ = repacked by the warehouse
   position?: string | null; // where it sits inside the warehouse, free text
+  delivered_at?: string | null;
+  delivery_partner?: string | null; // the local service partner, e.g. Leopards Courier
+  delivery_tracking?: string | null;
   barcode: string;
   description: string | null;
   weight_kg: number;
@@ -80,6 +83,7 @@ export type Container = {
   destination: string | null;
   status: ContainerStatus;
   departed_at: string | null;
+  arrived_at?: string | null;
   created_at: string;
   parcels?: { count: number }[];
 };
@@ -92,6 +96,9 @@ export type TrackedParcel = {
   warehouse: string | null;
   container: string | null;
   updated_at: string;
+  delivery_partner?: string | null;
+  delivery_tracking?: string | null;
+  delivered_at?: string | null;
   events: { status: string; at: string }[];
 };
 

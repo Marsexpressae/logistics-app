@@ -11,7 +11,7 @@ type Db = {
   booking_events: Row[]; notifications: Row[]; app_settings: Row[]; returns: Row[]; booking_notes: Row[]; number_series: Row[]; organization: Row[];
 };
 
-const STORAGE_KEY = "logistics-mock-db-v25";
+const STORAGE_KEY = "logistics-mock-db-v26";
 const AUTH_KEY = "logistics-mock-signed-out";
 
 const uid = () => crypto.randomUUID();
@@ -332,6 +332,12 @@ class Query implements PromiseLike<any> {
           if (err) return { data: null, error: err, count: null };
         }
       }
+      if (this.table === "containers") {
+        for (const r of rows) {
+          if (!NUMBER_RE.test(r.code)) return { data: null, error: { message: "Use letters, numbers, dashes or slashes for the container number, for example 38 or CN-120" }, count: null };
+          if (tableRows.some((x) => x.code === r.code)) return { data: null, error: { message: 'duplicate key value violates unique constraint "containers_code_key"', code: "23505" }, count: null };
+        }
+      }
       tableRows.push(...rows);
     } else {
       const matched = tableRows.filter((r) => this.filters.every((f) => f(r)));
@@ -396,7 +402,8 @@ function withDefaults(table: string, it: Row): Row {
       });
       break;
     case "containers":
-      Object.assign(row, { code: `CN-${d.seq.container++}`, status: "loading", departed_at: null, created_at: now(), ...it });
+      Object.assign(row, { code: `CN-${d.seq.container++}`, status: "loading", departed_at: null, arrived_at: null, created_at: now(), ...it });
+      if (typeof it.code === "string") row.code = it.code.trim().toUpperCase();
       break;
     case "booking_notes":
       Object.assign(row, { author_id: "mock-user", author_name: "Tester (super admin)", mentions: it.mentions ?? [], created_at: now() });
@@ -425,6 +432,18 @@ function setParcelStatus(p: Row, status: string) {
   p.status = status;
   p.updated_at = now();
   db().parcel_events.push({ id: uid(), parcel_id: p.id, status, created_at: now() });
+}
+
+// A typed day becomes noon on that day (never in the future); the parcel history then shows that day.
+function eventTime(date: string | null | undefined): string | null {
+  if (!date) return null;
+  if (date > now().slice(0, 10)) throw new Error("The date cannot be in the future");
+  return `${date}T12:00:00.000Z`;
+}
+function backdate(parcelIds: string[], status: string, ts: string | null) {
+  if (!ts) return;
+  const d = db();
+  d.parcel_events.filter((e) => parcelIds.includes(e.parcel_id) && e.status === status).forEach((e) => (e.created_at = ts));
 }
 
 const fail = (message: string) => ({ data: null, error: { message } });
@@ -741,7 +760,7 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
     return { data: rows.sort((x, y) => x.booking_code.localeCompare(y.booking_code)), error: null };
   },
 
-  depart_container({ p_container_id, p_override_reason }) {
+  depart_container({ p_container_id, p_override_reason, p_date }) {
     const d = db();
     const c = d.containers.find((x) => x.id === p_container_id && x.status === "loading");
     if (!c) return fail("Container is not open for loading");
@@ -754,29 +773,51 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
           reason: `${String(p_override_reason).trim()} (${c.code} left without ${r.missing.join(", ")})`,
           old_date: null, new_date: null, actor_name: "You (sample data)", created_at: now() }));
     }
+    let ts: string | null;
+    try { ts = eventTime(p_date); } catch (e) { return fail((e as Error).message); }
     c.status = "departed";
-    c.departed_at = now();
+    c.departed_at = ts ?? now();
     const loaded = d.parcels.filter((p) => p.container_id === c.id && p.status === "loaded");
     loaded.forEach((p) => setParcelStatus(p, "in_transit"));
+    backdate(loaded.map((p) => p.id), "in_transit", ts);
+    if (ts) {
+      backdate(loaded.map((p) => p.id), "loaded", new Date(new Date(ts).getTime() - 60000).toISOString());
+      backdate(loaded.map((p) => p.id), "in_warehouse", new Date(new Date(ts).getTime() - 120000).toISOString());
+    }
     save();
     return { data: loaded.length, error: null };
   },
 
-  arrive_container({ p_container_id }) {
+  arrive_container({ p_container_id, p_date }) {
     const d = db();
     const c = d.containers.find((x) => x.id === p_container_id && x.status === "departed");
     if (!c) return fail("Container has not departed, or has already arrived");
+    let ts: string | null;
+    try { ts = eventTime(p_date); } catch (e) { return fail((e as Error).message); }
+    if (ts && c.departed_at && ts.slice(0, 10) < String(c.departed_at).slice(0, 10)) return fail(`The arrival cannot be before the departure (${String(c.departed_at).slice(0, 10)})`);
     c.status = "arrived";
+    c.arrived_at = ts ?? now();
     const moved = d.parcels.filter((p) => p.container_id === c.id && p.status === "in_transit");
     moved.forEach((p) => setParcelStatus(p, "arrived"));
+    backdate(moved.map((p) => p.id), "arrived", ts);
     save();
     return { data: moved.length, error: null };
   },
 
-  deliver_parcel({ p_parcel_id }) {
-    const p = db().parcels.find((x) => x.id === p_parcel_id && x.status === "arrived");
+  deliver_parcel({ p_parcel_id, p_partner, p_tracking, p_date }) {
+    const d = db();
+    const p = d.parcels.find((x) => x.id === p_parcel_id && x.status === "arrived");
     if (!p) return fail("Parcel must have arrived before it can be delivered");
+    const partner = String(p_partner ?? "").trim() || null;
+    const tracking = String(p_tracking ?? "").trim() || null;
+    if ((partner?.length ?? 0) > 60 || (tracking?.length ?? 0) > 60) return fail("The partner and the tracking number can have up to 60 characters");
+    let ts: string | null;
+    try { ts = eventTime(p_date); } catch (e) { return fail((e as Error).message); }
+    const arrived = d.containers.find((c) => c.id === p.container_id)?.arrived_at;
+    if (ts && arrived && ts.slice(0, 10) < String(arrived).slice(0, 10)) return fail(`The delivery cannot be before the arrival (${String(arrived).slice(0, 10)})`);
     setParcelStatus(p, "delivered");
+    Object.assign(p, { delivered_at: ts ?? now(), delivery_partner: partner, delivery_tracking: tracking });
+    backdate([p.id], "delivered", ts);
     save();
     return { data: null, error: null };
   },
@@ -838,6 +879,7 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
       .sort((x, y) => x.seq - y.seq)
       .map((p) => ({
         barcode: p.barcode, description: p.description, weight_kg: p.weight_kg, status: p.status,
+        delivery_partner: p.delivery_partner ?? null, delivery_tracking: p.delivery_tracking ?? null, delivered_at: p.delivered_at ?? null,
         warehouse: d.warehouses.find((w) => w.id === p.warehouse_id)?.code ?? null,
         container: d.containers.find((c) => c.id === p.container_id)?.code ?? null,
         updated_at: p.updated_at,

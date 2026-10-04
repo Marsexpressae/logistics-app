@@ -8,6 +8,7 @@ import PageHeader from "@/components/ui/PageHeader";
 import ListSearch from "@/components/ui/ListSearch";
 import { matchesSearch } from "@/lib/search";
 import { Button, Card, ErrorMessage, StatusBadge, inputClass } from "@/components/ui/form";
+import { formatDay, todayISO } from "@/lib/format";
 import { useQuery } from "@/lib/hooks";
 import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
@@ -33,6 +34,13 @@ export default function ContainerManifestPage() {
 
   const [selected, setSelected] = useState<string[]>([]);
   const [find, setFind] = useState("");
+  // Real dates: left as today, nothing special happens. Pick an earlier day when entering an old shipment.
+  const [departDate, setDepartDate] = useState(todayISO());
+  const [arriveDate, setArriveDate] = useState(todayISO());
+  const [delivering, setDelivering] = useState<{ id: string; partner: string; tracking: string; date: string } | null>(null);
+  const partners = useQuery<{ delivery_partner: string | null }[]>(() => supabase.from("parcels").select("delivery_partner").limit(500));
+  const partnerNames = [...new Set((partners.data ?? []).map((p) => p.delivery_partner).filter((n): n is string => !!n))].sort();
+  const dateArg = (d: string) => (d && d !== todayISO() ? d : null);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const scanRef = useRef<HTMLInputElement>(null);
   // When "payment before loading" is on, a manager can load anyway by giving a reason. The reason is remembered
@@ -104,7 +112,7 @@ export default function ContainerManifestPage() {
 
   async function depart() {
     if (!confirm(`Depart ${c!.code}? All ${loaded.data?.length} loaded parcels will be marked In transit.`)) return;
-    let { error } = await supabase.rpc("depart_container", { p_container_id: id });
+    let { error } = await supabase.rpc("depart_container", { p_container_id: id, p_date: dateArg(departDate) });
 
     // Parcels of an invoice are still in the warehouse: only an authorised person can send it anyway, with a reason.
     const missing = error?.message.match(/^PARCELS_MISSING : (.*)$/);
@@ -115,7 +123,7 @@ export default function ContainerManifestPage() {
         .join("\n");
       if (can("containers.override_departure")) {
         const reason = window.prompt(`Parcels are missing:\n${detail}\n\nTo send the container anyway, type the reason. It is recorded on each booking.`);
-        if (reason?.trim()) ({ error } = await supabase.rpc("depart_container", { p_container_id: id, p_override_reason: reason.trim() }));
+        if (reason?.trim()) ({ error } = await supabase.rpc("depart_container", { p_container_id: id, p_override_reason: reason.trim(), p_date: dateArg(departDate) }));
         else error = { message: `Not departed. Parcels missing: ${missing[1]}.` } as typeof error;
       } else {
         error = { message: `Not departed. Parcels missing: ${missing[1]}. Only a manager can send a container with missing parcels.` } as typeof error;
@@ -127,14 +135,21 @@ export default function ContainerManifestPage() {
 
   async function arrive() {
     if (!confirm(`Mark ${c!.code} as arrived at its destination?`)) return;
-    const { error } = await supabase.rpc("arrive_container", { p_container_id: id });
+    const { error } = await supabase.rpc("arrive_container", { p_container_id: id, p_date: dateArg(arriveDate) });
     setMessage(error ? { ok: false, text: error.message } : { ok: true, text: "Container arrived" });
     refresh();
   }
 
-  async function deliver(parcelId: string) {
-    const { error } = await supabase.rpc("deliver_parcel", { p_parcel_id: parcelId });
-    setMessage(error ? { ok: false, text: error.message } : null);
+  async function deliver() {
+    const d = delivering!;
+    const { error } = await supabase.rpc("deliver_parcel", {
+      p_parcel_id: d.id,
+      p_partner: d.partner || null,
+      p_tracking: d.tracking || null,
+      p_date: dateArg(d.date),
+    });
+    setMessage(error ? { ok: false, text: error.message } : { ok: true, text: "Marked as delivered" });
+    if (!error) setDelivering(null);
     refresh();
   }
 
@@ -144,7 +159,16 @@ export default function ContainerManifestPage() {
         <ArrowLeft className="h-4 w-4" /> Containers
       </Link>
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <PageHeader title={`Container ${c.code}`} description={c.destination ?? "No destination set"} />
+        <PageHeader
+          title={`Container ${c.code}`}
+          description={[
+            c.destination ?? "No destination set",
+            c.departed_at ? `Departed ${formatDay(c.departed_at.slice(0, 10))}` : null,
+            c.arrived_at ? `Arrived ${formatDay(c.arrived_at.slice(0, 10))}` : null,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
+        />
         <StatusBadge status={c.status} />
       </div>
 
@@ -232,6 +256,46 @@ export default function ContainerManifestPage() {
                   <span className="ml-2 text-slate-500">
                     {p.description ?? ""} {Number(p.weight_kg)} kg
                   </span>
+                  {p.status === "delivered" && (p.delivery_partner || p.delivery_tracking) && (
+                    <span className="mt-0.5 block text-xs text-slate-600">
+                      Delivered{p.delivery_partner ? ` by ${p.delivery_partner}` : ""}
+                      {p.delivery_tracking ? ` · Tracking ${p.delivery_tracking}` : ""}
+                      {p.delivered_at ? ` · ${formatDay(p.delivered_at.slice(0, 10))}` : ""}
+                    </span>
+                  )}
+                  {delivering?.id === p.id && (
+                    <span className="mt-2 grid gap-2 sm:grid-cols-[1fr_1fr_auto_auto]">
+                      <input
+                        list="delivery-partners"
+                        className={inputClass}
+                        placeholder="Delivered by (e.g. Leopards Courier)"
+                        aria-label="Delivery partner"
+                        value={delivering.partner}
+                        onChange={(e) => setDelivering({ ...delivering, partner: e.target.value })}
+                      />
+                      <input
+                        className={`${inputClass} font-mono`}
+                        placeholder="Tracking number"
+                        aria-label="Tracking number"
+                        value={delivering.tracking}
+                        onChange={(e) => setDelivering({ ...delivering, tracking: e.target.value })}
+                      />
+                      <input
+                        type="date"
+                        max={todayISO()}
+                        className={inputClass}
+                        aria-label="Delivery date"
+                        value={delivering.date}
+                        onChange={(e) => setDelivering({ ...delivering, date: e.target.value })}
+                      />
+                      <span className="flex gap-2">
+                        <Button onClick={deliver}>Mark delivered</Button>
+                        <Button variant="secondary" onClick={() => setDelivering(null)}>
+                          Cancel
+                        </Button>
+                      </span>
+                    </span>
+                  )}
                 </span>
                 <span className="flex items-center gap-3">
                   <StatusBadge status={p.status} />
@@ -240,8 +304,8 @@ export default function ContainerManifestPage() {
                       <X className="h-4 w-4 text-slate-400" />
                     </button>
                   )}
-                  {canOperate && p.status === "arrived" && (
-                    <Button variant="secondary" className="px-2 py-1 text-xs" onClick={() => deliver(p.id)}>
+                  {canOperate && p.status === "arrived" && delivering?.id !== p.id && (
+                    <Button variant="secondary" className="px-2 py-1 text-xs" onClick={() => setDelivering({ id: p.id, partner: "", tracking: "", date: todayISO() })}>
                       <CheckCheck className="h-3.5 w-3.5" /> Mark delivered
                     </Button>
                   )}
@@ -250,15 +314,32 @@ export default function ContainerManifestPage() {
             ))}
           </ul>
         )}
+        <datalist id="delivery-partners">
+          {partnerNames.map((n) => (
+            <option key={n} value={n} />
+          ))}
+        </datalist>
         {open && (
-          <Button className="mt-4" onClick={depart} disabled={!loaded.data?.length}>
-            <Rocket className="h-4 w-4" /> Mark container departed
-          </Button>
+          <div className="mt-4 flex flex-wrap items-end gap-3">
+            <label className="text-sm">
+              <span className="mb-1 block text-xs text-slate-500">Departed on</span>
+              <input type="date" max={todayISO()} value={departDate} onChange={(e) => setDepartDate(e.target.value)} className={`${inputClass} w-auto`} />
+            </label>
+            <Button onClick={depart} disabled={!loaded.data?.length}>
+              <Rocket className="h-4 w-4" /> Mark container departed
+            </Button>
+          </div>
         )}
         {canOperate && c.status === "departed" && (
-          <Button className="mt-4" onClick={arrive}>
-            <MapPinCheck className="h-4 w-4" /> Mark container arrived
-          </Button>
+          <div className="mt-4 flex flex-wrap items-end gap-3">
+            <label className="text-sm">
+              <span className="mb-1 block text-xs text-slate-500">Arrived on</span>
+              <input type="date" max={todayISO()} value={arriveDate} onChange={(e) => setArriveDate(e.target.value)} className={`${inputClass} w-auto`} />
+            </label>
+            <Button onClick={arrive}>
+              <MapPinCheck className="h-4 w-4" /> Mark container arrived
+            </Button>
+          </div>
         )}
       </Card>
     </div>

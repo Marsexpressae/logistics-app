@@ -51,6 +51,12 @@ export default function TrackingView({ code, searchHref }: { code: string; searc
             {p.description ?? "Parcel"} · {Number(p.weight_kg)} kg
             {p.container ? ` · Container ${p.container}` : ""}
           </p>
+          {p.status === "delivered" && (p.delivery_partner || p.delivery_tracking) && (
+            <p className="mt-2 text-sm text-slate-700">
+              Delivered{p.delivery_partner ? ` by ${p.delivery_partner}` : ""}
+              {p.delivery_tracking ? <span className="font-mono"> · Tracking {p.delivery_tracking}</span> : null}
+            </p>
+          )}
           <ol className="mt-3 space-y-2 border-l-2 border-slate-200 pl-4 text-sm">
             {p.events.map((ev, i) => (
               <li key={i}>
