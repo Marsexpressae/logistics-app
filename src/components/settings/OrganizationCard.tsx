@@ -70,19 +70,14 @@ export default function OrganizationCard() {
             </select>
           </Field>
           <Field label="Location / country">
-            <input
-              className={inputClass}
-              list="organization-countries"
-              value={value.country}
-              maxLength={60}
-              disabled={!canChange || busy}
-              onChange={(e) => edit({ country: e.target.value })}
-            />
-            <datalist id="organization-countries">
+            <select className={inputClass} value={value.country} disabled={!canChange || busy} onChange={(e) => edit({ country: e.target.value })}>
+              {!COUNTRIES.includes(value.country) && <option value={value.country}>{value.country}</option>}
               {COUNTRIES.map((c) => (
-                <option key={c} value={c} />
+                <option key={c} value={c}>
+                  {c}
+                </option>
               ))}
-            </datalist>
+            </select>
           </Field>
         </div>
       )}
