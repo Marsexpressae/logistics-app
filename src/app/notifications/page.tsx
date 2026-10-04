@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Bell, CalendarClock, Ban, MessageSquare } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
 import EmptyState from "@/components/ui/EmptyState";
+import PhoneAlertsCard from "@/components/notifications/PhoneAlertsCard";
 import { Button, Card } from "@/components/ui/form";
 import { formatDate } from "@/lib/format";
 import { useNotifications } from "@/lib/notifications";
@@ -34,6 +35,8 @@ export default function NotificationsPage() {
           </Button>
         )}
       </div>
+
+      <PhoneAlertsCard />
 
       {loading ? (
         <p className="text-sm text-slate-500">Loading…</p>
