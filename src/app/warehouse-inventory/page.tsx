@@ -3,17 +3,18 @@
 import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Undo2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Undo2 } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
 import EmptyState from "@/components/ui/EmptyState";
 import { Button, Card, ErrorMessage, StatusBadge } from "@/components/ui/form";
+import { kg } from "@/lib/format";
 import { useQuery } from "@/lib/hooks";
 import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
 import type { Booking, Parcel, ReturnForm, Warehouse } from "@/lib/types";
 
 type Tab = "intake" | "unpacked" | "packed" | "returns";
-type StockParcel = Parcel & { booking: { code: string; invoice_no: string | null } };
+type StockParcel = Parcel & { booking: { code: string; invoice_no: string | null; sender_name: string } };
 
 const TABS: { key: Tab; label: string; hint: string }[] = [
   { key: "intake", label: "Intake", hint: "Collected cargo waiting to be received into the warehouse." },
@@ -28,6 +29,7 @@ function WarehouseContent() {
   const [tab, setTab] = useState<Tab>(TABS.some((t) => t.key === asked) ? (asked as Tab) : "intake");
   const [filter, setFilter] = useState("all");
   const [picked, setPicked] = useState<string[]>([]);
+  const [open, setOpen] = useState<string[]>([]); // invoices whose packages are showing
   const [returnError, setReturnError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const canOperate = usePermissions().can("warehouse.manage");
@@ -37,7 +39,7 @@ function WarehouseContent() {
   const parcels = useQuery<StockParcel[]>(() =>
     supabase
       .from("parcels")
-      .select("*, warehouse:warehouses(code), booking:bookings(code, invoice_no)")
+      .select("*, warehouse:warehouses(code), booking:bookings(code, invoice_no, sender_name)")
       .in("status", ["in_warehouse", "ready_for_return"]) // both are physically in the warehouse
       .order("barcode")
   );
@@ -61,6 +63,13 @@ function WarehouseContent() {
   const pickedBookings = new Set(stock.filter((p) => picked.includes(p.id)).map((p) => p.booking_id));
   const oneBooking = pickedBookings.size === 1;
   const toggle = (id: string) => setPicked(picked.includes(id) ? picked.filter((x) => x !== id) : [...picked, id]);
+  const toggleOpen = (bookingId: string) => setOpen(open.includes(bookingId) ? open.filter((x) => x !== bookingId) : [...open, bookingId]);
+  // Ticking an invoice ticks every package of it that can be returned.
+  const toggleGroup = (list: StockParcel[]) => {
+    const ids = list.filter((p) => p.status === "in_warehouse").map((p) => p.id);
+    const all = ids.length > 0 && ids.every((id) => picked.includes(id));
+    setPicked(all ? picked.filter((id) => !ids.includes(id)) : [...new Set([...picked, ...ids])]);
+  };
 
   async function prepareReturn() {
     setBusy(true);
@@ -70,6 +79,23 @@ function WarehouseContent() {
     if (error) return setReturnError(error.message);
     router.push(`/warehouse-inventory/returns/${data}`);
   }
+
+  // One group per invoice (booking), in invoice order, with its packages inside.
+  const groups = (list: StockParcel[]) => {
+    const byBooking = new Map<string, { bookingId: string; invoice: string; code: string; customer: string; parcels: StockParcel[] }>();
+    for (const p of list) {
+      const g = byBooking.get(p.booking_id) ?? {
+        bookingId: p.booking_id,
+        invoice: p.booking?.invoice_no ?? p.booking?.code ?? "",
+        code: p.booking?.code ?? "",
+        customer: p.booking?.sender_name ?? "",
+        parcels: [],
+      };
+      g.parcels.push(p);
+      byBooking.set(p.booking_id, g);
+    }
+    return [...byBooking.values()].sort((a, b) => b.invoice.localeCompare(a.invoice, undefined, { numeric: true }));
+  };
 
   const renderParcels = (list: StockParcel[], empty: string) => {
     const visible = list.filter((p) => filter === "all" || p.warehouse?.code === filter);
@@ -115,43 +141,91 @@ function WarehouseContent() {
               <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase text-slate-500">
                 <tr>
                   {canOperate && <th className="w-8 px-4 py-3"></th>}
-                  <th className="px-4 py-3">Invoice</th>
-                  <th className="px-4 py-3">Barcode</th>
-                  <th className="px-4 py-3">Description</th>
+                  <th className="px-4 py-3">Invoice / package</th>
+                  <th className="px-4 py-3">Details</th>
                   <th className="px-4 py-3">Weight</th>
                   <th className="px-4 py-3">Warehouse</th>
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3"></th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
-                {visible.map((p) => (
-                  <tr key={p.id}>
-                    {canOperate && (
+              {groups(visible).map((g) => {
+                const isOpen = open.includes(g.bookingId);
+                const selectable = g.parcels.filter((p) => p.status === "in_warehouse");
+                const ticked = selectable.filter((p) => picked.includes(p.id)).length;
+                const statuses = [...new Set(g.parcels.map((p) => p.status))];
+                const places = [...new Set(g.parcels.map((p) => p.warehouse?.code).filter(Boolean))].join(", ");
+                return (
+                  <tbody key={g.bookingId} className="divide-y divide-slate-100 border-t border-slate-200">
+                    <tr className="bg-slate-50/60">
+                      {canOperate && (
+                        <td className="px-4 py-3">
+                          {selectable.length > 0 && (
+                            <input
+                              type="checkbox"
+                              aria-label={`Select all packages of ${g.invoice}`}
+                              checked={ticked === selectable.length}
+                              ref={(el) => {
+                                if (el) el.indeterminate = ticked > 0 && ticked < selectable.length;
+                              }}
+                              onChange={() => toggleGroup(g.parcels)}
+                            />
+                          )}
+                        </td>
+                      )}
                       <td className="px-4 py-3">
-                        {p.status === "in_warehouse" && (
-                          <input type="checkbox" aria-label={`Select ${p.barcode} for return`} checked={picked.includes(p.id)} onChange={() => toggle(p.id)} />
+                        <button
+                          type="button"
+                          onClick={() => toggleOpen(g.bookingId)}
+                          aria-expanded={isOpen}
+                          className="inline-flex items-center gap-1 font-mono font-semibold text-blue-700"
+                        >
+                          {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                          {g.invoice}
+                        </button>
+                      </td>
+                      <td className="px-4 py-3">
+                        {g.customer} · <span className="font-mono text-xs text-slate-500">{g.code}</span> ·{" "}
+                        {g.parcels.length} {g.parcels.length === 1 ? "package" : "packages"}
+                      </td>
+                      <td className="px-4 py-3 font-medium">{kg(g.parcels.reduce((s, p) => s + Number(p.weight_kg), 0))}</td>
+                      <td className="px-4 py-3">{places}</td>
+                      <td className="space-x-1 px-4 py-3">
+                        {statuses.map((s) => (
+                          <StatusBadge key={s} status={s} />
+                        ))}
+                      </td>
+                      <td className="px-4 py-3">
+                        {canOperate && (
+                          <Link href={`/warehouse-inventory/split/${g.bookingId}`} className="text-blue-700">
+                            Labels
+                          </Link>
                         )}
                       </td>
-                    )}
-                    <td className="px-4 py-3 font-mono text-xs">{p.booking?.invoice_no ?? p.booking?.code}</td>
-                    <td className="px-4 py-3 font-mono font-medium">{p.barcode}</td>
-                    <td className="px-4 py-3">{p.description ?? "—"}</td>
-                    <td className="px-4 py-3">{Number(p.weight_kg)} kg</td>
-                    <td className="px-4 py-3">{p.warehouse?.code}</td>
-                    <td className="px-4 py-3">
-                      <StatusBadge status={p.status} />
-                    </td>
-                    <td className="px-4 py-3">
-                      {canOperate && (
-                        <Link href={`/warehouse-inventory/split/${p.booking_id}`} className="text-blue-700">
-                          Labels
-                        </Link>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
+                    </tr>
+                    {isOpen &&
+                      g.parcels.map((p) => (
+                        <tr key={p.id}>
+                          {canOperate && (
+                            <td className="px-4 py-2.5">
+                              {p.status === "in_warehouse" && (
+                                <input type="checkbox" aria-label={`Select ${p.barcode} for return`} checked={picked.includes(p.id)} onChange={() => toggle(p.id)} />
+                              )}
+                            </td>
+                          )}
+                          <td className="py-2.5 pl-10 pr-4 font-mono font-medium">{p.barcode}</td>
+                          <td className="px-4 py-2.5">{p.description ?? "—"}</td>
+                          <td className="px-4 py-2.5">{kg(Number(p.weight_kg))}</td>
+                          <td className="px-4 py-2.5">{p.warehouse?.code}</td>
+                          <td className="px-4 py-2.5">
+                            <StatusBadge status={p.status} />
+                          </td>
+                          <td className="px-4 py-2.5"></td>
+                        </tr>
+                      ))}
+                  </tbody>
+                );
+              })}
             </table>
           </div>
         )}
