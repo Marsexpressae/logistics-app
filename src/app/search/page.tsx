@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Search } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
+import RowLimitNotice from "@/components/ui/RowLimitNotice";
 import { Card, ErrorMessage, StatusBadge, inputClass } from "@/components/ui/form";
 import { formatDay, invoiceStatus, totalPaid } from "@/lib/format";
 import { useQuery } from "@/lib/hooks";
@@ -68,6 +69,7 @@ export default function SearchPage() {
         />
       </div>
       <ErrorMessage message={bookings.error ?? parcels.error ?? containers.error} />
+      <RowLimitNotice count={Math.max(bookings.data?.length ?? 0, parcels.data?.length ?? 0, containers.data?.length ?? 0)} what="records in a list" effect="the search can miss older ones." />
 
       {!active && <p className="text-sm text-slate-500">Type at least two characters. Several words narrow the result, for example &quot;ismail 0567&quot;.</p>}
       {active && loading && <p className="text-sm text-slate-500">Searching…</p>}

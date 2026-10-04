@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { Plus, Search } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
 import EmptyState from "@/components/ui/EmptyState";
+import RowLimitNotice from "@/components/ui/RowLimitNotice";
 import { ErrorMessage, StatusBadge, inputClass } from "@/components/ui/form";
 import { useQuery } from "@/lib/hooks";
 import { usePermissions } from "@/lib/profile-context";
@@ -81,6 +82,7 @@ function BookingsContent() {
       </div>
 
       <ErrorMessage message={error} />
+      <RowLimitNotice count={data?.length} what="bookings" effect="older ones will not appear here. Use Search, or tell the developer." />
       {loading ? (
         <p className="text-sm text-slate-500">Loading…</p>
       ) : !rows.length ? (

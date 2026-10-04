@@ -3,6 +3,7 @@
 import Link from "next/link";
 import PageHeader from "@/components/ui/PageHeader";
 import EmptyState from "@/components/ui/EmptyState";
+import RowLimitNotice from "@/components/ui/RowLimitNotice";
 import { Card, ErrorMessage, StatusBadge } from "@/components/ui/form";
 import { useQuery } from "@/lib/hooks";
 import { supabase } from "@/lib/supabase";
@@ -54,6 +55,7 @@ export default function AccountsPage() {
     <>
       <PageHeader title="Accounts" description="Invoices, payments received and outstanding balances." />
       <ErrorMessage message={error} />
+      <RowLimitNotice count={data?.length} what="bookings" effect="the totals and the invoice list are incomplete. Tell the developer." />
 
       <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
