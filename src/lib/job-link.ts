@@ -36,10 +36,13 @@ export type SearchParcel = {
   place: string | null;
 };
 export type SearchContainer = { id: string; code: string; destination: string | null; status: string };
+export type SearchCustomer = { id: string; full_name: string; phone: string | null; address: string | null; invoices: number; last_invoice: string | null };
 export type SearchResult = {
   bookings: SearchBooking[];
   parcels: SearchParcel[];
   containers: SearchContainer[];
+  customers?: SearchCustomer[];
+  customers_total?: number;
   bookings_total: number;
   parcels_total: number;
   containers_total: number;

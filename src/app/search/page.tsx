@@ -49,7 +49,9 @@ function SearchResults({ initial }: { initial: string }) {
   const loading = ready && answer?.q !== typed;
 
   const active = ready;
-  const total = result.bookings_total + result.parcels_total + (seesContainers ? result.containers_total : 0);
+  const seesCustomers = can("customers.view");
+  const customers = seesCustomers ? (result.customers ?? []) : [];
+  const total = result.bookings_total + result.parcels_total + (seesContainers ? result.containers_total : 0) + (seesCustomers ? (result.customers_total ?? 0) : 0);
 
   return (
     <div className="max-w-3xl space-y-4">
@@ -131,6 +133,24 @@ function SearchResults({ initial }: { initial: string }) {
             })}
           </ul>
           {result.parcels_total > LIMIT && <p className="mt-2 text-xs text-slate-500">Showing the first {LIMIT} of {result.parcels_total}. Add more words to narrow it.</p>}
+        </Card>
+      )}
+
+      {customers.length > 0 && (
+        <Card title={`Customers (${result.customers_total ?? customers.length})`}>
+          <ul className="divide-y divide-slate-100 text-sm">
+            {customers.map((c) => (
+              <li key={c.id}>
+                <Link href={`/customers/${c.id}`} className="flex items-center justify-between gap-2 py-3">
+                  <span>
+                    <span className="font-medium text-blue-700">{c.full_name}</span>
+                    <span className="block text-xs text-slate-600">{[formatPhone(c.phone), c.address].filter(Boolean).join(" · ")}</span>
+                  </span>
+                  <span className="text-xs text-slate-500">{c.invoices} {c.invoices === 1 ? "invoice" : "invoices"}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
         </Card>
       )}
 

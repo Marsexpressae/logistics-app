@@ -10,10 +10,10 @@ type Db = {
   [table: string]: any;
   drivers: Row[]; warehouses: Row[]; bookings: Row[]; booking_items: Row[]; payments: Row[];
   containers: Row[]; parcels: Row[]; parcel_events: Row[]; profiles: Row[]; audit_log: Row[]; roles: Row[]; permissions: Row[]; role_permissions: Row[];
-  booking_events: Row[]; notifications: Row[]; app_settings: Row[]; returns: Row[]; booking_notes: Row[]; client_errors: Row[]; number_series: Row[]; organization: Row[];
+  booking_events: Row[]; notifications: Row[]; app_settings: Row[]; returns: Row[]; booking_notes: Row[]; client_errors: Row[]; number_series: Row[]; organization: Row[]; customers: Row[]; booking_contacts: Row[]; customer_notes: Row[];
 };
 
-const STORAGE_KEY = "logistics-mock-db-v29";
+const STORAGE_KEY = "logistics-mock-db-v30";
 const AUTH_KEY = "logistics-mock-signed-out";
 
 const uid = () => crypto.randomUUID();
@@ -58,6 +58,9 @@ const PERMISSIONS: Row[] = [
   ["containers.override_departure", "Containers", "Depart with missing parcels", "Send a container even though some parcels of an invoice are not loaded (a reason is recorded on each booking)"],
   ["containers.override_payment", "Containers", "Load without full payment", "Load a parcel even when payment is required and not complete (a reason is recorded)"],
   ["notes.write", "Bookings", "Write notes on jobs", "Add notes to a booking or invoice and mention colleagues"],
+  ["customers.view", "Customers", "See customers", "Open the customer list and each customer's history"],
+  ["customers.edit", "Customers", "Add and edit customers", "Create customers, correct their details, and link them to bookings"],
+  ["customers.manage", "Customers", "Merge and delete customers", "Merge duplicate customers or delete one (managers)"],
   ["returns.manage", "Warehouse", "Edit or delete returns", "Correct the date, note or receiver of a return, or delete a return (a reason is required)"],
   ["numbers.edit", "Bookings", "Set invoice and booking numbers", "Type a custom invoice or booking number, or change one, for example to match the accounting system"],
   ["items.edit", "Pickups", "Edit package items (before collection)", "Add, change or remove items and weights until the pickup is collected"],
@@ -68,9 +71,9 @@ const GRANTS: Record<string, string[]> = {
   manager: ["containers.override_payment", "containers.override_departure", "dashboard.view", "bookings.view", "bookings.create", "bookings.edit", "bookings.cancel", "pickups.view_all",
     "pickups.collect", "warehouse.view", "warehouse.manage", "containers.view", "containers.manage", "accounts.view",
     "payments.manage", "drivers.manage", "users.manage", "activity.view", "notifications.view", "bookings.reschedule",
-    "items.edit", "items.edit_after", "notes.write", "numbers.edit", "returns.manage"],
+    "items.edit", "items.edit_after", "notes.write", "numbers.edit", "returns.manage", "customers.view", "customers.edit", "customers.manage"],
   staff: ["dashboard.view", "bookings.view", "bookings.create", "bookings.edit", "bookings.cancel", "pickups.view_all",
-    "pickups.collect", "warehouse.view", "containers.view", "accounts.view", "notifications.view", "bookings.reschedule", "items.edit", "items.edit_after", "notes.write"],
+    "pickups.collect", "warehouse.view", "containers.view", "accounts.view", "notifications.view", "bookings.reschedule", "items.edit", "items.edit_after", "notes.write", "customers.view", "customers.edit"],
   warehouse: ["dashboard.view", "warehouse.view", "warehouse.manage", "containers.view", "containers.manage", "notifications.view", "notes.write"],
   driver: ["pickups.view_own", "pickups.collect", "pickups.cancel", "pickups.reschedule", "notifications.view", "pickups.edit_contact", "items.edit", "notes.write"],
 };
@@ -123,7 +126,7 @@ function seed(): Db {
     }
   }
 
-  return {
+  return buildCustomers({
     seq: { booking: 1005, container: 103, invoice: 1004 },
     drivers: [d1, d2],
     warehouses: [wA, wB],
@@ -163,7 +166,23 @@ function seed(): Db {
     roles: ROLES,
     permissions: PERMISSIONS,
     role_permissions: ROLE_PERMISSIONS,
-  } as Db;
+    customers: [], booking_contacts: [], customer_notes: [],
+  } as Db);
+}
+
+// Like the database migration: one customer per distinct sender phone (or name), linked to each of their bookings.
+function buildCustomers(d: Db): Db {
+  for (const b of d.bookings) {
+    const key = b.sender_phone ?? `name:${String(b.sender_name).toLowerCase()}`;
+    let c = d.customers.find((x: Row) => x.key === key);
+    if (!c) {
+      c = { id: uid(), key, full_name: b.sender_name, phone: b.sender_phone ?? null, whatsapp: b.sender_whatsapp ?? null, address: b.pickup_address, geo_lat: b.geo_lat ?? null, geo_lng: b.geo_lng ?? null,
+        emirates_id: null, created_by_name: null, created_at: b.created_at, updated_at: b.created_at };
+      d.customers.push(c);
+    }
+    d.booking_contacts.push({ booking_id: b.id, role: "customer", customer_id: c.id, created_at: b.created_at });
+  }
+  return d;
 }
 
 // ---------------------------------------------------------------- storage
@@ -246,6 +265,8 @@ const RELATIONS: Record<string, { fk: string; kind: "one" | "many"; from?: strin
   "parcels.bookings": { kind: "one", fk: "booking_id" },
   "containers.parcels": { kind: "many", fk: "container_id" },
   "returns.bookings": { kind: "one", fk: "booking_id" },
+  "booking_contacts.customers": { kind: "one", fk: "customer_id" },
+  "booking_contacts.bookings": { kind: "one", fk: "booking_id" },
   "returns.parcels": { kind: "many", fk: "return_id" },
 };
 
@@ -408,6 +429,9 @@ function withDefaults(table: string, it: Row): Row {
       Object.assign(row, { code: `CN-${d.seq.container++}`, status: "loading", departed_at: null, arrived_at: null, created_at: now(), ...it });
       if (typeof it.code === "string") row.code = it.code.trim().toUpperCase();
       break;
+    case "customer_notes":
+      Object.assign(row, { author_id: "mock-user", author_name: "Tester (super admin)", created_at: now() });
+      break;
     case "booking_notes":
       Object.assign(row, { author_id: "mock-user", author_name: "Tester (super admin)", mentions: it.mentions ?? [], created_at: now() });
       // Like the database: each mentioned colleague gets a notification (in sample data these go to people who are not signed in).
@@ -450,6 +474,43 @@ function backdate(parcelIds: string[], status: string, ts: string | null) {
 }
 
 const fail = (message: string) => ({ data: null, error: { message } });
+
+const EID_ERROR = "An Emirates ID has 15 digits and starts with 784, for example 784-1990-1234567-1";
+function cleanEid(v: unknown): string | null {
+  const dg = String(v ?? "").replace(/\D/g, "");
+  if (!dg) return null;
+  if (!/^784\d{12}$/.test(dg)) throw new Error(EID_ERROR);
+  return `${dg.slice(0, 3)}-${dg.slice(3, 7)}-${dg.slice(7, 14)}-${dg.slice(14)}`;
+}
+function cleanPhone(v: unknown, what: string): string | null {
+  const t = String(v ?? "").trim();
+  if (!t) return null;
+  const n = t.replace(/[\s()-]/g, "");
+  if (!/^\+[1-9]\d{6,14}$/.test(n)) throw new Error(`Enter the ${what} in international format, for example +971567375716`);
+  return n;
+}
+const linkedBookings = (customerId: string) => {
+  const d = db();
+  return d.booking_contacts.filter((l) => l.customer_id === customerId).map((l) => d.bookings.find((b) => b.id === l.booking_id)).filter(Boolean) as Row[];
+};
+function customerRow(c: Row): Row {
+  const bs = linkedBookings(c.id).sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
+  return { id: c.id, full_name: c.full_name, phone: c.phone, whatsapp: c.whatsapp, address: c.address, geo_lat: c.geo_lat, geo_lng: c.geo_lng, emirates_id: c.emirates_id,
+    invoices: bs.length, last_invoice: bs[0] ? (bs[0].invoice_no ?? bs[0].code) : null };
+}
+function customerHits(q: string): Row[] {
+  return db().customers
+    .filter((c) => matchesSearch(q, [c.full_name, c.address, c.emirates_id, ...linkedBookings(c.id).flatMap((b) => [b.invoice_no, b.code])], [c.phone, c.whatsapp]))
+    .sort((a, b) => a.full_name.localeCompare(b.full_name));
+}
+function customerArgs(a: Row): Row {
+  const nm = String(a.p_name ?? "").trim();
+  if (nm.length < 1 || nm.length > 120) throw new Error("Enter the name");
+  const phone = cleanPhone(a.p_phone, "phone number");
+  const wa = cleanPhone(a.p_whatsapp, "WhatsApp number");
+  return { full_name: nm, phone, whatsapp: wa && wa !== phone ? wa : null, address: String(a.p_address ?? "").trim() || null,
+    geo_lat: a.p_lat ?? null, geo_lng: a.p_lng ?? null, emirates_id: cleanEid(a.p_eid) };
+}
 
 const PHONE_FIELDS = (b: Row) => [b.sender_phone, b.sender_whatsapp, b.receiver_phone, b.receiver_whatsapp];
 
@@ -578,6 +639,7 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
     d.parcels = d.parcels.filter((p) => p.booking_id !== b.id);
     d.booking_items = d.booking_items.filter((i) => i.booking_id !== b.id);
     d.booking_notes = d.booking_notes.filter((n) => n.booking_id !== b.id);
+    d.booking_contacts = d.booking_contacts.filter((l) => l.booking_id !== b.id);
     d.booking_events = d.booking_events.filter((e) => e.booking_id !== b.id);
     d.notifications = d.notifications.filter((n) => n.booking_id !== b.id);
     d.bookings = d.bookings.filter((x) => x !== b);
@@ -770,11 +832,99 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
     return { data: null, error: null };
   },
 
+  create_customer(a) {
+    try {
+      const d = db();
+      const row = { id: uid(), ...customerArgs(a), created_by_name: "Tester (super admin)", created_at: now(), updated_at: now() };
+      d.customers.push(row);
+      save();
+      return { data: row.id, error: null };
+    } catch (e) { return fail((e as Error).message); }
+  },
+
+  update_customer(a) {
+    try {
+      const c = db().customers.find((x) => x.id === a.p_id);
+      const fields = customerArgs(a);
+      if (!c) return fail("Customer not found");
+      Object.assign(c, fields, { updated_at: now() });
+      save();
+      return { data: null, error: null };
+    } catch (e) { return fail((e as Error).message); }
+  },
+
+  link_booking_customer({ p_booking_id, p_customer_id, p_role = "customer" }) {
+    const d = db();
+    if (!["customer", "booker", "receiver"].includes(p_role)) return fail("Unknown role");
+    if (!d.bookings.some((b) => b.id === p_booking_id)) return fail("Booking not found");
+    d.booking_contacts = d.booking_contacts.filter((l) => !(l.booking_id === p_booking_id && l.role === p_role));
+    if (p_customer_id) {
+      if (!d.customers.some((c) => c.id === p_customer_id)) return fail("Customer not found");
+      d.booking_contacts.push({ booking_id: p_booking_id, role: p_role, customer_id: p_customer_id, created_at: now() });
+    }
+    save();
+    return { data: null, error: null };
+  },
+
+  create_customer_from_booking({ p_booking_id }) {
+    const d = db();
+    const b = d.bookings.find((x) => x.id === p_booking_id);
+    if (!b) return fail("Booking not found");
+    const id = uid();
+    d.customers.push({ id, full_name: String(b.sender_name).slice(0, 120), phone: b.sender_phone ?? null, whatsapp: b.sender_whatsapp ?? null,
+      address: /^legacy invoice/i.test(b.pickup_address) ? null : b.pickup_address, geo_lat: b.geo_lat ?? null, geo_lng: b.geo_lng ?? null, emirates_id: null,
+      created_by_name: "Tester (super admin)", created_at: now(), updated_at: now() });
+    d.booking_contacts = d.booking_contacts.filter((l) => !(l.booking_id === b.id && l.role === "customer"));
+    d.booking_contacts.push({ booking_id: b.id, role: "customer", customer_id: id, created_at: now() });
+    save();
+    return { data: id, error: null };
+  },
+
+  search_customers({ p_query, p_limit = 10 }) {
+    const q = String(p_query ?? "").trim();
+    if (q.replace(/\s/g, "").length < 2) return { data: { customers: [], total: 0 }, error: null };
+    const hits = customerHits(q);
+    return { data: { customers: hits.slice(0, Math.max(1, Math.min(Number(p_limit) || 10, 50))).map(customerRow), total: hits.length }, error: null };
+  },
+
+  list_customers({ p_limit = 50, p_offset = 0 }) {
+    const all = [...db().customers].sort((a, b) => a.full_name.localeCompare(b.full_name));
+    return { data: { customers: all.slice(Number(p_offset), Number(p_offset) + Number(p_limit)).map(customerRow), total: all.length }, error: null };
+  },
+
+  bookings_without_customer({ p_limit = 100 }) {
+    const d = db();
+    const lone = d.bookings.filter((b) => !d.booking_contacts.some((l) => l.booking_id === b.id && l.role === "customer"))
+      .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
+    return { data: { bookings: lone.slice(0, Number(p_limit)).map((b) => ({ id: b.id, code: b.code, invoice_no: b.invoice_no ?? null, sender_name: b.sender_name,
+      sender_phone: b.sender_phone ?? null, pickup_address: b.pickup_address, status: b.status, created_at: b.created_at })), total: lone.length }, error: null };
+  },
+
+  customer_timeline({ p_customer_id, p_limit = 100, p_offset = 0 }) {
+    const d = db();
+    const rows: Row[] = [];
+    const add = (at: string, kind: string, title: string, detail: string | null, b: Row | null, actor: string | null) =>
+      rows.push({ r_at: at, r_kind: kind, r_title: title, r_detail: detail, r_booking_id: b?.id ?? null, r_invoice: b ? (b.invoice_no ?? b.code) : null, r_actor: actor });
+    const c = d.customers.find((x) => x.id === p_customer_id);
+    if (c) add(c.created_at, "customer", "Customer record created", null, null, c.created_by_name ?? null);
+    for (const b of linkedBookings(p_customer_id)) {
+      add(b.created_at, "booking", `Booking ${b.code} created`, null, b, null);
+      for (const e of d.booking_events.filter((x) => x.booking_id === b.id)) add(e.created_at, "event", String(e.kind).replace(/_/g, " "), e.reason ?? null, b, e.actor_name ?? null);
+      for (const p of d.payments.filter((x) => x.booking_id === b.id)) add(p.created_at, "payment", `Payment of ${p.amount} received`, p.method ?? null, b, null);
+      for (const n of d.booking_notes.filter((x) => x.booking_id === b.id)) add(n.created_at, "note", "Note on the invoice", n.body, b, n.author_name);
+      for (const p of d.parcels.filter((x) => x.booking_id === b.id))
+        for (const e of d.parcel_events.filter((x) => x.parcel_id === p.id)) add(e.created_at, "package", `${p.barcode}: ${String(e.status).replace(/_/g, " ")}`, null, b, null);
+    }
+    for (const n of d.customer_notes.filter((x) => x.customer_id === p_customer_id)) add(n.created_at, "note", "Note on the customer", n.body, null, n.author_name);
+    rows.sort((a, b) => String(b.r_at).localeCompare(String(a.r_at)));
+    return { data: rows.slice(Number(p_offset), Number(p_offset) + Number(p_limit)), error: null };
+  },
+
   // The same search as the database function global_search().
   global_search({ p_query, p_limit = 6 }) {
     const d = db();
     const q = String(p_query ?? "").trim();
-    const empty = { bookings: [], parcels: [], containers: [], bookings_total: 0, parcels_total: 0, containers_total: 0 };
+    const empty = { bookings: [], parcels: [], containers: [], customers: [], bookings_total: 0, parcels_total: 0, containers_total: 0, customers_total: 0 };
     if (q.replace(/\s/g, "").length < 2) return { data: empty, error: null };
     const lim = Math.max(1, Math.min(Number(p_limit) || 6, 50));
     const paid = (id: string) => d.payments.filter((p) => p.booking_id === id).reduce((s, p) => s + Number(p.amount), 0);
@@ -797,7 +947,8 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
         parcels: parcelHits.slice(0, lim).map(({ p, b, w }) => ({ id: p.id, barcode: p.barcode, description: p.description ?? null, weight_kg: p.weight_kg, status: p.status,
           position: p.position ?? null, booking_id: p.booking_id, invoice_no: b?.invoice_no ?? null, booking_code: b?.code, sender_name: b?.sender_name, place: w?.name ?? null })),
         containers: containerHits.slice(0, lim).map((c) => ({ id: c.id, code: c.code, destination: c.destination ?? null, status: c.status })),
-        bookings_total: hits.length, parcels_total: parcelHits.length, containers_total: containerHits.length,
+        customers: customerHits(q).slice(0, lim).map(customerRow),
+        bookings_total: hits.length, parcels_total: parcelHits.length, containers_total: containerHits.length, customers_total: customerHits(q).length,
       },
       error: null,
     };

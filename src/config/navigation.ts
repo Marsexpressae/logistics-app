@@ -8,6 +8,7 @@ import {
   MapPinned,
   Settings,
   Truck,
+  Users,
   Wallet,
   type LucideIcon,
 } from "lucide-react";
@@ -25,6 +26,7 @@ export type NavItem = {
 export const navItems: NavItem[] = [
   { label: "Dashboard", shortLabel: "Home", href: "/", icon: LayoutDashboard, anyOf: ["dashboard.view"] },
   { label: "Bookings", shortLabel: "Bookings", href: "/bookings", icon: ClipboardList, anyOf: ["bookings.view"] },
+  { label: "Customers", shortLabel: "Customers", href: "/customers", icon: Users, anyOf: ["customers.view"] },
   { label: "Pickups", shortLabel: "Pickups", href: "/pickups", icon: Truck, anyOf: ["pickups.view_all", "pickups.view_own"] },
   { label: "Warehouse", shortLabel: "Warehouse", href: "/warehouse-inventory", icon: Boxes, anyOf: ["warehouse.view"] },
   { label: "Containers", shortLabel: "Containers", href: "/containers", icon: Container, anyOf: ["containers.view", "containers.manage"] },
@@ -39,7 +41,7 @@ export const navItems: NavItem[] = [
 const extraRules: { prefix: string; anyOf: string[] }[] = [
   { prefix: "/bookings/new", anyOf: ["bookings.create"] },
   // The results page behind the search box in the top bar.
-  { prefix: "/search", anyOf: ["bookings.view", "warehouse.view", "containers.view", "pickups.view_all", "pickups.view_own"] },
+  { prefix: "/search", anyOf: ["bookings.view", "warehouse.view", "containers.view", "customers.view", "pickups.view_all", "pickups.view_own"] },
   { prefix: "/warehouse-inventory/split", anyOf: ["warehouse.manage"] },
   { prefix: "/warehouse-inventory/returns", anyOf: ["warehouse.manage"] },
   { prefix: "/settings/users", anyOf: ["users.manage"] },

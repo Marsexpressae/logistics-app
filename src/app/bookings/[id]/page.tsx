@@ -9,6 +9,7 @@ import AuditList from "@/components/audit/AuditList";
 import BookingChangePanel from "@/components/bookings/BookingChangePanel";
 import BookingForm from "@/components/bookings/BookingForm";
 import DeleteBooking from "@/components/bookings/DeleteBooking";
+import CustomerCard from "@/components/customers/CustomerCard";
 import NotesCard from "@/components/bookings/NotesCard";
 import TrackingLink from "@/components/bookings/TrackingLink";
 import ItemsCard from "@/components/bookings/ItemsCard";
@@ -94,6 +95,7 @@ export default function EditBookingPage() {
 
       {/* The same package list and payments the driver sees on the pickup page. */}
       <div className="mt-6 max-w-3xl space-y-4">
+        <CustomerCard bookingId={id} />
         <NotesCard bookingId={id} />
         <TrackingLink booking={b} />
         <ItemsCard bookingId={id} status={b.status} items={items.data ?? []} onChanged={() => { items.reload(); history.reload(); }} />

@@ -3,9 +3,10 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Box, Container as ContainerIcon, FileText, Search } from "lucide-react";
+import { Box, Container as ContainerIcon, FileText, Search, UserRound } from "lucide-react";
 import { StatusBadge } from "@/components/ui/form";
 import { EMPTY_RESULT, jobHref, type SearchResult } from "@/lib/job-link";
+import { formatPhone } from "@/lib/phone";
 import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
 
@@ -74,7 +75,10 @@ export default function GlobalSearch({ autoFocus = false, onDone, className = ""
     return () => document.removeEventListener("mousedown", onDown);
   }, []);
 
+  const seesCustomers = can("customers.view");
+  const customers = seesCustomers ? (result.customers ?? []) : [];
   const items: Item[] = [
+    ...customers.map((c) => ({ key: `u-${c.id}`, href: `/customers/${c.id}` })),
     ...result.bookings.flatMap((b) => {
       const href = jobHref(can, b.id);
       return href ? [{ key: `b-${b.id}`, href }] : [];
@@ -115,7 +119,7 @@ export default function GlobalSearch({ autoFocus = false, onDone, className = ""
     }
   }
 
-  const total = result.bookings_total + result.parcels_total + (seesContainers ? result.containers_total : 0);
+  const total = result.bookings_total + result.parcels_total + (seesContainers ? result.containers_total : 0) + (seesCustomers ? (result.customers_total ?? 0) : 0);
   const activeKey = active >= 0 ? items[active]?.key : undefined;
   const row = (key: string, href: string | null, children: ReactNode) => {
     const content = (
@@ -167,6 +171,28 @@ export default function GlobalSearch({ autoFocus = false, onDone, className = ""
             <p className="px-3 py-3 text-sm text-slate-600">Nothing found for &quot;{q}&quot;.</p>
           ) : (
             <>
+              {customers.length > 0 && (
+                <>
+                  <p className="px-3 pb-1 pt-3 text-xs font-semibold uppercase text-slate-500">Customers</p>
+                  <ul>
+                    {customers.map((c) =>
+                      row(
+                        `u-${c.id}`,
+                        `/customers/${c.id}`,
+                        <span className="min-w-0">
+                          <span className="flex items-center gap-1.5 text-sm">
+                            <UserRound className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                            <span className="font-medium text-blue-700">{c.full_name}</span>
+                          </span>
+                          <span className="block truncate text-xs text-slate-600">
+                            {[formatPhone(c.phone), c.address].filter(Boolean).join(" · ")}
+                          </span>
+                        </span>
+                      )
+                    )}
+                  </ul>
+                </>
+              )}
               {result.bookings.length > 0 && (
                 <>
                   <p className="px-3 pb-1 pt-3 text-xs font-semibold uppercase text-slate-500">Invoices and bookings</p>

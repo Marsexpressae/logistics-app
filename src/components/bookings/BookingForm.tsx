@@ -2,8 +2,10 @@
 
 import { useState, type FormEvent } from "react";
 import { LocateFixed } from "lucide-react";
+import CustomerPicker from "@/components/customers/CustomerPicker";
 import PhoneInput from "@/components/ui/PhoneInput";
 import { Button, Card, ErrorMessage, Field, inputClass } from "@/components/ui/form";
+import type { CustomerHit } from "@/lib/customers";
 import { AREAS } from "@/config/areas";
 import { formatGeo, mapsUrl, parseGeo } from "@/lib/geo";
 import { todayISO } from "@/lib/format";
@@ -20,7 +22,12 @@ type BookingFormProps = {
 };
 
 export default function BookingForm({ booking, submitLabel, onSaved }: BookingFormProps) {
-  const canSetNumbers = usePermissions().can("numbers.edit");
+  const { can } = usePermissions();
+  const canSetNumbers = can("numbers.edit");
+  const canPickCustomer = !booking && can("customers.view");
+  // A returning customer picked from the list: their details fill the form, and the booking is linked to them when saved.
+  const [picked, setPicked] = useState<CustomerHit | null>(null);
+  const [fill, setFill] = useState({ name: booking?.sender_name ?? "", address: booking?.pickup_address ?? "", n: 0 });
   const drivers = useQuery<Driver[]>(() =>
     supabase.from("drivers").select("*").eq("active", true).order("name")
   );
@@ -33,6 +40,15 @@ export default function BookingForm({ booking, submitLabel, onSaved }: BookingFo
   const [senderPhone, setSenderPhone] = useState(formatPhone(booking?.sender_phone));
   const [sameWhatsapp, setSameWhatsapp] = useState(!booking?.sender_whatsapp);
   const [whatsappPhone, setWhatsappPhone] = useState(formatPhone(booking?.sender_whatsapp));
+
+  function pickCustomer(c: CustomerHit) {
+    setPicked(c);
+    setFill((f) => ({ name: c.full_name, address: c.address ?? f.address, n: f.n + 1 }));
+    setSenderPhone(formatPhone(c.phone));
+    setSameWhatsapp(!c.whatsapp);
+    setWhatsappPhone(formatPhone(c.whatsapp));
+    if (c.geo_lat != null && c.geo_lng != null) setGeoText(formatGeo(c.geo_lat, c.geo_lng));
+  }
 
   const geo = parseGeo(geoText);
   const geoInvalid = geoText.trim() !== "" && !geo;
@@ -110,9 +126,9 @@ export default function BookingForm({ booking, submitLabel, onSaved }: BookingFo
           .update(fields)
           .eq("id", booking.id)
           .eq("updated_at", booking.updated_at)
-          .select("code")
+          .select("id, code")
           .single()
-      : await supabase.from("bookings").insert(fields).select("code").single();
+      : await supabase.from("bookings").insert(fields).select("id, code").single();
     setBusy(false);
     if (error) {
       // A number that is already used by another booking
@@ -125,6 +141,8 @@ export default function BookingForm({ booking, submitLabel, onSaved }: BookingFo
       if (booking && error.code === "PGRST116") return setConflict(true);
       return setError(error.message);
     }
+    // Link the picked customer. If this fails the booking still exists; the customer can be linked from the booking page.
+    if (!booking && picked) await supabase.rpc("link_booking_customer", { p_booking_id: data.id, p_customer_id: picked.id, p_role: "customer" });
     onSaved(data.code);
   }
 
@@ -133,8 +151,27 @@ export default function BookingForm({ booking, submitLabel, onSaved }: BookingFo
       {/* 1. Who is sending, and everything about collecting from them */}
       <Card title="Sender &amp; pickup">
         <div className="grid gap-4 sm:grid-cols-2">
+          {canPickCustomer && (
+            <div className="rounded-md border border-slate-200 bg-slate-50 p-3 sm:col-span-2">
+              {picked ? (
+                <p className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                  <span>
+                    Returning customer: <strong>{picked.full_name}</strong> ({picked.invoices} {picked.invoices === 1 ? "invoice" : "invoices"})
+                  </span>
+                  <button type="button" onClick={() => setPicked(null)} className="font-medium text-blue-700">
+                    Not this customer
+                  </button>
+                </p>
+              ) : (
+                <>
+                  <p className="mb-2 text-sm font-medium text-slate-700">Returning customer? Find them and the details fill in.</p>
+                  <CustomerPicker onPick={pickCustomer} />
+                </>
+              )}
+            </div>
+          )}
           <Field label="Name">
-            <input name="sender_name" required defaultValue={booking?.sender_name} className={inputClass} />
+            <input key={`n${fill.n}`} name="sender_name" required defaultValue={fill.name} className={inputClass} />
           </Field>
           <Field label="Phone">
             <PhoneInput value={senderPhone} onChange={setSenderPhone} required />
@@ -191,7 +228,7 @@ export default function BookingForm({ booking, submitLabel, onSaved }: BookingFo
           </Field>
           <div className="sm:col-span-2">
             <Field label="Pickup address">
-              <textarea name="pickup_address" required rows={2} defaultValue={booking?.pickup_address} className={inputClass} />
+              <textarea key={`a${fill.n}`} name="pickup_address" required rows={2} defaultValue={fill.address} className={inputClass} />
             </Field>
           </div>
           <div className="sm:col-span-2">
