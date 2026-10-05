@@ -10,6 +10,7 @@ import { useOrganization } from "@/lib/organization";
 import { formatDay, kg, round2 } from "@/lib/format";
 import { useQuery } from "@/lib/hooks";
 import { formatPhone } from "@/lib/phone";
+import ShareButton from "@/components/ui/ShareButton";
 import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
 import type { ReturnForm } from "@/lib/types";
@@ -109,15 +110,18 @@ export default function ReturnFormPage() {
             </>
           )}
           {canPrint && (
+            <>
+            <ShareButton targetId="share-doc" filename={`Return-${r.code}`} />
             <Button onClick={() => window.print()}>
               <Printer className="h-4 w-4" /> Print form
             </Button>
+            </>
           )}
         </span>
       </div>
 
       {/* The printed form */}
-      <div className="rounded-lg border border-slate-200 bg-white p-6 text-sm print:border-0 print:p-0">
+      <div id="share-doc" className="rounded-lg border border-slate-200 bg-white p-6 text-sm print:border-0 print:p-0">
         <div className="border-b border-slate-300 pb-3 text-center">
           <p className="text-lg font-bold tracking-wide">{site.name}</p>
           {org?.legal_name && <p className="text-xs text-slate-600">{org.legal_name}{org.country ? ` · ${org.country}` : ""}</p>}

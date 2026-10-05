@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ArrowLeft, Printer } from "lucide-react";
+import ShareButton from "@/components/ui/ShareButton";
 import { Button, ErrorMessage } from "@/components/ui/form";
 import { site } from "@/config/site";
 import { useOrganization } from "@/lib/organization";
@@ -39,13 +40,16 @@ export default function ReceiptPage() {
           <ArrowLeft className="h-4 w-4" /> Back
         </Link>
         {canPrint && (
+          <span className="flex gap-2">
+          <ShareButton targetId="share-doc" filename={`Receipt-${b.invoice_no ?? b.code}`} />
           <Button onClick={() => window.print()}>
             <Printer className="h-4 w-4" /> Print
           </Button>
+          </span>
         )}
       </div>
 
-      <div className="rounded-lg border border-slate-200 bg-white p-6 text-sm print:border-0 print:p-0">
+      <div id="share-doc" className="rounded-lg border border-slate-200 bg-white p-6 text-sm print:border-0 print:p-0">
         <div className="border-b border-slate-300 pb-3 text-center">
           <p className="text-lg font-bold tracking-wide">{site.name}</p>
           {org?.legal_name && <p className="text-xs text-slate-600">{org.legal_name}{org.country ? ` · ${org.country}` : ""}</p>}
