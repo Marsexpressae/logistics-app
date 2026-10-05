@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Button, Card, ErrorMessage } from "@/components/ui/form";
+import { Button, Card, ErrorMessage, Loading } from "@/components/ui/form";
 import { formatDate } from "@/lib/format";
 import { useQuery } from "@/lib/hooks";
 import { usePermissions } from "@/lib/profile-context";
@@ -36,7 +36,7 @@ export default function ProblemsCard() {
       </p>
       <ErrorMessage message={list.error ?? error} />
       {list.loading && !list.data ? (
-        <p className="text-sm text-slate-500">Loading…</p>
+        <Loading />
       ) : !rows.length ? (
         <p className="text-sm text-green-700">No problems reported.</p>
       ) : (

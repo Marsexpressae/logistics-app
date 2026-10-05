@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Button, Card, ErrorMessage, Field, inputClass } from "@/components/ui/form";
+import { Button, Card, ErrorMessage, Field, inputClass, Loading } from "@/components/ui/form";
 import { COUNTRIES, CURRENCIES, useOrganization } from "@/lib/organization";
 import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
@@ -41,7 +41,7 @@ export default function OrganizationCard() {
     <Card title="Organization">
       <ErrorMessage message={loadError ?? error} />
       {loading && !org ? (
-        <p className="text-sm text-slate-500">Loading…</p>
+        <Loading />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2">

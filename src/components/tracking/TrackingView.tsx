@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Card, ErrorMessage, StatusBadge } from "@/components/ui/form";
+import { Card, ErrorMessage, StatusBadge, Loading } from "@/components/ui/form";
 import { useQuery } from "@/lib/hooks";
 import { supabase } from "@/lib/supabase";
 import { formatDate } from "@/lib/format";
@@ -12,7 +12,7 @@ import type { TrackedBooking } from "@/lib/types";
 export default function TrackingView({ code, searchHref }: { code: string; searchHref: string }) {
   const { data, error, loading } = useQuery<TrackedBooking>(() => supabase.rpc("track_booking", { p_code: code }), [code]);
 
-  if (loading) return <p className="text-sm text-slate-500">Loading…</p>;
+  if (loading) return <Loading />;
   if (error) return <ErrorMessage message={error} />;
   if (!data)
     return (

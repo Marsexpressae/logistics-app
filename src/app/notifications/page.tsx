@@ -5,7 +5,7 @@ import { Bell, CalendarClock, Ban, MessageSquare } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
 import EmptyState from "@/components/ui/EmptyState";
 import PhoneAlertsCard from "@/components/notifications/PhoneAlertsCard";
-import { Button, Card } from "@/components/ui/form";
+import { Button, Card, Loading } from "@/components/ui/form";
 import { formatDate } from "@/lib/format";
 import { useNotifications } from "@/lib/notifications";
 import { usePermissions } from "@/lib/profile-context";
@@ -39,7 +39,7 @@ export default function NotificationsPage() {
       <PhoneAlertsCard />
 
       {loading ? (
-        <p className="text-sm text-slate-500">Loading…</p>
+        <Loading />
       ) : !items.length ? (
         <EmptyState message="No notifications yet. You'll see changes made by the other team here." />
       ) : (

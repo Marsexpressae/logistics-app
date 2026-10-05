@@ -9,7 +9,7 @@ import CustomerForm from "@/components/customers/CustomerForm";
 import { IdPhoto } from "@/components/customers/IdCard";
 import ReceiversCard from "@/components/customers/ReceiversCard";
 import PageHeader from "@/components/ui/PageHeader";
-import { Button, Card, ErrorMessage, StatusBadge, inputClass } from "@/components/ui/form";
+import { Button, Card, ErrorMessage, StatusBadge, inputClass, Loading } from "@/components/ui/form";
 import { customerMapsUrl, ROLE_LABEL, type ContactRole, type Customer, type IdDocument, type TimelineRow } from "@/lib/customers";
 import { formatDate, formatDay } from "@/lib/format";
 import { useQuery } from "@/lib/hooks";
@@ -95,7 +95,7 @@ export default function CustomerPage() {
     router.push("/customers");
   }
 
-  if (customer.loading && !c) return <p className="text-sm text-slate-500">Loading…</p>;
+  if (customer.loading && !c) return <Loading />;
   if (!c) return <p className="text-sm text-slate-600">{customer.error ?? "This customer was not found, or you may not open it."}</p>;
 
   const maps = customerMapsUrl(c);
@@ -218,7 +218,7 @@ export default function CustomerPage() {
           </Link>
         )}
         {linked.loading && !linked.data ? (
-          <p className="text-sm text-slate-500">Loading…</p>
+          <Loading />
         ) : !bookings.length ? (
           <p className="text-sm text-slate-500">No invoices linked yet.</p>
         ) : (
@@ -271,7 +271,7 @@ export default function CustomerPage() {
           </form>
         )}
         {timeline.loading && !timeline.data ? (
-          <p className="text-sm text-slate-500">Loading…</p>
+          <Loading />
         ) : !timeline.data?.length ? (
           <p className="text-sm text-slate-500">Nothing has happened yet.</p>
         ) : (

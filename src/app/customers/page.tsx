@@ -8,7 +8,7 @@ import CustomerForm from "@/components/customers/CustomerForm";
 import ListSearch from "@/components/ui/ListSearch";
 import PageHeader from "@/components/ui/PageHeader";
 import EmptyState from "@/components/ui/EmptyState";
-import { Button, Card, ErrorMessage } from "@/components/ui/form";
+import { Button, Card, ErrorMessage, Loading } from "@/components/ui/form";
 import type { CustomerHit, DuplicateGroup } from "@/lib/customers";
 import { useQuery } from "@/lib/hooks";
 import { formatPhone } from "@/lib/phone";
@@ -80,6 +80,7 @@ export default function CustomersPage() {
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
+            aria-pressed={tab === t.key}
             className={`rounded-full px-3 py-1.5 text-sm font-medium ${tab === t.key ? "bg-blue-600 text-white" : "border border-slate-300 bg-white text-slate-700"}`}
           >
             {t.label}
@@ -92,7 +93,7 @@ export default function CustomersPage() {
 
       {tab === "all" &&
         (list.loading && !list.data ? (
-          <p className="text-sm text-slate-500">Loading…</p>
+          <Loading />
         ) : !customers.length ? (
           <EmptyState message={searching ? "No customer found." : "No customers yet."} />
         ) : (
@@ -134,7 +135,7 @@ export default function CustomersPage() {
 
       {tab === "dupes" &&
         (dupes.loading && !dupes.data ? (
-          <p className="text-sm text-slate-500">Loading…</p>
+          <Loading />
         ) : !groups.length ? (
           <EmptyState message="No duplicates found. Two customers with the same phone number or Emirates ID would show here." />
         ) : (

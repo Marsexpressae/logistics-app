@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ArrowLeft, Printer } from "lucide-react";
 import ShareButton from "@/components/ui/ShareButton";
-import { Button, ErrorMessage } from "@/components/ui/form";
+import { Button, ErrorMessage, Loading } from "@/components/ui/form";
 import { site } from "@/config/site";
 import { useOrganization } from "@/lib/organization";
 import { useQuery } from "@/lib/hooks";
@@ -26,7 +26,7 @@ export default function ReceiptPage() {
   );
 
   const b = booking.data;
-  if (booking.loading) return <p className="text-sm text-slate-500">Loading…</p>;
+  if (booking.loading) return <Loading />;
   if (!b) return <ErrorMessage message={booking.error ?? "Booking not found"} />;
 
   const paid = totalPaid(b.payments);

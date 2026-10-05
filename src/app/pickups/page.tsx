@@ -12,7 +12,7 @@ import { matchesSearch } from "@/lib/search";
 import { neighbour } from "@/lib/swipe";
 import { useSwipe } from "@/lib/use-swipe";
 import ContactButtons from "@/components/contact/ContactButtons";
-import { ErrorMessage, StatusBadge, inputClass } from "@/components/ui/form";
+import { ErrorMessage, StatusBadge, inputClass, Loading } from "@/components/ui/form";
 import { AREAS } from "@/config/areas";
 import { dayState, formatDay } from "@/lib/format";
 import { useQuery, useSession } from "@/lib/hooks";
@@ -125,7 +125,7 @@ function PickupsContent() {
 
       <ErrorMessage message={pickups.error ?? drivers.error} />
       {pickups.loading ? (
-        <p className="text-sm text-slate-500">Loading…</p>
+        <Loading />
       ) : !visible.length ? (
         <EmptyState message="No open pickups here." />
       ) : (

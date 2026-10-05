@@ -9,7 +9,7 @@ import WarningBanner from "@/components/customers/WarningBanner";
 import NotesCard from "@/components/bookings/NotesCard";
 import ParcelLabel from "@/components/ui/ParcelLabel";
 import ParcelPosition from "@/components/warehouse/ParcelPosition";
-import { Button, Card, ErrorMessage, Field, inputClass } from "@/components/ui/form";
+import { Button, Card, ErrorMessage, Field, inputClass, Loading } from "@/components/ui/form";
 import { kg, round2 } from "@/lib/format";
 import { useQuery } from "@/lib/hooks";
 import { usePermissions } from "@/lib/profile-context";
@@ -45,7 +45,7 @@ export default function ReceivePage() {
   const [busy, setBusy] = useState(false);
 
   const b = booking.data;
-  if (booking.loading) return <p className="text-sm text-slate-500">Loading…</p>;
+  if (booking.loading) return <Loading />;
   if (!b) return <ErrorMessage message={booking.error ?? "Booking not found"} />;
 
   const collected = parcelsFromItems(items.data ?? []);

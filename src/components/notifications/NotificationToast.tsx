@@ -46,7 +46,7 @@ export default function NotificationToast() {
             View
           </Link>
         </div>
-        <button aria-label="Dismiss" onClick={dismissToast} className="text-slate-400 hover:text-slate-600">
+        <button aria-label="Dismiss" onClick={dismissToast} className="p-2 text-slate-600 hover:text-slate-900">
           <X className="h-5 w-5" />
         </button>
       </div>

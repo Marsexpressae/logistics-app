@@ -5,7 +5,7 @@ import Link from "next/link";
 import { X } from "lucide-react";
 import ContactButtons from "@/components/contact/ContactButtons";
 import CustomerPicker from "@/components/customers/CustomerPicker";
-import { Button, Card, ErrorMessage } from "@/components/ui/form";
+import { Button, Card, ErrorMessage, Loading } from "@/components/ui/form";
 import { ROLE_LABEL, type ContactRole, type Customer } from "@/lib/customers";
 import { useQuery } from "@/lib/hooks";
 import { formatPhone } from "@/lib/phone";
@@ -68,7 +68,7 @@ export default function CustomerCard({ bookingId }: { bookingId: string }) {
         <ContactButtons phone={c.phone} whatsapp={c.whatsapp} name={c.full_name} compact className="mt-2" />
       </span>
       {canEdit && (
-        <button aria-label={`Unlink ${c.full_name}`} disabled={busy} onClick={() => link(role, null)} className="p-1 text-slate-400 hover:text-red-600">
+        <button aria-label={`Unlink ${c.full_name}`} disabled={busy} onClick={() => link(role, null)} className="p-3 text-slate-600 hover:text-red-700">
           <X className="h-4 w-4" />
         </button>
       )}
@@ -79,7 +79,7 @@ export default function CustomerCard({ bookingId }: { bookingId: string }) {
     <Card title="Customer">
       <ErrorMessage message={links.error ?? error} />
       {links.loading && !links.data ? (
-        <p className="text-sm text-slate-500">Loading…</p>
+        <Loading />
       ) : (
         <>
           <ul className="divide-y divide-slate-100">

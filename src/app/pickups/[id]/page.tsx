@@ -15,7 +15,7 @@ import ItemsCard from "@/components/bookings/ItemsCard";
 import PaymentsCard from "@/components/bookings/PaymentsCard";
 import ContactCard from "@/components/contact/ContactCard";
 import ScheduleHistory from "@/components/bookings/ScheduleHistory";
-import { Button, Card, ErrorMessage, StatusBadge } from "@/components/ui/form";
+import { Button, Card, ErrorMessage, StatusBadge, Loading } from "@/components/ui/form";
 import { useQuery } from "@/lib/hooks";
 import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
@@ -45,7 +45,7 @@ export default function PickupDetailPage() {
   const [changes, setChanges] = useState(0); // bumps after a reschedule/cancel so the history refreshes
 
   const b = booking.data;
-  if (booking.loading) return <p className="text-sm text-slate-500">Loading…</p>;
+  if (booking.loading) return <Loading />;
   if (!b) return <ErrorMessage message={booking.error ?? "Booking not found"} />;
 
   // Run a write, surface errors, refresh both queries.

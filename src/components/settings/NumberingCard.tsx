@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Button, Card, ErrorMessage, Field, inputClass } from "@/components/ui/form";
+import { Button, Card, ErrorMessage, Field, inputClass, Loading } from "@/components/ui/form";
 import { useQuery } from "@/lib/hooks";
 import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
@@ -58,7 +58,7 @@ export default function NumberingCard() {
       </p>
       <ErrorMessage message={series.error ?? error} />
       {series.loading ? (
-        <p className="text-sm text-slate-500">Loading…</p>
+        <Loading />
       ) : (
         <div className="space-y-4">
           {rows.map((s) => {

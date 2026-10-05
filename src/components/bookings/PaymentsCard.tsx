@@ -175,10 +175,10 @@ export default function PaymentsCard({ booking, payments, onChanged }: PaymentsC
                   <span className="font-medium">{money(p.amount)}</span>
                   {canCorrect && (
                     <>
-                      <button aria-label={`Edit payment of ${money(p.amount)}`} onClick={() => startEdit(p)} className="p-2 text-slate-400 hover:text-slate-700">
+                      <button aria-label={`Edit payment of ${money(p.amount)}`} onClick={() => startEdit(p)} className="p-3 text-slate-600 hover:text-slate-900">
                         <Pencil className="h-4 w-4" />
                       </button>
-                      <button aria-label={`Delete payment of ${money(p.amount)}`} onClick={() => remove(p)} className="p-2 text-slate-400 hover:text-red-600">
+                      <button aria-label={`Delete payment of ${money(p.amount)}`} onClick={() => remove(p)} className="p-3 text-slate-600 hover:text-red-700">
                         <Trash2 className="h-4 w-4" />
                       </button>
                     </>

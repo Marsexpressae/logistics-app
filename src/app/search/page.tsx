@@ -74,7 +74,7 @@ function SearchResults({ initial }: { initial: string }) {
                     <span className="font-mono font-medium text-blue-700">{b.invoice_no ?? b.code}</span>
                     {b.invoice_no && <span className="ml-2 font-mono text-xs text-slate-500">{b.code}</span>}
                     <span className="block text-slate-700">
-                      {b.sender_name} → {b.receiver_name ?? <span className="text-slate-400">receiver not set</span>}
+                      {b.sender_name} → {b.receiver_name ?? <span className="text-slate-500">receiver not set</span>}
                     </span>
                     <span className="block text-xs text-slate-500">
                       {formatPhone(b.sender_phone)} · {b.pickup_area} · {formatDay(b.pickup_date)}

@@ -6,7 +6,7 @@ import { X } from "lucide-react";
 import ContactButtons from "@/components/contact/ContactButtons";
 import CustomerPicker from "@/components/customers/CustomerPicker";
 import PhoneInput from "@/components/ui/PhoneInput";
-import { Button, Card, ErrorMessage, Field, inputClass } from "@/components/ui/form";
+import { Button, Card, ErrorMessage, Field, inputClass, Loading } from "@/components/ui/form";
 import type { ReceiverEntry } from "@/lib/customers";
 import { useQuery } from "@/lib/hooks";
 import { formatPhone, parsePhone } from "@/lib/phone";
@@ -54,7 +54,7 @@ export default function ReceiversCard({ customerId }: { customerId: string }) {
   return (
     <Card title="Receivers (address book)">
       {list.loading && !list.data ? (
-        <p className="text-sm text-slate-500">Loading…</p>
+        <Loading />
       ) : !list.data?.length ? (
         <p className="text-sm text-slate-500">No receivers saved yet.</p>
       ) : (
@@ -70,7 +70,7 @@ export default function ReceiversCard({ customerId }: { customerId: string }) {
                 <ContactButtons phone={r.phone} whatsapp={r.whatsapp} name={r.name} compact className="mt-2" />
               </span>
               {canEdit && (
-                <button aria-label={`Remove ${r.name}`} onClick={() => remove(r.id)} className="p-1 text-slate-400 hover:text-red-600">
+                <button aria-label={`Remove ${r.name}`} onClick={() => remove(r.id)} className="p-3 text-slate-600 hover:text-red-700">
                   <X className="h-4 w-4" />
                 </button>
               )}

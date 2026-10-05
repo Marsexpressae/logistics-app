@@ -8,7 +8,7 @@ import OrganizationCard from "@/components/settings/OrganizationCard";
 import ProblemsCard from "@/components/settings/ProblemsCard";
 import WarehousesCard from "@/components/settings/WarehousesCard";
 import PageHeader from "@/components/ui/PageHeader";
-import { Button, Card, ErrorMessage } from "@/components/ui/form";
+import { Button, Card, ErrorMessage, Loading } from "@/components/ui/form";
 import { useQuery } from "@/lib/hooks";
 import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
@@ -62,7 +62,7 @@ export default function SettingsPage() {
       <Card title="App controls">
         <ErrorMessage message={settings.error ?? error} />
         {settings.loading ? (
-          <p className="text-sm text-slate-500">Loading…</p>
+          <Loading />
         ) : !settings.data?.length ? (
           <p className="text-sm text-slate-500">No controls available.</p>
         ) : (

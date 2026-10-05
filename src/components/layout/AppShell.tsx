@@ -112,6 +112,9 @@ export default function AppShell({ children }: { children: ReactNode }) {
             </>
           )}
         </header>
+        <a href="#main" className="sr-only z-50 rounded-md bg-white px-4 py-2 text-sm font-medium text-blue-700 shadow focus:not-sr-only focus:absolute focus:left-2 focus:top-2">
+          Skip to content
+        </a>
         <ErrorReporter />
         <NotificationToast />
         <Sidebar />
@@ -123,7 +126,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
           </div>
         )}
         {/* Extra bottom padding on phones keeps the last content clear of the bottom bar. */}
-        <main className="flex-1 overflow-y-auto p-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:p-8 md:pb-8 print:p-0">
+        <main id="main" tabIndex={-1} className="flex-1 overflow-y-auto focus:outline-none p-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:p-8 md:pb-8 print:p-0">
           <InstallBanner className="mb-4" />
           {isMock && (
             <div className="mb-4 flex items-center justify-between gap-3 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800 print:hidden">

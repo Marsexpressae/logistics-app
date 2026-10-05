@@ -17,7 +17,7 @@ import TrackingLink from "@/components/bookings/TrackingLink";
 import ItemsCard from "@/components/bookings/ItemsCard";
 import PaymentsCard from "@/components/bookings/PaymentsCard";
 import ScheduleHistory from "@/components/bookings/ScheduleHistory";
-import { Card, ErrorMessage, StatusBadge } from "@/components/ui/form";
+import { Card, ErrorMessage, StatusBadge, Loading } from "@/components/ui/form";
 import { formatDate } from "@/lib/format";
 import { useQuery } from "@/lib/hooks";
 import { usePermissions } from "@/lib/profile-context";
@@ -48,7 +48,7 @@ export default function EditBookingPage() {
   const [changes, setChanges] = useState(0); // bumps after a reschedule/cancel so the history refreshes
 
   const b = booking.data;
-  if (booking.loading) return <p className="text-sm text-slate-500">Loading…</p>;
+  if (booking.loading) return <Loading />;
   if (!b) return <ErrorMessage message={booking.error ?? "Booking not found"} />;
 
   return (

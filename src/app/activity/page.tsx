@@ -4,7 +4,7 @@ import { useState } from "react";
 import PageHeader from "@/components/ui/PageHeader";
 import EmptyState from "@/components/ui/EmptyState";
 import AuditList, { TABLE_LABELS } from "@/components/audit/AuditList";
-import { Card, ErrorMessage, inputClass } from "@/components/ui/form";
+import { Card, ErrorMessage, inputClass, Loading } from "@/components/ui/form";
 import { useQuery } from "@/lib/hooks";
 import { isMock, supabase } from "@/lib/supabase";
 import type { AuditEntry } from "@/lib/types";
@@ -62,7 +62,7 @@ export default function ActivityPage() {
 
       <ErrorMessage message={log.error} />
       {log.loading ? (
-        <p className="text-sm text-slate-500">Loading…</p>
+        <Loading />
       ) : !log.data?.entries.length ? (
         <EmptyState message="No activity recorded yet." />
       ) : (

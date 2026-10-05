@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ArrowLeft, MessageCircle, Printer } from "lucide-react";
 import ShareButton from "@/components/ui/ShareButton";
-import { Button, ErrorMessage } from "@/components/ui/form";
+import { Button, ErrorMessage, Loading } from "@/components/ui/form";
 import { site } from "@/config/site";
 import type { Customer } from "@/lib/customers";
 import { formatDay, money } from "@/lib/format";
@@ -35,7 +35,7 @@ export default function StatementPage() {
 
   const c = customer.data;
   if (!can("accounts.view")) return <p className="text-sm text-slate-600">You do not have access to account statements.</p>;
-  if ((customer.loading || links.loading) && !c) return <p className="text-sm text-slate-500">Loading…</p>;
+  if ((customer.loading || links.loading) && !c) return <Loading />;
   if (!c) return <ErrorMessage message={customer.error ?? "Customer not found"} />;
 
   const st = buildStatement((links.data ?? []).flatMap((l) => (l.booking ? [l.booking] : [])));

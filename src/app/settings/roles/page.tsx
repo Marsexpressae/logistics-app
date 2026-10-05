@@ -3,7 +3,7 @@
 import { Fragment, useState } from "react";
 import { Lock } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
-import { Button, ErrorMessage } from "@/components/ui/form";
+import { Button, ErrorMessage, Loading } from "@/components/ui/form";
 import { useQuery } from "@/lib/hooks";
 import { supabase } from "@/lib/supabase";
 import type { PermissionRow, RoleRow } from "@/lib/types";
@@ -75,7 +75,7 @@ export default function RolesPage() {
       <ErrorMessage message={error ?? matrix.error} />
 
       {matrix.loading || !m ? (
-        <p className="text-sm text-slate-500">Loading…</p>
+        <Loading />
       ) : (
         <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
           <table className="w-full min-w-[40rem] text-left text-sm">

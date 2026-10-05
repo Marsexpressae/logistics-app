@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, CheckCircle2, Pencil, Printer, Trash2 } from "lucide-react";
-import { Button, ErrorMessage, StatusBadge, inputClass } from "@/components/ui/form";
+import { Button, ErrorMessage, StatusBadge, inputClass, Loading } from "@/components/ui/form";
 import { site } from "@/config/site";
 import { useOrganization } from "@/lib/organization";
 import { formatDay, kg, round2 } from "@/lib/format";
@@ -35,7 +35,7 @@ export default function ReturnFormPage() {
   const [busy, setBusy] = useState(false);
 
   const r = form.data;
-  if (form.loading) return <p className="text-sm text-slate-500">Loading…</p>;
+  if (form.loading) return <Loading />;
   if (!r) return <ErrorMessage message={form.error ?? "Return not found"} />;
 
   const parcels = [...(r.parcels ?? [])].sort((a, b) => a.seq - b.seq);

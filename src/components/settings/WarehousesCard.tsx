@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { Check, Pencil, Trash2, X } from "lucide-react";
-import { Button, Card, ErrorMessage, Field, inputClass } from "@/components/ui/form";
+import { Button, Card, ErrorMessage, Field, inputClass, Loading } from "@/components/ui/form";
 import { useQuery } from "@/lib/hooks";
 import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
@@ -63,7 +63,7 @@ export default function WarehousesCard() {
       <ErrorMessage message={list.error ?? error} />
 
       {list.loading && !list.data ? (
-        <p className="text-sm text-slate-500">Loading…</p>
+        <Loading />
       ) : (
         <ul className="divide-y divide-slate-100 text-sm">
           {rows.map((w) =>
@@ -86,7 +86,7 @@ export default function WarehousesCard() {
               </li>
             ) : (
               <li key={w.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5">
-                <span className={w.active === false ? "text-slate-400" : ""}>
+                <span className={w.active === false ? "text-slate-500" : ""}>
                   <span className="font-medium">{w.name}</span>
                   <span className="ml-2 rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs text-slate-600">{w.code}</span>
                   {w.active === false && <span className="ml-2 text-xs">Inactive</span>}

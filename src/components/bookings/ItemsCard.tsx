@@ -140,10 +140,10 @@ export default function ItemsCard({ bookingId, status, items, onChanged }: Items
                 </span>
                 {canChange && (
                   <span className="flex shrink-0 items-center gap-1">
-                    <button aria-label={`Edit ${i.description}`} onClick={() => startEdit(i)} className="p-2 text-slate-400 hover:text-slate-700">
+                    <button aria-label={`Edit ${i.description}`} onClick={() => startEdit(i)} className="p-3 text-slate-600 hover:text-slate-900">
                       <Pencil className="h-4 w-4" />
                     </button>
-                    <button aria-label={`Remove ${i.description}`} onClick={() => remove(i)} className="p-2 text-slate-400 hover:text-red-600">
+                    <button aria-label={`Remove ${i.description}`} onClick={() => remove(i)} className="p-3 text-slate-600 hover:text-red-700">
                       <Trash2 className="h-4 w-4" />
                     </button>
                   </span>

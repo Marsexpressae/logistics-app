@@ -9,7 +9,7 @@ import EmptyState from "@/components/ui/EmptyState";
 import ListSearch from "@/components/ui/ListSearch";
 import { matchesSearch } from "@/lib/search";
 import RowLimitNotice from "@/components/ui/RowLimitNotice";
-import { ErrorMessage, StatusBadge, inputClass } from "@/components/ui/form";
+import { ErrorMessage, StatusBadge, inputClass, Loading } from "@/components/ui/form";
 import { useQuery } from "@/lib/hooks";
 import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
@@ -75,7 +75,7 @@ function BookingsContent() {
       <ErrorMessage message={error} />
       <RowLimitNotice count={data?.length} what="bookings" effect="older ones will not appear here. Use Search, or tell the developer." />
       {loading ? (
-        <p className="text-sm text-slate-500">Loading…</p>
+        <Loading />
       ) : !rows.length ? (
         <EmptyState message={data?.length ? "No bookings match your filters." : "No bookings yet."} />
       ) : (
@@ -105,7 +105,7 @@ function BookingsContent() {
                       {b.invoice_no && <span className="block font-mono text-xs text-slate-500">{b.invoice_no}</span>}
                     </td>
                     <td className="px-4 py-3">
-                      {b.sender_name} → {b.receiver_name ?? <span className="text-slate-400">receiver not set</span>}
+                      {b.sender_name} → {b.receiver_name ?? <span className="text-slate-500">receiver not set</span>}
                     </td>
                     <td className="whitespace-nowrap px-4 py-3">{formatDay(b.pickup_date)}</td>
                     <td className="px-4 py-3">{b.pickup_area}</td>

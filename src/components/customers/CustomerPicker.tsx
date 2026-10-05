@@ -58,25 +58,25 @@ export default function CustomerPicker({
         />
       </div>
       {ready && (
-        <ul className="mt-2 divide-y divide-slate-100 rounded-md border border-slate-200 bg-white text-sm" role="listbox">
+        <ul aria-live="polite" className="mt-2 divide-y divide-slate-100 rounded-md border border-slate-200 bg-white text-sm">
           {loading && !hits.length ? (
-            <li className="px-3 py-2.5 text-slate-500">Searching…</li>
+            <li className="px-3 py-2.5 text-slate-600">Searching…</li>
           ) : answer?.failed && answer.q === q ? (
             <li className="px-3 py-2.5 text-red-700">The search is not available right now.</li>
           ) : !hits.length ? (
             <li className="px-3 py-2.5 text-slate-600">No customer found.</li>
           ) : (
             hits.map((h) => (
-              <li key={h.id} role="option" aria-selected={false}>
-                <button type="button" onClick={() => onPick(h)} className="flex w-full items-start gap-3 px-3 py-2.5 text-left hover:bg-slate-50">
+              <li key={h.id}>
+                <button type="button" onClick={() => onPick(h)} className="flex min-h-11 w-full items-start gap-3 px-3 py-2.5 text-left hover:bg-slate-50">
                   <UserRound className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
                   <span className="min-w-0">
                     <span className="block font-medium text-slate-900">{h.full_name}</span>
-                    <span className="block truncate text-xs text-slate-500">
+                    <span className="block truncate text-xs text-slate-600">
                       {formatPhone(h.phone)}
                       {h.address ? ` · ${h.address}` : ""}
                     </span>
-                    <span className="block text-xs text-slate-500">
+                    <span className="block text-xs text-slate-600">
                       {h.invoices} {h.invoices === 1 ? "invoice" : "invoices"}
                       {h.last_invoice ? ` · last ${h.last_invoice}` : ""}
                     </span>

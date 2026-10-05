@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ChevronRight, Search } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
 import EmptyState from "@/components/ui/EmptyState";
-import { Button, ErrorMessage, StatusBadge, inputClass } from "@/components/ui/form";
+import { Button, ErrorMessage, StatusBadge, inputClass, Loading } from "@/components/ui/form";
 import { useQuery } from "@/lib/hooks";
 import { supabase } from "@/lib/supabase";
 import { money } from "@/lib/format";
@@ -149,7 +149,7 @@ export default function AccountsPage() {
       </div>
 
       {invoices.loading && !invoices.data ? (
-        <p className="text-sm text-slate-500">Loading…</p>
+        <Loading />
       ) : !rows.length ? (
         <EmptyState message={search || status !== "all" ? "No invoices match." : "No invoices yet. An invoice number is issued when a pickup is collected."} />
       ) : (

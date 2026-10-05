@@ -19,3 +19,9 @@
 @media (prefers-reduced-motion: reduce) {
   .swipe-in-next, .swipe-in-previous { animation: none; }
 }
+
+/* Keyboard focus is always visible, on every link, button and control. */
+:where(a, button, summary, select, input, textarea, [tabindex]):focus-visible {
+  outline: 2px solid #1d4ed8;
+  outline-offset: 2px;
+}

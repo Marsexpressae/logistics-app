@@ -7,7 +7,7 @@ import { ArrowLeft, CheckCheck, MapPinCheck, PackagePlus, Rocket, ScanLine, X } 
 import PageHeader from "@/components/ui/PageHeader";
 import ListSearch from "@/components/ui/ListSearch";
 import { matchesSearch } from "@/lib/search";
-import { Button, Card, ErrorMessage, StatusBadge, inputClass } from "@/components/ui/form";
+import { Button, Card, ErrorMessage, StatusBadge, inputClass, Loading } from "@/components/ui/form";
 import { formatDay, todayISO } from "@/lib/format";
 import { useQuery } from "@/lib/hooks";
 import { usePermissions } from "@/lib/profile-context";
@@ -48,7 +48,7 @@ export default function ContainerManifestPage() {
   const overrides = useRef<Record<string, string>>({});
 
   const c = container.data;
-  if (container.loading) return <p className="text-sm text-slate-500">Loading…</p>;
+  if (container.loading) return <Loading />;
   if (!c) return <ErrorMessage message={container.error ?? "Container not found"} />;
 
   const open = c.status === "loading" && canOperate;

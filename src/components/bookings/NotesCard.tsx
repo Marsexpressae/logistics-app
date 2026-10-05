@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type FormEvent, type KeyboardEvent } from "react";
-import { Card, Button, ErrorMessage, inputClass } from "@/components/ui/form";
+import { Card, Button, ErrorMessage, inputClass, Loading } from "@/components/ui/form";
 import { formatDate } from "@/lib/format";
 import { useQuery } from "@/lib/hooks";
 import { usePermissions } from "@/lib/profile-context";
@@ -108,7 +108,7 @@ export default function NotesCard({ bookingId }: { bookingId: string }) {
       )}
 
       {notes.loading && !notes.data ? (
-        <p className="text-sm text-slate-500">Loading…</p>
+        <Loading />
       ) : !notes.data?.length ? (
         <p className="text-sm text-slate-500">No notes yet.</p>
       ) : (

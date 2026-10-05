@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { Camera, IdCard as IdIcon } from "lucide-react";
-import { Button, Card, ErrorMessage, Field, inputClass } from "@/components/ui/form";
+import { Button, Card, ErrorMessage, Field, inputClass, Loading } from "@/components/ui/form";
 import type { IdDocument } from "@/lib/customers";
 import { formatDate } from "@/lib/format";
 import { shrinkImage } from "@/lib/image";
@@ -102,7 +102,7 @@ export default function IdCard({ bookingId, onChanged }: { bookingId: string; on
           )}
         </div>
       ))}
-      {docs.loading && !docs.data && <p className="text-sm text-slate-500">Loading…</p>}
+      {docs.loading && !docs.data && <Loading />}
       <form onSubmit={save} className="space-y-3">
         <Field label={list.length ? "Add another number or photo" : "Emirates ID number"}>
           <input value={eid} onChange={(e) => setEid(e.target.value)} placeholder="784-1990-1234567-1" inputMode="numeric" className={`${inputClass} font-mono`} />
