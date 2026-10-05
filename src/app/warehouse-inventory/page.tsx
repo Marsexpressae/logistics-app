@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ChevronDown, ChevronRight, MoveRight, Undo2 } from "lucide-react";
+import { Boxes, ChevronDown, ChevronRight, MoveRight, Package, PackageCheck, Undo2, type LucideIcon } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
 import EmptyState from "@/components/ui/EmptyState";
 import { Button, Card, ErrorMessage, StatusBadge, inputClass } from "@/components/ui/form";
@@ -22,11 +22,16 @@ import type { Booking, Parcel, ReturnForm, Warehouse } from "@/lib/types";
 type Tab = "intake" | "unpacked" | "packed" | "returns";
 type StockParcel = Parcel & { booking: { code: string; invoice_no: string | null; sender_name: string } };
 
-const TABS: { key: Tab; label: string; hint: string }[] = [
-  { key: "intake", label: "Intake", hint: "Collected cargo waiting to be received into the warehouse." },
-  { key: "unpacked", label: "Unpacked", hint: "Received parcels, as the driver collected them." },
-  { key: "packed", label: "Packed", hint: "Parcels the warehouse repacked or consolidated, with new labels." },
-  { key: "returns", label: "Returns", hint: "Cargo going back to the customer, with the signed return form." },
+// Each tab has its own colour and icon, so staff can recognise it without reading (used by the big tiles on phones).
+const TABS: { key: Tab; label: string; hint: string; icon: LucideIcon; tile: string; tileOn: string }[] = [
+  { key: "intake", label: "Intake", hint: "Collected cargo waiting to be received into the warehouse.", icon: PackageCheck,
+    tile: "border-orange-400 bg-orange-50 text-orange-900", tileOn: "border-orange-600 bg-orange-600 text-white" },
+  { key: "unpacked", label: "Unpacked", hint: "Received parcels, as the driver collected them.", icon: Boxes,
+    tile: "border-blue-400 bg-blue-50 text-blue-900", tileOn: "border-blue-700 bg-blue-700 text-white" },
+  { key: "packed", label: "Packed", hint: "Parcels the warehouse repacked or consolidated, with new labels.", icon: Package,
+    tile: "border-emerald-500 bg-emerald-50 text-emerald-900", tileOn: "border-emerald-700 bg-emerald-700 text-white" },
+  { key: "returns", label: "Returns", hint: "Cargo going back to the customer, with the signed return form.", icon: Undo2,
+    tile: "border-rose-400 bg-rose-50 text-rose-900", tileOn: "border-rose-700 bg-rose-700 text-white" },
 ];
 
 function WarehouseContent() {
@@ -419,7 +424,33 @@ function WarehouseContent() {
 
       <SwipeHint id="warehouse">Swipe left or right to change tab: Intake, Unpacked, Packed, Returns.</SwipeHint>
       <div ref={swipeRef} className="min-h-[70vh]">
-      <div role="tablist" className="mb-2 flex gap-2 overflow-x-auto pb-1">
+      {/* Phones: four big tiles in a 2 x 2 grid, no sideways scrolling. */}
+      <div role="tablist" aria-label="Warehouse sections" className="mb-3 grid grid-cols-2 gap-3 md:hidden">
+        {TABS.map((t) => {
+          const on = tab === t.key;
+          const Icon = t.icon;
+          return (
+            <button
+              key={t.key}
+              id={`warehouse-tile-${t.key}`}
+              role="tab"
+              aria-selected={on}
+              onClick={() => {
+                setSlide(null);
+                setTab(t.key);
+              }}
+              className={`flex min-h-28 flex-col items-start justify-between rounded-xl border-2 p-4 text-left ${on ? t.tileOn : t.tile}`}
+            >
+              <span className="flex w-full items-center justify-between">
+                <Icon className="h-8 w-8" aria-hidden="true" />
+                <span className="text-4xl font-bold leading-none">{counts[t.key]}</span>
+              </span>
+              <span className="text-xl font-semibold">{t.label}</span>
+            </button>
+          );
+        })}
+      </div>
+      <div role="tablist" className="mb-2 hidden gap-2 overflow-x-auto pb-1 md:flex">
         {TABS.map((t) => (
           <button
             key={t.key}
@@ -439,7 +470,7 @@ function WarehouseContent() {
           </button>
         ))}
       </div>
-      <p className="mb-3 text-sm text-slate-500">{TABS.find((t) => t.key === tab)!.hint}</p>
+      <p className="mb-3 text-base text-slate-700 md:text-sm md:text-slate-500">{TABS.find((t) => t.key === tab)!.hint}</p>
       <div className="mb-3 flex">
         <ListSearch
           value={q}
