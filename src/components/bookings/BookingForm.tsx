@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import Link from "next/link";
 import { LocateFixed } from "lucide-react";
 import CustomerPicker from "@/components/customers/CustomerPicker";
 import PhoneInput from "@/components/ui/PhoneInput";
@@ -27,6 +28,11 @@ export default function BookingForm({ booking, submitLabel, onSaved }: BookingFo
   const canPickCustomer = !booking && can("customers.view");
   // A returning customer picked from the list: their details fill the form, and the booking is linked to them when saved.
   const [picked, setPicked] = useState<CustomerHit | null>(null);
+  // Editing: the booking already belongs to a customer. Their name and numbers are changed on the customer page, not here.
+  const linkedCustomer = useQuery<{ customer_id: string } | null>(
+    () => (booking && can("customers.view") ? (supabase.from("booking_contacts").select("customer_id").eq("booking_id", booking.id).eq("role", "customer").maybeSingle() as never) : Promise.resolve({ data: null, error: null })),
+    [booking?.id]
+  );
   // The picked customer's address book, and the receiver chosen from it.
   const [book, setBook] = useState<ReceiverEntry[]>([]);
   const [receiverPick, setReceiverPick] = useState<ReceiverEntry | null>(null);
@@ -56,6 +62,9 @@ export default function BookingForm({ booking, submitLabel, onSaved }: BookingFo
     setWhatsappPhone(formatPhone(c.whatsapp));
     if (c.geo_lat != null && c.geo_lng != null) setGeoText(formatGeo(c.geo_lat, c.geo_lng));
   }
+
+  // A known customer: their details are shown, not typed again, so the booking can never disagree with the customer record.
+  const locked = !!picked || !!linkedCustomer.data;
 
   const geo = parseGeo(geoText);
   const geoInvalid = geoText.trim() !== "" && !geo;
@@ -97,7 +106,7 @@ export default function BookingForm({ booking, submitLabel, onSaved }: BookingFo
     }
 
     const call = parsePhone(senderPhone);
-    if (!call) return setError("Please enter a valid sender phone number, e.g. 050 123 4567.");
+    if (!call) return setError("Please enter a valid customer phone number, e.g. 050 123 4567.");
     const whatsapp = sameWhatsapp ? null : parsePhone(whatsappPhone);
     if (!sameWhatsapp && !whatsapp) return setError("The WhatsApp number is not valid.");
 
@@ -163,14 +172,14 @@ export default function BookingForm({ booking, submitLabel, onSaved }: BookingFo
   return (
     <form onSubmit={onSubmit} className="max-w-3xl space-y-4">
       {/* 1. Who is sending, and everything about collecting from them */}
-      <Card title="Sender &amp; pickup">
+      <Card title="Customer &amp; pickup">
         <div className="grid gap-4 sm:grid-cols-2">
           {canPickCustomer && (
             <div className="rounded-md border border-slate-200 bg-slate-50 p-3 sm:col-span-2">
               {picked ? (
                 <p className="flex flex-wrap items-center justify-between gap-2 text-sm">
                   <span>
-                    Returning customer: <strong>{picked.full_name}</strong> ({picked.invoices} {picked.invoices === 1 ? "invoice" : "invoices"})
+                    Customer: <strong>{picked.full_name}</strong> ({picked.invoices} {picked.invoices === 1 ? "invoice" : "invoices"})
                   </span>
                   <button type="button" onClick={() => setPicked(null)} className="font-medium text-blue-700">
                     Not this customer
@@ -178,17 +187,18 @@ export default function BookingForm({ booking, submitLabel, onSaved }: BookingFo
                 </p>
               ) : (
                 <>
-                  <p className="mb-2 text-sm font-medium text-slate-700">Returning customer? Find them and the details fill in.</p>
+                  <p className="mb-2 text-sm font-medium text-slate-700">Existing customer? Search by mobile, name or an old invoice number.</p>
                   <CustomerPicker onPick={pickCustomer} />
+                  <p className="mt-2 text-xs text-slate-500">New customer? Just fill in the details below. They are saved as a customer automatically.</p>
                 </>
               )}
             </div>
           )}
           <Field label="Name">
-            <input key={`n${fill.n}`} name="sender_name" required defaultValue={fill.name} className={inputClass} />
+            <input key={`n${fill.n}`} name="sender_name" required readOnly={locked} defaultValue={fill.name} className={`${inputClass} ${locked ? "cursor-not-allowed bg-slate-100 text-slate-600" : ""}`} />
           </Field>
           <Field label="Phone">
-            <PhoneInput value={senderPhone} onChange={setSenderPhone} required />
+            <PhoneInput value={senderPhone} onChange={setSenderPhone} required disabled={locked} />
           </Field>
           <div className="sm:col-span-2">
             <label className="flex items-center gap-2 text-sm text-slate-700">
@@ -196,6 +206,7 @@ export default function BookingForm({ booking, submitLabel, onSaved }: BookingFo
                 type="checkbox"
                 checked={sameWhatsapp}
                 onChange={(e) => setSameWhatsapp(e.target.checked)}
+                disabled={locked}
                 className="h-4 w-4"
               />
               WhatsApp is the same number
@@ -203,15 +214,25 @@ export default function BookingForm({ booking, submitLabel, onSaved }: BookingFo
             {!sameWhatsapp && (
               <div className="mt-3 max-w-sm">
                 <Field label="WhatsApp number">
-                  <PhoneInput value={whatsappPhone} onChange={setWhatsappPhone} />
+                  <PhoneInput value={whatsappPhone} onChange={setWhatsappPhone} disabled={locked} />
                 </Field>
               </div>
             )}
           </div>
 
+          {linkedCustomer.data && (
+            <p className="text-xs text-slate-500 sm:col-span-2">
+              To change the customer&apos;s name or numbers, edit them on{" "}
+              <Link href={`/customers/${linkedCustomer.data.customer_id}`} className="font-medium text-blue-700">
+                the customer&apos;s page
+              </Link>
+              . Until the pickup is collected, this booking follows the changes.
+            </p>
+          )}
+
           <div className="border-t border-slate-100 pt-4 sm:col-span-2">
             <h3 className="text-sm font-semibold text-slate-900">Pickup</h3>
-            <p className="text-xs text-slate-500">Where, when and by whom the sender&apos;s cargo is collected.</p>
+            <p className="text-xs text-slate-500">Where, when and by whom the customer&apos;s cargo is collected.</p>
           </div>
           <Field label="Pickup area">
             <select name="pickup_area" required defaultValue={booking?.pickup_area ?? ""} className={inputClass}>

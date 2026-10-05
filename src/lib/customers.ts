@@ -38,7 +38,7 @@ export type TimelineRow = {
 };
 
 export type ContactRole = "customer" | "booker" | "receiver";
-export const ROLE_LABEL: Record<ContactRole, string> = { customer: "Customer (sender)", booker: "Booker", receiver: "Receiver" };
+export const ROLE_LABEL: Record<ContactRole, string> = { customer: "Customer", booker: "Booked by", receiver: "Receiver" };
 
 export type BookingWithoutCustomer = {
   id: string;

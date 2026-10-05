@@ -39,7 +39,6 @@ test("address book: a receiver is a person, reused by phone, never their own rec
 test("save receiver from the booking: person created, address book filled, linked as receiver", async () => {
   const sender = (await create({ p_name: "Sender Two", p_phone: "+971500100003" })).data;
   const b = await job({ receiver_name: "Receiver Rana", receiver_phone: "+923009876543", receiver_address: "Gujranwala" });
-  assert.match((await c.rpc("save_booking_receiver", { p_booking_id: b.id })).error.message, /Link a customer/);
   await link(b.id, sender);
   const rid = (await c.rpc("save_booking_receiver", { p_booking_id: b.id })).data;
   assert.ok(rid);

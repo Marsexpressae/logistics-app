@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { UserPlus, UserRound, X } from "lucide-react";
+import { X } from "lucide-react";
 import ContactButtons from "@/components/contact/ContactButtons";
 import CustomerPicker from "@/components/customers/CustomerPicker";
 import { Button, Card, ErrorMessage } from "@/components/ui/form";
@@ -15,9 +15,9 @@ import { supabase } from "@/lib/supabase";
 type Linked = { role: ContactRole; customer: Pick<Customer, "id" | "full_name" | "phone" | "whatsapp" | "address"> | null };
 
 /**
- * The people linked to a booking: the customer (the sender, who pays), and the booker if somebody else phoned it in.
+ * The people on a booking: the customer (who pays and signs), "booked by" if somebody else phoned it in, and the receiver.
  * Staff find an existing customer by mobile, name, Emirates ID or an old invoice number, or create one from what the
- * booking already says. The invoice keeps its own copy of the sender's details, so linking never changes it.
+ * Every booking has a customer from the start. The invoice keeps its own copy of their details once collected.
  */
 export default function CustomerCard({ bookingId }: { bookingId: string }) {
   const { can } = usePermissions();
@@ -55,7 +55,6 @@ export default function CustomerCard({ bookingId }: { bookingId: string }) {
 
   const link = (role: ContactRole, id: string | null) => run(supabase.rpc("link_booking_customer", { p_booking_id: bookingId, p_customer_id: id, p_role: role }));
   const saveReceiver = () => run(supabase.rpc("save_booking_receiver", { p_booking_id: bookingId }));
-  const createFromBooking = () => run(supabase.rpc("create_customer_from_booking", { p_booking_id: bookingId }));
 
   const person = (role: ContactRole, c: NonNullable<Linked["customer"]>) => (
     <li key={role} className="flex items-start justify-between gap-3 py-3">
@@ -88,28 +87,16 @@ export default function CustomerCard({ bookingId }: { bookingId: string }) {
             {booker && person("booker", booker)}
             {receiver && person("receiver", receiver)}
           </ul>
-          {!customer && <p className="mb-2 text-sm text-slate-600">No customer is linked to this booking yet.</p>}
-
           {canEdit && picking === null && (
-            <div className="mt-2 flex flex-wrap gap-2">
-              {!customer && (
-                <>
-                  <Button variant="secondary" onClick={() => setPicking("customer")}>
-                    <UserRound className="h-4 w-4" /> Find a customer
-                  </Button>
-                  <Button onClick={createFromBooking} disabled={busy}>
-                    <UserPlus className="h-4 w-4" /> Create customer from this booking
-                  </Button>
-                </>
-              )}
-              {!booker && (
-                <Button variant="secondary" onClick={() => setPicking("booker")}>
-                  Add a booker
-                </Button>
-              )}
+            <div className="mt-2 flex flex-wrap items-center gap-2">
               {customer && !receiver && booking.data?.receiver_name && (
                 <Button variant="secondary" onClick={saveReceiver} disabled={busy}>
                   Save receiver to address book
+                </Button>
+              )}
+              {!booker && (
+                <Button variant="secondary" onClick={() => setPicking("booker")}>
+                  Add &quot;booked by&quot;
                 </Button>
               )}
               {!receiver && (
@@ -117,18 +104,16 @@ export default function CustomerCard({ bookingId }: { bookingId: string }) {
                   Link a receiver
                 </Button>
               )}
-              {customer && (
-                <Button variant="secondary" onClick={() => setPicking("customer")}>
-                  Change customer
-                </Button>
-              )}
+              <button type="button" onClick={() => setPicking("customer")} className="text-xs font-medium text-slate-500 underline">
+                Wrong customer? Change
+              </button>
             </div>
           )}
 
           {picking && (
             <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-3">
               <p className="mb-2 text-sm font-medium text-slate-700">
-                {picking === "booker" ? "Who phoned the booking in?" : picking === "receiver" ? "Find the receiver" : "Find the customer (the sender, who pays)"}
+                {picking === "booker" ? "Who phoned the booking in?" : picking === "receiver" ? "Find the receiver" : "Find the right customer. The booking will use their details."}
               </p>
               <CustomerPicker autoFocus onPick={(h) => link(picking, h.id)} />
               <Button variant="secondary" className="mt-2" onClick={() => setPicking(null)}>

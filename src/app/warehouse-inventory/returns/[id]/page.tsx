@@ -134,7 +134,7 @@ export default function ReturnFormPage() {
         </div>
 
         <div className="py-3">
-          <p className="text-xs uppercase text-slate-500">Sender</p>
+          <p className="text-xs uppercase text-slate-500">Customer</p>
           <p className="font-medium">{r.booking?.sender_name}</p>
           <p>{formatPhone(r.booking?.sender_phone ?? null)}</p>
           <p>

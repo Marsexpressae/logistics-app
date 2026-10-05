@@ -8,8 +8,8 @@ import CustomerForm from "@/components/customers/CustomerForm";
 import ListSearch from "@/components/ui/ListSearch";
 import PageHeader from "@/components/ui/PageHeader";
 import EmptyState from "@/components/ui/EmptyState";
-import { Button, Card, ErrorMessage, StatusBadge } from "@/components/ui/form";
-import type { BookingWithoutCustomer, CustomerHit, DuplicateGroup } from "@/lib/customers";
+import { Button, Card, ErrorMessage } from "@/components/ui/form";
+import type { CustomerHit, DuplicateGroup } from "@/lib/customers";
 import { useQuery } from "@/lib/hooks";
 import { formatPhone } from "@/lib/phone";
 import { usePermissions } from "@/lib/profile-context";
@@ -21,7 +21,7 @@ export default function CustomersPage() {
   const router = useRouter();
   const { can } = usePermissions();
   const canEdit = can("customers.edit");
-  const [tab, setTab] = useState<"all" | "todo" | "dupes">("all");
+  const [tab, setTab] = useState<"all" | "dupes">("all");
   const [text, setText] = useState("");
   const [q, setQ] = useState(""); // the text once typing pauses
   const [creating, setCreating] = useState(false);
@@ -38,7 +38,6 @@ export default function CustomersPage() {
     () => (searching ? supabase.rpc("search_customers", { p_query: q, p_limit: PAGE }) : supabase.rpc("list_customers", { p_limit: PAGE, p_offset: 0 })) as never,
     [q, searching]
   );
-  const todo = useQuery<{ bookings: BookingWithoutCustomer[]; total: number }>(() => supabase.rpc("bookings_without_customer", { p_limit: 100 }) as never, []);
 
   const dupes = useQuery<DuplicateGroup[]>(() => supabase.rpc("possible_duplicates") as never, []);
   const groups = dupes.data ?? [];
@@ -55,16 +54,6 @@ export default function CustomersPage() {
   }
 
   const customers = list.data?.customers ?? [];
-  const waiting = todo.data?.total ?? 0;
-
-  async function createFor(bookingId: string) {
-    setBusy(bookingId);
-    setError(null);
-    const { data, error } = await supabase.rpc("create_customer_from_booking", { p_booking_id: bookingId });
-    setBusy(null);
-    if (error) return setError(error.message);
-    router.push(`/customers/${data as string}`);
-  }
 
   return (
     <div className="max-w-4xl space-y-4">
@@ -86,7 +75,6 @@ export default function CustomersPage() {
       <div className="flex flex-wrap items-center gap-2">
         {[
           { key: "all" as const, label: "All customers" },
-          { key: "todo" as const, label: `Bookings without a customer (${waiting})` },
           { key: "dupes" as const, label: `Possible duplicates (${groups.length})` },
         ].map((t) => (
           <button
@@ -100,7 +88,7 @@ export default function CustomersPage() {
         {tab === "all" && <ListSearch value={text} onChange={setText} placeholder="Name, mobile, Emirates ID or invoice" className="ml-auto" />}
       </div>
 
-      <ErrorMessage message={list.error ?? todo.error ?? dupes.error ?? error} />
+      <ErrorMessage message={list.error ?? dupes.error ?? error} />
 
       {tab === "all" &&
         (list.loading && !list.data ? (
@@ -183,45 +171,6 @@ export default function CustomersPage() {
               </Card>
             ))}
           </div>
-        ))}
-
-      {tab === "todo" &&
-        (todo.loading && !todo.data ? (
-          <p className="text-sm text-slate-500">Loading…</p>
-        ) : !todo.data?.bookings.length ? (
-          <EmptyState message="Every booking has a customer. Nothing to do." />
-        ) : (
-          <Card>
-            <p className="mb-3 text-sm text-slate-600">
-              These bookings are not linked to a customer yet. Open one to find the customer, or create the customer from the booking.
-            </p>
-            <ul className="divide-y divide-slate-100 text-sm">
-              {todo.data.bookings.map((b) => (
-                <li key={b.id} className="flex flex-wrap items-center justify-between gap-2 py-3">
-                  <span>
-                    <span className="font-mono font-medium">{b.invoice_no ?? b.code}</span>
-                    {b.invoice_no && <span className="ml-2 font-mono text-xs text-slate-500">{b.code}</span>}
-                    <span className="block text-slate-700">
-                      {b.sender_name} · {formatPhone(b.sender_phone)}
-                    </span>
-                  </span>
-                  <span className="flex items-center gap-2">
-                    <StatusBadge status={b.status} />
-                    {can("bookings.view") && (
-                      <Link href={`/bookings/${b.id}`} className="font-medium text-blue-700">
-                        Open
-                      </Link>
-                    )}
-                    {canEdit && (
-                      <Button variant="secondary" onClick={() => createFor(b.id)} disabled={busy === b.id}>
-                        Create customer
-                      </Button>
-                    )}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </Card>
         ))}
     </div>
   );

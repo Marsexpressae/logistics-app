@@ -160,7 +160,7 @@ function seed(): Db {
     app_settings: [{ key: "require_payment_before_loading", value: false, label: "Require payment before loading into a container",
       description: "When on, a parcel can only be loaded if its booking has an invoice amount and it is paid in full. People with \"Load without full payment\" can override it with a reason.", updated_at: now() },
     { key: "require_id_before_collected", value: false, label: "Require the Emirates ID before marking a pickup collected",
-      description: "When on, the driver must enter the sender's Emirates ID number before a pickup can be marked collected.", updated_at: now() }],
+      description: "When on, the driver must enter the customer's Emirates ID number before a pickup can be marked collected.", updated_at: now() }],
     notifications: [],
     profiles: [
       { id: "mock-user", full_name: "Tester (super admin)", role: "super_admin", active: true, email: "tester@example.test" },
@@ -381,7 +381,7 @@ class Query implements PromiseLike<any> {
             const dbx = db();
             if (this.payload.status === "collected" && r.status !== "collected" && dbx.app_settings.find((x: Row) => x.key === "require_id_before_collected")?.value === true
               && !dbx.id_documents.some((x: Row) => x.booking_id === r.id && x.emirates_id)) {
-              return { data: null, error: { message: "Enter the sender's Emirates ID before marking this pickup collected" }, count: null };
+              return { data: null, error: { message: "Enter the customer's Emirates ID before marking this pickup collected" }, count: null };
             }
           }
         }
@@ -436,6 +436,17 @@ function withDefaults(table: string, it: Row): Row {
         driver_id: null, collected_at: null, cancellation_reason: null, cancelled_at: null,
         geo_lat: null, geo_lng: null, created_at: now(), updated_at: now(), ...stripNull(it),
       });
+      {
+        const phone = /^\+[1-9]\d{6,14}$/.test(row.sender_phone ?? "") ? row.sender_phone : null;
+        let cu = phone ? d.customers.find((x) => x.phone === phone) : undefined;
+        if (!cu) {
+          cu = { id: uid(), full_name: String(row.sender_name ?? "").trim().slice(0, 120), phone, whatsapp: row.sender_whatsapp && row.sender_whatsapp !== phone ? row.sender_whatsapp : null,
+            address: /^legacy invoice/i.test(row.pickup_address ?? "") ? null : (row.pickup_address ?? null), geo_lat: row.geo_lat ?? null, geo_lng: row.geo_lng ?? null,
+            emirates_id: null, warning_note: null, created_by_name: "Tester (super admin)", created_at: now(), updated_at: now() };
+          d.customers.push(cu);
+        }
+        d.booking_contacts.push({ booking_id: row.id, role: "customer", customer_id: cu.id, created_at: now() });
+      }
       break;
     case "containers":
       Object.assign(row, { code: `CN-${d.seq.container++}`, status: "loading", departed_at: null, arrived_at: null, created_at: now(), ...it });
@@ -1016,6 +1027,13 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
       const fields = customerArgs(a);
       if (!c) return fail("Customer not found");
       Object.assign(c, fields, { updated_at: now() });
+      for (const l of db().booking_contacts.filter((x) => x.customer_id === c.id && x.role === "customer")) {
+        const bk = db().bookings.find((x) => x.id === l.booking_id);
+        if (bk && bk.status === "booked") {
+          bk.sender_name = c.full_name;
+          if (c.phone) { bk.sender_phone = c.phone; bk.sender_whatsapp = c.whatsapp; }
+        }
+      }
       save();
       return { data: null, error: null };
     } catch (e) { return fail((e as Error).message); }
@@ -1230,11 +1248,18 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
     const b = db().bookings.find((x) => x.id === p_booking_id);
     if (!b) return fail("Booking not found");
     const e164 = /^\+[1-9][0-9]{6,14}$/;
-    if (p_party === "sender" && !p_phone) return fail("The sender needs a call number");
+    if (p_party === "sender" && !p_phone) return fail("The customer needs a call number");
     if ((p_phone && !e164.test(p_phone)) || (p_whatsapp && !e164.test(p_whatsapp)))
       return fail("Enter the number in international format, for example +971567375716");
     const wa = p_whatsapp && p_whatsapp !== p_phone ? p_whatsapp : null;
-    if (p_party === "sender") { b.sender_phone = p_phone; b.sender_whatsapp = wa; }
+    if (p_party === "sender") {
+      b.sender_phone = p_phone; b.sender_whatsapp = wa;
+      // the correction is to the person, so the customer record is corrected too
+      for (const l of db().booking_contacts.filter((x) => x.booking_id === b.id && x.role === "customer")) {
+        const cu = db().customers.find((x) => x.id === l.customer_id);
+        if (cu) { cu.phone = p_phone; cu.whatsapp = wa; cu.updated_at = now(); }
+      }
+    }
     else { b.receiver_phone = p_phone ?? null; b.receiver_whatsapp = wa; }
     b.updated_at = now();
     save();

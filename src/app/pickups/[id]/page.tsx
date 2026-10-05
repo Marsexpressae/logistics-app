@@ -130,7 +130,7 @@ export default function PickupDetailPage() {
       <ErrorMessage message={error} />
 
       {b.status === "booked" && needId.data === true && hasId.data !== true && (
-        <p className="text-sm text-amber-800">Enter the sender&apos;s Emirates ID above before marking this pickup collected.</p>
+        <p className="text-sm text-amber-800">Enter the customer&apos;s Emirates ID above before marking this pickup collected.</p>
       )}
 
       <div className="grid gap-2 pb-6 sm:grid-cols-2">

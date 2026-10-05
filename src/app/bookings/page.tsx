@@ -84,7 +84,7 @@ function BookingsContent() {
             <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase text-slate-500">
               <tr>
                 <th className="px-4 py-3">Code</th>
-                <th className="px-4 py-3">Sender → Receiver</th>
+                <th className="px-4 py-3">Customer → Receiver</th>
                 <th className="px-4 py-3">Pickup</th>
                 <th className="px-4 py-3">Area</th>
                 <th className="px-4 py-3">Driver</th>

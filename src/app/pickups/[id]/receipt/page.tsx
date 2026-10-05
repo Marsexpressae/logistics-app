@@ -63,7 +63,7 @@ export default function ReceiptPage() {
 
         <div className="grid grid-cols-2 gap-4 py-3">
           <div>
-            <p className="text-xs uppercase text-slate-500">Sender</p>
+            <p className="text-xs uppercase text-slate-500">Customer</p>
             <p className="font-medium">{b.sender_name}</p>
             <p>{formatPhone(b.sender_phone)}</p>
             <p>{b.pickup_address}</p>

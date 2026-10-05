@@ -61,14 +61,14 @@ test("linking: one customer per role per booking, replaced or removed on request
   assert.match((await c.rpc("link_booking_customer", { p_booking_id: bk.id, p_customer_id: a, p_role: "boss" })).error.message, /role/);
 });
 
-test("create from booking copies the sender, and the booking keeps its own details", async () => {
+test("create from booking copies the sender; the booking follows later edits until it is collected", async () => {
   const bk = (await c.from("bookings").insert({ sender_name: "From Booking", sender_phone: "+971500000077", pickup_area: "Dubai", pickup_address: "Legacy invoice 3603", pickup_date: "2026-01-02" }).select("*").single()).data;
   const id = (await c.rpc("create_customer_from_booking", { p_booking_id: bk.id })).data;
   const cust = (await c.from("customers").select("*").eq("id", id).single()).data;
   assert.equal(cust.full_name, "From Booking");
   assert.equal(cust.address, null); // a placeholder address is not copied
   await c.rpc("update_customer", { p_id: id, p_name: "Renamed", p_phone: "+971500000077", p_whatsapp: null, p_address: null, p_lat: null, p_lng: null, p_eid: null });
-  assert.equal((await c.from("bookings").select("*").eq("id", bk.id).single()).data.sender_name, "From Booking");
+  assert.equal((await c.from("bookings").select("*").eq("id", bk.id).single()).data.sender_name, "Renamed"); // still waiting for pickup: follows the customer
 });
 
 test("the timeline brings bookings, notes and customer notes together, newest first", async () => {

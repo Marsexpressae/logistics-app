@@ -108,7 +108,7 @@ export default function BookingChangePanel({ booking, onChanged }: { booking: Bo
                 autoFocus
                 placeholder={
                   mode === "reschedule"
-                    ? "e.g. Sender not available, asked for a later date…"
+                    ? "e.g. Customer not available, asked for a later date…"
                     : "e.g. Customer changed their mind, duplicate booking, unreachable…"
                 }
                 className={inputClass}
