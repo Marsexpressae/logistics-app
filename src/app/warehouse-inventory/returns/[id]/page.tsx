@@ -96,7 +96,7 @@ export default function ReturnFormPage() {
           <ArrowLeft className="h-4 w-4" /> Warehouse
         </Link>
         <span className="flex flex-wrap items-center gap-2">
-          <StatusBadge status={r.status} />
+          <StatusBadge large status={r.status} />
           {canManage && (
             <>
               {r.status !== "cancelled" && (

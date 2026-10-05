@@ -259,17 +259,17 @@ function WarehouseContent() {
                       <span className="min-w-0">
                         <span className="block font-mono text-lg font-semibold text-blue-700">{g.invoice}</span>
                         <span className="block text-base text-slate-800">{g.customer}</span>
-                        <span className="block text-sm text-slate-600">
+                        <span className="block text-base font-medium text-slate-700">
                           {g.parcels.length} {g.parcels.length === 1 ? "package" : "packages"} · {kg(g.parcels.reduce((s, p) => s + Number(p.weight_kg), 0))}
                         </span>
-                        <span className="block text-sm text-slate-600">
+                        <span className="block text-base text-slate-700">
                           {places}
                           {positions ? ` · ${positions}` : ""}
                         </span>
                       </span>
                       <span className="flex shrink-0 flex-col items-end gap-2">
                         {statuses.map((st) => (
-                          <StatusBadge key={st} status={st} />
+                          <StatusBadge large key={st} status={st} />
                         ))}
                         {isOpen ? <ChevronDown className="h-6 w-6 text-slate-600" /> : <ChevronRight className="h-6 w-6 text-slate-600" />}
                       </span>
@@ -288,15 +288,15 @@ function WarehouseContent() {
                           )}
                           <span className="min-w-0 flex-1">
                             <span className="block font-mono text-base font-semibold">{p.barcode}</span>
-                            <span className="block text-sm text-slate-700">
+                            <span className="block text-base text-slate-800">
                               {p.description ?? "—"} · {kg(Number(p.weight_kg))}
                             </span>
-                            <span className="mt-1 block text-sm text-slate-700">
+                            <span className="mt-1 block text-base text-slate-700">
                               {p.warehouse?.name ?? p.warehouse?.code}
                               <ParcelPosition parcelId={p.id} barcode={p.barcode} position={p.position} canEdit={canOperate} onChanged={parcels.reload} />
                             </span>
                           </span>
-                          <StatusBadge status={p.status} />
+                          <StatusBadge large status={p.status} />
                         </div>
                       ))}
                       {canOperate && (
@@ -372,7 +372,7 @@ function WarehouseContent() {
                       <td className="px-4 py-3 text-slate-600">{[...new Set(g.parcels.map((p) => p.position).filter(Boolean))].join(", ")}</td>
                       <td className="space-x-1 px-4 py-3">
                         {statuses.map((s) => (
-                          <StatusBadge key={s} status={s} />
+                          <StatusBadge large key={s} status={s} />
                         ))}
                       </td>
                       <td className="px-4 py-3">
@@ -401,7 +401,7 @@ function WarehouseContent() {
                             <ParcelPosition parcelId={p.id} barcode={p.barcode} position={p.position} canEdit={canOperate} onChanged={parcels.reload} />
                           </td>
                           <td className="px-4 py-2.5">
-                            <StatusBadge status={p.status} />
+                            <StatusBadge large status={p.status} />
                           </td>
                           <td className="px-4 py-2.5"></td>
                         </tr>
@@ -545,14 +545,14 @@ function WarehouseContent() {
                       <span className="min-w-0">
                         <span className="block font-mono text-lg font-semibold text-blue-700">{g.invoice}</span>
                         <span className="block text-base text-slate-800">{g.customer}</span>
-                        <span className="block text-sm text-slate-600">
+                        <span className="block text-base text-slate-700">
                           <span className="font-mono">{g.code}</span> · {g.returns.length} {g.returns.length === 1 ? "return" : "returns"}, {packages}{" "}
                           {packages === 1 ? "package" : "packages"}
                         </span>
                       </span>
                       <span className="flex shrink-0 items-center gap-2">
                         {statuses.map((s) => (
-                          <StatusBadge key={s} status={s} />
+                          <StatusBadge large key={s} status={s} />
                         ))}
                         {isOpen ? <ChevronDown className="h-6 w-6 text-slate-600" /> : <ChevronRight className="h-6 w-6 text-slate-600" />}
                       </span>
@@ -566,13 +566,13 @@ function WarehouseContent() {
                                 <>
                                   <span className="min-w-0">
                                     <span className="block font-mono text-base font-semibold">{x.code}</span>
-                                    <span className="block text-xs text-slate-600">{formatDay(x.form_date)}</span>
-                                    <span className="block text-slate-700">
+                                    <span className="block text-sm text-slate-700">{formatDay(x.form_date)}</span>
+                                    <span className="block text-base text-slate-800">
                                       {(x.parcels ?? []).map((p) => `${p.barcode} (${kg(Number(p.weight_kg))})`).join(", ") || "no packages"}
                                     </span>
                                   </span>
-                                  <span className="flex shrink-0 items-center gap-2">
-                                    <StatusBadge status={x.status} />
+                                  <span className="flex shrink-0 items-center justify-between gap-2">
+                                    <StatusBadge large status={x.status} />
                                     {canOperate && (
                                       <span className="flex items-center gap-1 rounded-md border border-blue-600 px-3 py-2 text-base font-semibold text-blue-700">
                                         {x.status === "open" ? "Form" : "View"} <ChevronRight className="h-5 w-5" />
@@ -581,7 +581,7 @@ function WarehouseContent() {
                                   </span>
                                 </>
                               );
-                              const box = "flex min-h-16 items-center justify-between gap-3 rounded-lg border border-slate-300 bg-white p-3";
+                              const box = "flex min-h-16 flex-col gap-3 rounded-lg border border-slate-300 bg-white p-3 sm:flex-row sm:items-center sm:justify-between";
                               return canOperate ? (
                                 <Link href={`/warehouse-inventory/returns/${x.id}`} className={`${box} active:bg-slate-50`}>
                                   {inner}

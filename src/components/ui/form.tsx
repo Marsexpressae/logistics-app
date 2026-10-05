@@ -1,4 +1,5 @@
 import type { ButtonHTMLAttributes, ReactNode } from "react";
+import { Ban, CheckCircle2, CircleDollarSign, Clock, Container, FileQuestion, PackageCheck, Truck, Undo2, Warehouse, type LucideIcon } from "lucide-react";
 import { STATUS } from "@/lib/status";
 
 export const inputClass =
@@ -34,10 +35,22 @@ export function Button({ variant = "primary", size, className = "", ...props }: 
   );
 }
 
-export function StatusBadge({ status }: { status: string }) {
+// One icon per status, so it can be recognised without reading.
+const STATUS_ICON: Record<string, LucideIcon> = {
+  booked: Clock, collected: PackageCheck, repacked: PackageCheck, at_warehouse: Warehouse, in_warehouse: Warehouse,
+  loaded: Container, in_transit: Truck, ready_for_return: Undo2, returned: CheckCircle2, cancelled: Ban, open: Clock,
+  completed: CheckCircle2, delivered: CheckCircle2, loading: Container, departed: Truck, arrived: CheckCircle2,
+  not_invoiced: FileQuestion, unpaid: CircleDollarSign, partial: CircleDollarSign, paid: CheckCircle2,
+};
+
+export function StatusBadge({ status, large = false }: { status: string; large?: boolean }) {
   const s = STATUS[status] ?? { label: status, className: "bg-slate-100 text-slate-700" };
+  const Icon = STATUS_ICON[status];
   return (
-    <span className={`inline-block whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium ${s.className}`}>
+    <span
+      className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full font-medium ${large ? "px-3 py-1 text-sm" : "px-2.5 py-0.5 text-xs"} ${s.className}`}
+    >
+      {Icon && <Icon className={large ? "h-4 w-4" : "h-3.5 w-3.5"} aria-hidden="true" />}
       {s.label}
     </span>
   );
