@@ -25,6 +25,7 @@ export default function ReturnFormPage() {
   );
   const router = useRouter();
   const canManage = usePermissions().can("returns.manage");
+  const canPrint = usePermissions().can("documents.print");
   const { org } = useOrganization();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState({ date: "", receivedBy: "", note: "" });
@@ -107,9 +108,11 @@ export default function ReturnFormPage() {
               </Button>
             </>
           )}
-          <Button onClick={() => window.print()}>
-            <Printer className="h-4 w-4" /> Print form
-          </Button>
+          {canPrint && (
+            <Button onClick={() => window.print()}>
+              <Printer className="h-4 w-4" /> Print form
+            </Button>
+          )}
         </span>
       </div>
 

@@ -54,9 +54,11 @@ export default function StatementPage() {
           <a href={share} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700">
             <MessageCircle className="h-4 w-4" /> Send summary on WhatsApp
           </a>
-          <Button onClick={() => window.print()}>
-            <Printer className="h-4 w-4" /> Print
-          </Button>
+          {can("documents.print") && (
+            <Button onClick={() => window.print()}>
+              <Printer className="h-4 w-4" /> Print
+            </Button>
+          )}
         </span>
       </div>
 

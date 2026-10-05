@@ -12,6 +12,7 @@ import ParcelPosition from "@/components/warehouse/ParcelPosition";
 import { Button, Card, ErrorMessage, Field, inputClass } from "@/components/ui/form";
 import { kg, round2 } from "@/lib/format";
 import { useQuery } from "@/lib/hooks";
+import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
 import type { Booking, BookingItem, Parcel, Warehouse } from "@/lib/types";
 
@@ -25,6 +26,7 @@ const parcelsFromItems = (items: BookingItem[]): Row[] =>
 
 export default function ReceivePage() {
   const { bookingId } = useParams<{ bookingId: string }>();
+  const canPrint = usePermissions().can("documents.print");
   const booking = useQuery<Booking>(() => supabase.from("bookings").select("*").eq("id", bookingId).single());
   const items = useQuery<BookingItem[]>(() => supabase.from("booking_items").select("*").eq("booking_id", bookingId).order("id"));
   const warehouses = useQuery<Warehouse[]>(() => supabase.from("warehouses").select("*").order("code"));
@@ -215,9 +217,11 @@ export default function ReceivePage() {
               <ParcelLabel key={p.id} barcode={p.barcode} description={p.description} weightKg={p.weight_kg} warehouse={p.warehouse?.code} />
             ))}
           </div>
-          <Button className="mt-3 print:hidden" onClick={() => window.print()}>
-            <Printer className="h-4 w-4" /> Print labels
-          </Button>
+          {canPrint && (
+            <Button className="mt-3 print:hidden" onClick={() => window.print()}>
+              <Printer className="h-4 w-4" /> Print labels
+            </Button>
+          )}
         </Card>
       )}
     </div>

@@ -114,3 +114,8 @@ test("ID photos: the permission goes to staff and drivers; merging only to manag
   assert.ok(has("driver", "customers.id_photo") && has("staff", "customers.id_photo") && !has("warehouse", "customers.id_photo"));
   assert.ok(has("manager", "customers.manage") && !has("staff", "customers.manage"));
 });
+
+test("printing is a permission that every role has until it is removed", async () => {
+  const perms = (await c.from("role_permissions").select("*")).data as R[];
+  for (const role of ["super_admin", "manager", "staff", "warehouse", "driver"]) assert.ok(perms.some((x) => x.role === role && x.permission === "documents.print"), role);
+});

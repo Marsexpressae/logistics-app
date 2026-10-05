@@ -17,6 +17,7 @@ import ContactCard from "@/components/contact/ContactCard";
 import ScheduleHistory from "@/components/bookings/ScheduleHistory";
 import { Button, Card, ErrorMessage, StatusBadge } from "@/components/ui/form";
 import { useQuery } from "@/lib/hooks";
+import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
 import { formatDay } from "@/lib/format";
 import { mapsUrl } from "@/lib/geo";
@@ -24,6 +25,7 @@ import type { Booking, BookingItem } from "@/lib/types";
 
 export default function PickupDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const canPrint = usePermissions().can("documents.print");
   const booking = useQuery<Booking>(() =>
     supabase.from("bookings").select("*, payments(*)").eq("id", id).single()
   );
@@ -137,12 +139,12 @@ export default function PickupDetailPage() {
             <CheckCircle2 className="h-4 w-4" /> Mark collected
           </Button>
         )}
-        <Link
+        {canPrint && <Link
           href={`/pickups/${id}/receipt`}
           className="inline-flex items-center justify-center gap-2 rounded-md border border-slate-300 bg-white py-3 text-sm font-medium text-slate-700"
         >
           <Printer className="h-4 w-4" /> Receipt
-        </Link>
+        </Link>}
       </div>
 
       {/* Reschedule or cancel this pickup, with a reason. The office is notified automatically. */}

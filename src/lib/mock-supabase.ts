@@ -60,6 +60,7 @@ const PERMISSIONS: Row[] = [
   ["notes.write", "Bookings", "Write notes on jobs", "Add notes to a booking or invoice and mention colleagues"],
   ["customers.view", "Customers", "See customers", "Open the customer list and each customer's history"],
   ["customers.edit", "Customers", "Add and edit customers", "Create customers, correct their details, and link them to bookings"],
+  ["documents.print", "General", "Print documents", "Print receipts, return forms, parcel labels and statements"],
   ["customers.id_photo", "Customers", "See and add Emirates ID photos", "Record the Emirates ID and photo at pickup, and see them on the jobs you can open"],
   ["customers.manage", "Customers", "Merge and delete customers", "Merge duplicate customers or delete one (managers)"],
   ["returns.manage", "Warehouse", "Edit or delete returns", "Correct the date, note or receiver of a return, or delete a return (a reason is required)"],
@@ -78,6 +79,8 @@ const GRANTS: Record<string, string[]> = {
   warehouse: ["dashboard.view", "warehouse.view", "warehouse.manage", "containers.view", "containers.manage", "notifications.view", "notes.write"],
   driver: ["pickups.view_own", "pickups.collect", "pickups.cancel", "pickups.reschedule", "notifications.view", "pickups.edit_contact", "items.edit", "notes.write", "customers.id_photo"],
 };
+// Printing is allowed for every role until a super admin removes it (like migration 0043).
+for (const role of Object.keys(GRANTS)) if (!GRANTS[role].includes("documents.print")) GRANTS[role].push("documents.print");
 const ROLE_PERMISSIONS: Row[] = Object.entries(GRANTS).flatMap(([role, perms]) => perms.map((permission) => ({ role, permission })));
 
 // ---------------------------------------------------------------- seed data

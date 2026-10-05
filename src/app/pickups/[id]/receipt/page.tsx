@@ -7,6 +7,7 @@ import { Button, ErrorMessage } from "@/components/ui/form";
 import { site } from "@/config/site";
 import { useOrganization } from "@/lib/organization";
 import { useQuery } from "@/lib/hooks";
+import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
 import { formatDate, kg, methodLabel, money, round2, totalPaid } from "@/lib/format";
 import { formatPhone } from "@/lib/phone";
@@ -14,6 +15,7 @@ import type { Booking, BookingItem } from "@/lib/types";
 
 export default function ReceiptPage() {
   const { id } = useParams<{ id: string }>();
+  const canPrint = usePermissions().can("documents.print");
   const { org } = useOrganization();
   const booking = useQuery<Booking>(() =>
     supabase.from("bookings").select("*, driver:drivers(name), payments(*)").eq("id", id).single()
@@ -36,9 +38,11 @@ export default function ReceiptPage() {
         <Link href={`/pickups/${id}`} className="inline-flex items-center gap-1 text-sm text-slate-600">
           <ArrowLeft className="h-4 w-4" /> Back
         </Link>
-        <Button onClick={() => window.print()}>
-          <Printer className="h-4 w-4" /> Print
-        </Button>
+        {canPrint && (
+          <Button onClick={() => window.print()}>
+            <Printer className="h-4 w-4" /> Print
+          </Button>
+        )}
       </div>
 
       <div className="rounded-lg border border-slate-200 bg-white p-6 text-sm print:border-0 print:p-0">

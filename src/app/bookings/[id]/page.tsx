@@ -29,6 +29,7 @@ export default function EditBookingPage() {
   const router = useRouter();
   const booking = useQuery<Booking>(() => supabase.from("bookings").select("*").eq("id", id).single());
   const { can } = usePermissions();
+  const canPrint = usePermissions().can("documents.print");
   const canEdit = can("bookings.edit");
   const canSeeHistory = can("activity.view");
   // The full activity log needs the activity.view permission (the database enforces it too).
@@ -62,12 +63,14 @@ export default function EditBookingPage() {
         />
         <div className="flex items-center gap-3">
           <StatusBadge status={b.status} />
-          <Link
-            href={`/pickups/${id}/receipt`}
-            className="inline-flex items-center gap-1.5 text-sm font-medium text-blue-700"
-          >
-            <Printer className="h-4 w-4" /> Receipt
-          </Link>
+          {canPrint && (
+            <Link
+              href={`/pickups/${id}/receipt`}
+              className="inline-flex items-center gap-1.5 text-sm font-medium text-blue-700"
+            >
+              <Printer className="h-4 w-4" /> Receipt
+            </Link>
+          )}
         </div>
       </div>
 
