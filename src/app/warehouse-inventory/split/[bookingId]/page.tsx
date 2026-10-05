@@ -127,19 +127,20 @@ export default function ReceivePage() {
                   ))}
                 </ul>
                 <ErrorMessage message={error} />
-                <Button onClick={() => save(collected)} disabled={busy || !warehouse}>
-                  <PackageCheck className="h-4 w-4" />
+                <Button size="large" onClick={() => save(collected)} disabled={busy || !warehouse}>
+                  <PackageCheck className="h-6 w-6" />
                   {busy ? "Receiving…" : `Receive ${collected.length} ${collected.length === 1 ? "parcel" : "parcels"}`}
                 </Button>
-                <button
-                  className="ml-4 text-sm text-slate-600 underline"
+                <Button
+                  variant="secondary"
+                  className="mt-3 w-full"
                   onClick={() => {
                     setCustom(collected);
                     setRepack(true);
                   }}
                 >
                   Pack differently
-                </button>
+                </Button>
               </>
             )}
 
@@ -170,8 +171,9 @@ export default function ReceivePage() {
               {!repack && (
                 <>
                   {" "}
-                  <button
-                    className="text-slate-500 underline"
+                  <Button
+                    variant="secondary"
+                    className="mt-3 w-full"
                     onClick={() => {
                       // Start from the parcels as they are, unless they are empty placeholders (no contents, 0 kg):
                       // then start from what was collected, so a bad first receive is a one-click fix.
@@ -182,7 +184,7 @@ export default function ReceivePage() {
                     }}
                   >
                     Repack
-                  </button>
+                  </Button>
                 </>
               )}
             </p>
@@ -218,8 +220,8 @@ export default function ReceivePage() {
             ))}
           </div>
           {canPrint && (
-            <Button className="mt-3 print:hidden" onClick={() => window.print()}>
-              <Printer className="h-4 w-4" /> Print labels
+            <Button size="large" className="mt-3 print:hidden" onClick={() => window.print()}>
+              <Printer className="h-6 w-6" /> Print labels
             </Button>
           )}
         </Card>
@@ -252,7 +254,7 @@ export default function ReceivePage() {
       <div className="mt-3 space-y-2">
         {rows.map((r, i) => (
           <div key={i} className="flex items-center gap-2">
-            <span className="w-24 shrink-0 font-mono text-xs text-slate-500">
+            <span className="w-20 shrink-0 font-mono text-xs text-slate-600">
               {b!.code}-P{i + 1}
             </span>
             <input className={inputClass} placeholder="Contents" value={r.description} onChange={(e) => update(i, { description: e.target.value })} />
@@ -265,13 +267,13 @@ export default function ReceivePage() {
               value={r.weight_kg}
               onChange={(e) => update(i, { weight_kg: e.target.value })}
             />
-            <button aria-label="Remove parcel" disabled={rows.length === 1} onClick={() => setCustom(rows.filter((_, idx) => idx !== i))}>
-              <Trash2 className="h-4 w-4 text-slate-400" />
+            <button aria-label="Remove parcel" className="p-3" disabled={rows.length === 1} onClick={() => setCustom(rows.filter((_, idx) => idx !== i))}>
+              <Trash2 className="h-6 w-6 text-slate-600" />
             </button>
           </div>
         ))}
         <div className="flex flex-wrap items-center gap-3">
-          <Button variant="secondary" onClick={() => setCustom([...rows, { description: "", weight_kg: "" }])}>
+          <Button variant="secondary" className="w-full sm:w-auto" onClick={() => setCustom([...rows, { description: "", weight_kg: "" }])}>
             <Plus className="h-4 w-4" /> Add parcel
           </Button>
           <span className={`text-sm ${different ? "text-amber-700" : "text-slate-500"}`}>
@@ -280,12 +282,13 @@ export default function ReceivePage() {
           </span>
         </div>
         <ErrorMessage message={error} />
-        <div className="flex gap-2">
-          <Button onClick={() => save(rows)} disabled={busy || !warehouse}>
+        <div className="flex flex-col gap-2">
+          <Button size="large" onClick={() => save(rows)} disabled={busy || !warehouse}>
             {busy ? "Saving…" : "Save repacked parcels"}
           </Button>
           <Button
             variant="secondary"
+            className="w-full"
             onClick={() => {
               setRepack(false);
               setCustom(null);

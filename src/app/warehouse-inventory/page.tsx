@@ -187,8 +187,11 @@ function WarehouseContent() {
               {picked.length} selected
               {!oneBooking && <span className="ml-2 text-orange-800">A return form covers one invoice at a time.</span>}
             </span>
-            <span className="flex flex-wrap items-center gap-2">
-              <select aria-label="Move to" value={moveTo} onChange={(e) => setMoveTo(e.target.value)} className={`${inputClass} w-auto`} disabled={busy}>
+            <span className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center">
+              <Button size="large" onClick={prepareReturn} disabled={busy || !oneBooking}>
+                <Undo2 className="h-6 w-6" /> Return selected
+              </Button>
+              <select aria-label="Move to" value={moveTo} onChange={(e) => setMoveTo(e.target.value)} className={`${inputClass} sm:w-auto`} disabled={busy}>
                 <option value="">Move to…</option>
                 {(warehouses.data ?? [])
                   .filter((w) => w.active !== false)
@@ -198,14 +201,11 @@ function WarehouseContent() {
                     </option>
                   ))}
               </select>
-              <Button onClick={moveSelected} disabled={busy || !moveTo}>
-                <MoveRight className="h-4 w-4" /> Move
+              <Button variant="secondary" onClick={moveSelected} disabled={busy || !moveTo}>
+                <MoveRight className="h-5 w-5" /> Move to the place above
               </Button>
               <Button variant="secondary" onClick={() => setPicked([])} disabled={busy}>
-                Clear
-              </Button>
-              <Button variant="secondary" onClick={prepareReturn} disabled={busy || !oneBooking}>
-                <Undo2 className="h-4 w-4" /> Return selected
+                Clear selection
               </Button>
             </span>
           </div>

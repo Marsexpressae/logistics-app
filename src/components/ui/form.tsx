@@ -15,6 +15,8 @@ export function Field({ label, children }: { label: string; children: ReactNode 
 
 type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: "primary" | "secondary" | "danger";
+  /** large = one main action: full width, 56px tall, bigger text (for phones in the warehouse). */
+  size?: "large";
 };
 
 const variants = {
@@ -23,11 +25,11 @@ const variants = {
   danger: "bg-red-600 text-white hover:bg-red-700",
 };
 
-export function Button({ variant = "primary", className = "", ...props }: ButtonProps) {
+export function Button({ variant = "primary", size, className = "", ...props }: ButtonProps) {
   return (
     <button
       {...props}
-      className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-10 ${variants[variant]} ${className}`}
+      className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-10 ${variants[variant]} ${size === "large" ? "min-h-14! w-full text-lg font-semibold" : ""} ${className}`}
     />
   );
 }

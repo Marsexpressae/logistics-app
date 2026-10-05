@@ -91,11 +91,11 @@ export default function ReturnFormPage() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
-      <div className="flex items-center justify-between print:hidden">
-        <Link href="/warehouse-inventory" className="inline-flex items-center gap-1 text-sm text-slate-600">
+      <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
+        <Link href="/warehouse-inventory" className="inline-flex min-h-11 items-center gap-1 text-base text-slate-700">
           <ArrowLeft className="h-4 w-4" /> Warehouse
         </Link>
-        <span className="flex items-center gap-3">
+        <span className="flex flex-wrap items-center gap-2">
           <StatusBadge status={r.status} />
           {canManage && (
             <>
@@ -207,11 +207,11 @@ export default function ReturnFormPage() {
           </div>
           <p className="text-xs text-slate-500">Use the real date when entering an old return. Every change is recorded in the Activity log.</p>
           <ErrorMessage message={error} />
-          <div className="flex gap-2">
-            <Button onClick={saveEdit} disabled={busy || !draft.date}>
+          <div className="flex flex-col gap-2">
+            <Button size="large" onClick={saveEdit} disabled={busy || !draft.date}>
               Save changes
             </Button>
-            <Button variant="secondary" onClick={() => setEditing(false)} disabled={busy}>
+            <Button variant="secondary" className="w-full" onClick={() => setEditing(false)} disabled={busy}>
               Cancel
             </Button>
           </div>
@@ -222,22 +222,27 @@ export default function ReturnFormPage() {
       {open && (
         <div className="space-y-3 rounded-lg border border-slate-200 bg-white p-4 print:hidden">
           <h2 className="text-base font-semibold">After the customer signs</h2>
-          <p className="text-sm text-slate-600">
-            Print the form, hand over the packages and have it signed. Then enter who received them and mark the return as done.
+          <p className="text-sm text-slate-700">
+            1. Print the form, hand over the packages and have it signed. 2. Enter who received them. 3. Mark the return as done.
           </p>
+          {canPrint && (
+            <Button size="large" variant="secondary" onClick={() => window.print()}>
+              <Printer className="h-6 w-6" /> 1. Print the form
+            </Button>
+          )}
           <input
             className={inputClass}
-            placeholder="Name of the person who received the packages"
+            placeholder="2. Name of the person who received the packages"
             aria-label="Received by"
             value={receivedBy}
             onChange={(e) => setReceivedBy(e.target.value)}
           />
           <ErrorMessage message={error} />
-          <div className="flex gap-2">
-            <Button onClick={complete} disabled={busy || !receivedBy.trim()}>
-              <CheckCircle2 className="h-4 w-4" /> Mark returned (signed)
+          <div className="flex flex-col gap-2">
+            <Button size="large" onClick={complete} disabled={busy || !receivedBy.trim()}>
+              <CheckCircle2 className="h-6 w-6" /> 3. Mark returned (signed)
             </Button>
-            <Button variant="secondary" onClick={cancel} disabled={busy}>
+            <Button variant="secondary" className="w-full" onClick={cancel} disabled={busy}>
               Cancel return
             </Button>
           </div>
