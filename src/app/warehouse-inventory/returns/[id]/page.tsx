@@ -95,11 +95,13 @@ export default function ReturnFormPage() {
         </Link>
         <span className="flex items-center gap-3">
           <StatusBadge status={r.status} />
-          {canManage && r.status !== "cancelled" && (
+          {canManage && (
             <>
-              <Button variant="secondary" onClick={startEdit} aria-label="Edit this return">
-                <Pencil className="h-4 w-4" /> Edit
-              </Button>
+              {r.status !== "cancelled" && (
+                <Button variant="secondary" onClick={startEdit} aria-label="Edit this return">
+                  <Pencil className="h-4 w-4" /> Edit
+                </Button>
+              )}
               <Button variant="secondary" onClick={remove} aria-label="Delete this return">
                 <Trash2 className="h-4 w-4" /> Delete
               </Button>
