@@ -14,11 +14,11 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.117.2",
     "libphonenumber-js": "^1.13.14",
-    "lucide-react": "^1.49.0",
+    "lucide-react": "^1.52.0",
     "next": "16.3.8",
-    "react": "19.2.8",
+    "react": "19.3.0",
     "react-barcode": "^1.6.1",
-    "react-dom": "19.2.8",
+    "react-dom": "19.3.0",
     "web-push": "^3.6.7"
   },
   "devDependencies": {

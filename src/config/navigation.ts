@@ -46,12 +46,17 @@ const extraRules: { prefix: string; anyOf: string[] }[] = [
   { prefix: "/settings/roles", anyOf: ["roles.manage"] },
 ];
 
-/** Can someone holding these permissions open this path? The longest matching rule wins. */
-export function canAccess(permissions: string[], path: string): boolean {
-  const rules = [...navItems.map((i) => ({ prefix: i.href, anyOf: i.anyOf })), ...extraRules];
-  const matches = rules
+const rulesFor = (path: string) =>
+  [...navItems.map((i) => ({ prefix: i.href, anyOf: i.anyOf })), ...extraRules]
     .filter((r) => (r.prefix === "/" ? path === "/" : path === r.prefix || path.startsWith(r.prefix + "/")))
     .sort((a, b) => b.prefix.length - a.prefix.length);
+
+/** Does any access rule cover this path? An address with no rule is not one of our pages, so the app shows "Page not found". */
+export const hasAccessRule = (path: string) => rulesFor(path).length > 0;
+
+/** Can someone holding these permissions open this path? The longest matching rule wins. */
+export function canAccess(permissions: string[], path: string): boolean {
+  const matches = rulesFor(path);
   return matches.length > 0 && matches[0].anyOf.some((p) => permissions.includes(p));
 }
 

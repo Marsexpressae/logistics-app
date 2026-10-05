@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ChevronRight, ShieldCheck, UserCog } from "lucide-react";
 import NumberingCard from "@/components/settings/NumberingCard";
 import OrganizationCard from "@/components/settings/OrganizationCard";
+import ProblemsCard from "@/components/settings/ProblemsCard";
 import WarehousesCard from "@/components/settings/WarehousesCard";
 import PageHeader from "@/components/ui/PageHeader";
 import { Button, Card, ErrorMessage } from "@/components/ui/form";
@@ -109,6 +110,8 @@ export default function SettingsPage() {
       <WarehousesCard />
 
       <NumberingCard />
+
+      <ProblemsCard />
 
       <Card title="People and access">
         <ul className="divide-y divide-slate-100">

@@ -10,10 +10,10 @@ type Db = {
   [table: string]: any;
   drivers: Row[]; warehouses: Row[]; bookings: Row[]; booking_items: Row[]; payments: Row[];
   containers: Row[]; parcels: Row[]; parcel_events: Row[]; profiles: Row[]; audit_log: Row[]; roles: Row[]; permissions: Row[]; role_permissions: Row[];
-  booking_events: Row[]; notifications: Row[]; app_settings: Row[]; returns: Row[]; booking_notes: Row[]; number_series: Row[]; organization: Row[];
+  booking_events: Row[]; notifications: Row[]; app_settings: Row[]; returns: Row[]; booking_notes: Row[]; client_errors: Row[]; number_series: Row[]; organization: Row[];
 };
 
-const STORAGE_KEY = "logistics-mock-db-v28";
+const STORAGE_KEY = "logistics-mock-db-v29";
 const AUTH_KEY = "logistics-mock-signed-out";
 
 const uid = () => crypto.randomUUID();
@@ -144,6 +144,7 @@ function seed(): Db {
     booking_events: [],
     returns: [],
     booking_notes: [],
+    client_errors: [],
     organization: [{ id: uid(), legal_name: "", currency: "AED", country: "United Arab Emirates", updated_at: now() }],
     number_series: [
       { kind: "invoice", prefix: "INV-", next_number: 1004 },
@@ -800,6 +801,26 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
       },
       error: null,
     };
+  },
+
+  // The private error log (Settings > Problems). In sample data mode errors are only kept in this browser.
+  log_client_error({ p_message, p_stack, p_path, p_agent }) {
+    const d = db();
+    const msg = String(p_message ?? "").trim().slice(0, 500);
+    if (!msg) return { data: null, error: null };
+    const same = d.client_errors.find((e) => e.message === msg && Date.now() - new Date(e.last_seen).getTime() < 10 * 60_000);
+    if (same) Object.assign(same, { count: same.count + 1, last_seen: now() });
+    else d.client_errors.unshift({ id: Date.now() + Math.random(), first_seen: now(), last_seen: now(), count: 1, user_id: "mock-user", user_name: "Tester (super admin)",
+      path: String(p_path ?? "").slice(0, 200), message: msg, stack: String(p_stack ?? "").slice(0, 2000), user_agent: String(p_agent ?? "").slice(0, 200) });
+    d.client_errors = d.client_errors.slice(0, 300);
+    save();
+    return { data: null, error: null };
+  },
+
+  clear_client_errors() {
+    db().client_errors = [];
+    save();
+    return { data: null, error: null };
   },
 
   mentionable_users() {

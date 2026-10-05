@@ -9,9 +9,10 @@ import BottomNav from "./BottomNav";
 import BrandMark from "@/components/brand/BrandMark";
 import NotificationToast from "@/components/notifications/NotificationToast";
 import GlobalSearch from "@/components/search/GlobalSearch";
+import ErrorReporter from "@/components/system/ErrorReporter";
 import InstallBanner from "@/components/pwa/InstallBanner";
 import CountBadge from "@/components/ui/CountBadge";
-import { canAccess, homePath } from "@/config/navigation";
+import { canAccess, hasAccessRule, homePath } from "@/config/navigation";
 import { site } from "@/config/site";
 import { BadgeProvider, useBadgeCounts } from "@/lib/badges";
 import { NotificationProvider, useNotificationsState } from "@/lib/notifications";
@@ -41,7 +42,8 @@ export default function AppShell({ children }: { children: ReactNode }) {
   const wantsNotifications = !!profile && permissions.includes("notifications.view");
   const notifications = useNotificationsState(session?.user.id, wantsNotifications);
 
-  const allowed = profile ? canAccess(permissions, pathname) : true;
+  // A page we know about needs its permission; an address that is not one of our pages shows "Page not found".
+  const allowed = profile ? !hasAccessRule(pathname) || canAccess(permissions, pathname) : true;
 
   useEffect(() => {
     if (isPublic) return;
@@ -110,6 +112,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
             </>
           )}
         </header>
+        <ErrorReporter />
         <NotificationToast />
         <Sidebar />
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
