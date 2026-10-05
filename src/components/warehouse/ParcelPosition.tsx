@@ -47,18 +47,18 @@ export default function ParcelPosition({
             maxLength={60}
             aria-label={`Position of ${barcode}`}
             placeholder="e.g. Rack 3"
-            className={`${inputClass} w-32 py-1`}
+            className={`${inputClass} w-32`}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter") save();
               if (e.key === "Escape") setEditing(false);
             }}
           />
-          <button aria-label="Save position" disabled={busy} onClick={save} className="p-1 text-green-700">
-            <Check className="h-4 w-4" />
+          <button aria-label="Save position" disabled={busy} onClick={save} className="p-3 text-green-700">
+            <Check className="h-6 w-6" />
           </button>
-          <button aria-label="Cancel" onClick={() => setEditing(false)} className="p-1 text-slate-500">
-            <X className="h-4 w-4" />
+          <button aria-label="Cancel" onClick={() => setEditing(false)} className="p-3 text-slate-600">
+            <X className="h-6 w-6" />
           </button>
         </span>
         {error && <span className="text-xs text-red-700">{error}</span>}
@@ -68,7 +68,7 @@ export default function ParcelPosition({
 
   return (
     <span className="inline-flex items-center gap-1">
-      <span className={position ? "" : "text-slate-400"}>{position || "—"}</span>
+      <span className={position ? "" : "text-slate-500"}>{position || "—"}</span>
       {canEdit && (
         <button
           aria-label={`Set the position of ${barcode}`}
@@ -77,9 +77,9 @@ export default function ParcelPosition({
             setError(null);
             setEditing(true);
           }}
-          className="p-1 text-slate-400 hover:text-slate-700"
+          className="p-3 text-slate-600 hover:text-slate-900"
         >
-          <Pencil className="h-3.5 w-3.5" />
+          <Pencil className="h-5 w-5" />
         </button>
       )}
     </span>

@@ -167,12 +167,12 @@ function WarehouseContent() {
     );
     return (
       <>
-        <div className="mb-3 flex gap-2">
+        <div className="mb-3 flex flex-wrap gap-2">
           {[{ code: "all", name: "All" }, ...(warehouses.data ?? []).map((w) => ({ code: w.code, name: w.name }))].map((w) => (
             <button
               key={w.code}
               onClick={() => setFilter(w.code)}
-              className={`rounded-full px-3 py-1 text-sm ${
+              className={`min-h-11 rounded-full px-4 py-2 text-sm ${
                 filter === w.code ? "bg-blue-600 text-white" : "border border-slate-300 bg-white text-slate-700"
               }`}
             >
@@ -216,7 +216,100 @@ function WarehouseContent() {
         {!visible.length ? (
           <EmptyState message={q.trim() ? "No packages match your search." : empty} />
         ) : (
-          <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+          <>
+          {/* Phones: one big card per invoice, with finger-sized checkboxes and buttons (the table below is for wide screens). */}
+          <ul className="space-y-3 md:hidden">
+            {groups(visible).map((g) => {
+              const isOpen = open.includes(g.bookingId);
+              const selectable = g.parcels.filter((p) => p.status === "in_warehouse");
+              const ticked = selectable.filter((p) => picked.includes(p.id)).length;
+              const statuses = [...new Set(g.parcels.map((p) => p.status))];
+              const places = [...new Set(g.parcels.map((p) => p.warehouse?.name ?? p.warehouse?.code).filter(Boolean))].join(", ");
+              const positions = [...new Set(g.parcels.map((p) => p.position).filter(Boolean))].join(", ");
+              return (
+                <li key={g.bookingId} className="rounded-lg border border-slate-300 bg-white">
+                  <div className="flex items-stretch">
+                    {canOperate && (
+                      <label className="flex w-14 shrink-0 items-center justify-center">
+                        {selectable.length > 0 && (
+                          <input
+                            type="checkbox"
+                            className="h-7 w-7"
+                            aria-label={`Select all packages of ${g.invoice}`}
+                            checked={ticked === selectable.length}
+                            ref={(el) => {
+                              if (el) el.indeterminate = ticked > 0 && ticked < selectable.length;
+                            }}
+                            onChange={() => toggleGroup(g.parcels)}
+                          />
+                        )}
+                      </label>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => toggleOpen(g.bookingId)}
+                      aria-expanded={isOpen}
+                      className="flex min-h-20 min-w-0 flex-1 items-center justify-between gap-2 py-3 pr-3 text-left"
+                    >
+                      <span className="min-w-0">
+                        <span className="block font-mono text-lg font-semibold text-blue-700">{g.invoice}</span>
+                        <span className="block text-base text-slate-800">{g.customer}</span>
+                        <span className="block text-sm text-slate-600">
+                          {g.parcels.length} {g.parcels.length === 1 ? "package" : "packages"} · {kg(g.parcels.reduce((s, p) => s + Number(p.weight_kg), 0))}
+                        </span>
+                        <span className="block text-sm text-slate-600">
+                          {places}
+                          {positions ? ` · ${positions}` : ""}
+                        </span>
+                      </span>
+                      <span className="flex shrink-0 flex-col items-end gap-2">
+                        {statuses.map((st) => (
+                          <StatusBadge key={st} status={st} />
+                        ))}
+                        {isOpen ? <ChevronDown className="h-6 w-6 text-slate-600" /> : <ChevronRight className="h-6 w-6 text-slate-600" />}
+                      </span>
+                    </button>
+                  </div>
+                  {isOpen && (
+                    <div className="space-y-2 border-t border-slate-200 p-3">
+                      {g.parcels.map((p) => (
+                        <div key={p.id} className="flex items-center gap-3 rounded-md bg-slate-50 p-3">
+                          {canOperate && (
+                            <span className="flex w-8 shrink-0 justify-center">
+                              {p.status === "in_warehouse" && (
+                                <input type="checkbox" className="h-7 w-7" aria-label={`Select ${p.barcode} for return`} checked={picked.includes(p.id)} onChange={() => toggle(p.id)} />
+                              )}
+                            </span>
+                          )}
+                          <span className="min-w-0 flex-1">
+                            <span className="block font-mono text-base font-semibold">{p.barcode}</span>
+                            <span className="block text-sm text-slate-700">
+                              {p.description ?? "—"} · {kg(Number(p.weight_kg))}
+                            </span>
+                            <span className="mt-1 block text-sm text-slate-700">
+                              {p.warehouse?.name ?? p.warehouse?.code}
+                              <ParcelPosition parcelId={p.id} barcode={p.barcode} position={p.position} canEdit={canOperate} onChanged={parcels.reload} />
+                            </span>
+                          </span>
+                          <StatusBadge status={p.status} />
+                        </div>
+                      ))}
+                      {canOperate && (
+                        <Link
+                          href={`/warehouse-inventory/split/${g.bookingId}`}
+                          className="flex min-h-14 items-center justify-center rounded-md border-2 border-blue-600 text-base font-semibold text-blue-700"
+                        >
+                          Labels
+                        </Link>
+                      )}
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+
+          <div className="hidden overflow-x-auto rounded-lg border border-slate-200 bg-white md:block">
             <table className="w-full text-left text-sm">
               <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase text-slate-500">
                 <tr>
@@ -259,7 +352,7 @@ function WarehouseContent() {
                           type="button"
                           onClick={() => toggleOpen(g.bookingId)}
                           aria-expanded={isOpen}
-                          className="inline-flex items-center gap-1 font-mono font-semibold text-blue-700"
+                          className="inline-flex min-h-11 items-center gap-1 font-mono font-semibold text-blue-700"
                         >
                           {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                           {g.invoice}
@@ -279,7 +372,7 @@ function WarehouseContent() {
                       </td>
                       <td className="px-4 py-3">
                         {canOperate && (
-                          <Link href={`/warehouse-inventory/split/${g.bookingId}`} className="text-blue-700">
+                          <Link href={`/warehouse-inventory/split/${g.bookingId}`} className="inline-flex min-h-11 items-center rounded-md border border-blue-600 px-4 font-medium text-blue-700">
                             Labels
                           </Link>
                         )}
@@ -313,6 +406,7 @@ function WarehouseContent() {
               })}
             </table>
           </div>
+          </>
         )}
       </>
     );
@@ -356,25 +450,39 @@ function WarehouseContent() {
 
       <div key={tab} className={slide ? `swipe-in-${slide}` : ""}>
       {tab === "intake" && (
-        <Card id="awaiting-intake">
+        <Card id="awaiting-intake" className="border-0! bg-transparent! p-0!">
           {!intake.length ? (
             <p className="text-sm text-slate-500">{awaiting.data?.length ? "No bookings match your search." : "No collected bookings waiting."}</p>
           ) : (
-            <ul className="divide-y divide-slate-100 text-sm">
-              {intake.map((b) => (
-                <li key={b.id} className="flex items-center justify-between py-2">
-                  <span>
-                    <span className="font-mono font-medium">{b.invoice_no ?? b.code}</span>{" "}
-                    <span className="font-mono text-xs text-slate-500">{b.invoice_no ? b.code : ""}</span> · {b.sender_name} →{" "}
-                    {b.receiver_name ?? "receiver not set"}
-                  </span>
-                  {canOperate && (
-                    <Link href={`/warehouse-inventory/split/${b.id}`} className="font-medium text-blue-700">
-                      Receive
-                    </Link>
-                  )}
-                </li>
-              ))}
+            <ul className="space-y-3">
+              {intake.map((b) => {
+                const row = (
+                  <>
+                    <span className="min-w-0">
+                      <span className="block font-mono text-lg font-semibold">{b.invoice_no ?? b.code}</span>
+                      <span className="block text-base text-slate-800">{b.sender_name}</span>
+                      <span className="block text-sm text-slate-600">→ {b.receiver_name ?? "receiver not set"}</span>
+                    </span>
+                    {canOperate && (
+                      <span className="flex shrink-0 items-center gap-1 rounded-md bg-blue-600 px-3 py-2 text-base font-semibold text-white">
+                        Receive <ChevronRight className="h-5 w-5" />
+                      </span>
+                    )}
+                  </>
+                );
+                const box = "flex min-h-20 items-center justify-between gap-3 rounded-lg border border-slate-300 bg-white p-4";
+                return (
+                  <li key={b.id}>
+                    {canOperate ? (
+                      <Link href={`/warehouse-inventory/split/${b.id}`} className={`${box} active:bg-slate-50`}>
+                        {row}
+                      </Link>
+                    ) : (
+                      <div className={box}>{row}</div>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           )}
         </Card>
@@ -397,47 +505,60 @@ function WarehouseContent() {
                 const packages = g.returns.reduce((s, x) => s + (x.parcels?.length ?? 0), 0);
                 return (
                   <li key={g.bookingId} className="py-2">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <span>
-                        <button
-                          type="button"
-                          aria-expanded={isOpen}
-                          onClick={() => setOpenReturns(isOpen ? openReturns.filter((x) => x !== g.bookingId) : [...openReturns, g.bookingId])}
-                          className="inline-flex items-center gap-1 font-mono font-semibold text-blue-700"
-                        >
-                          {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                          {g.invoice}
-                        </button>{" "}
-                        <span className="text-slate-700">
-                          {g.customer} · <span className="font-mono text-xs text-slate-500">{g.code}</span> · {g.returns.length}{" "}
-                          {g.returns.length === 1 ? "return" : "returns"}, {packages} {packages === 1 ? "package" : "packages"}
+                    <button
+                      type="button"
+                      aria-expanded={isOpen}
+                      onClick={() => setOpenReturns(isOpen ? openReturns.filter((x) => x !== g.bookingId) : [...openReturns, g.bookingId])}
+                      className="flex min-h-16 w-full items-center justify-between gap-3 rounded-lg px-1 text-left active:bg-slate-50"
+                    >
+                      <span className="min-w-0">
+                        <span className="block font-mono text-lg font-semibold text-blue-700">{g.invoice}</span>
+                        <span className="block text-base text-slate-800">{g.customer}</span>
+                        <span className="block text-sm text-slate-600">
+                          <span className="font-mono">{g.code}</span> · {g.returns.length} {g.returns.length === 1 ? "return" : "returns"}, {packages}{" "}
+                          {packages === 1 ? "package" : "packages"}
                         </span>
                       </span>
-                      <span className="space-x-1">
+                      <span className="flex shrink-0 items-center gap-2">
                         {statuses.map((s) => (
                           <StatusBadge key={s} status={s} />
                         ))}
+                        {isOpen ? <ChevronDown className="h-6 w-6 text-slate-600" /> : <ChevronRight className="h-6 w-6 text-slate-600" />}
                       </span>
-                    </div>
+                    </button>
                     {isOpen && (
                       <ul className="mt-2 space-y-2 border-l-2 border-slate-200 pl-4">
                         {g.returns.map((x) => (
-                          <li key={x.id} className="flex flex-wrap items-start justify-between gap-2">
-                            <span>
-                              <span className="font-mono font-medium">{x.code}</span>
-                              <span className="ml-2 text-xs text-slate-500">{formatDay(x.form_date)}</span>
-                              <span className="block text-slate-600">
-                                {(x.parcels ?? []).map((p) => `${p.barcode} (${kg(Number(p.weight_kg))})`).join(", ") || "no packages"}
-                              </span>
-                            </span>
-                            <span className="flex items-center gap-3">
-                              <StatusBadge status={x.status} />
-                              {canOperate && (
-                                <Link href={`/warehouse-inventory/returns/${x.id}`} className="font-medium text-blue-700">
-                                  {x.status === "open" ? "Form" : "View"}
+                          <li key={x.id}>
+                            {(() => {
+                              const inner = (
+                                <>
+                                  <span className="min-w-0">
+                                    <span className="block font-mono text-base font-semibold">{x.code}</span>
+                                    <span className="block text-xs text-slate-600">{formatDay(x.form_date)}</span>
+                                    <span className="block text-slate-700">
+                                      {(x.parcels ?? []).map((p) => `${p.barcode} (${kg(Number(p.weight_kg))})`).join(", ") || "no packages"}
+                                    </span>
+                                  </span>
+                                  <span className="flex shrink-0 items-center gap-2">
+                                    <StatusBadge status={x.status} />
+                                    {canOperate && (
+                                      <span className="flex items-center gap-1 rounded-md border border-blue-600 px-3 py-2 text-base font-semibold text-blue-700">
+                                        {x.status === "open" ? "Form" : "View"} <ChevronRight className="h-5 w-5" />
+                                      </span>
+                                    )}
+                                  </span>
+                                </>
+                              );
+                              const box = "flex min-h-16 items-center justify-between gap-3 rounded-lg border border-slate-300 bg-white p-3";
+                              return canOperate ? (
+                                <Link href={`/warehouse-inventory/returns/${x.id}`} className={`${box} active:bg-slate-50`}>
+                                  {inner}
                                 </Link>
-                              )}
-                            </span>
+                              ) : (
+                                <div className={box}>{inner}</div>
+                              );
+                            })()}
                           </li>
                         ))}
                       </ul>
