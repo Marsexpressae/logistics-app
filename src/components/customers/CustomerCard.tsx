@@ -27,6 +27,10 @@ export default function CustomerCard({ bookingId }: { bookingId: string }) {
     () => (canView ? (supabase.from("booking_contacts").select("role, customer:customers(id, full_name, phone, whatsapp, address)").eq("booking_id", bookingId) as never) : Promise.resolve({ data: [], error: null })),
     [bookingId, canView]
   );
+  const booking = useQuery<{ receiver_name: string | null } | null>(
+    () => supabase.from("bookings").select("receiver_name").eq("id", bookingId).maybeSingle() as never,
+    [bookingId]
+  );
   const [picking, setPicking] = useState<ContactRole | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -37,6 +41,7 @@ export default function CustomerCard({ bookingId }: { bookingId: string }) {
   const get = (role: ContactRole) => rows.find((r) => r.role === role)?.customer ?? null;
   const customer = get("customer");
   const booker = get("booker");
+  const receiver = get("receiver");
 
   async function run(action: PromiseLike<{ error: { message: string } | null }>) {
     setBusy(true);
@@ -49,6 +54,7 @@ export default function CustomerCard({ bookingId }: { bookingId: string }) {
   }
 
   const link = (role: ContactRole, id: string | null) => run(supabase.rpc("link_booking_customer", { p_booking_id: bookingId, p_customer_id: id, p_role: role }));
+  const saveReceiver = () => run(supabase.rpc("save_booking_receiver", { p_booking_id: bookingId }));
   const createFromBooking = () => run(supabase.rpc("create_customer_from_booking", { p_booking_id: bookingId }));
 
   const person = (role: ContactRole, c: NonNullable<Linked["customer"]>) => (
@@ -80,6 +86,7 @@ export default function CustomerCard({ bookingId }: { bookingId: string }) {
           <ul className="divide-y divide-slate-100">
             {customer && person("customer", customer)}
             {booker && person("booker", booker)}
+            {receiver && person("receiver", receiver)}
           </ul>
           {!customer && <p className="mb-2 text-sm text-slate-600">No customer is linked to this booking yet.</p>}
 
@@ -100,6 +107,16 @@ export default function CustomerCard({ bookingId }: { bookingId: string }) {
                   Add a booker
                 </Button>
               )}
+              {customer && !receiver && booking.data?.receiver_name && (
+                <Button variant="secondary" onClick={saveReceiver} disabled={busy}>
+                  Save receiver to address book
+                </Button>
+              )}
+              {!receiver && (
+                <Button variant="secondary" onClick={() => setPicking("receiver")}>
+                  Link a receiver
+                </Button>
+              )}
               {customer && (
                 <Button variant="secondary" onClick={() => setPicking("customer")}>
                   Change customer
@@ -111,7 +128,7 @@ export default function CustomerCard({ bookingId }: { bookingId: string }) {
           {picking && (
             <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-3">
               <p className="mb-2 text-sm font-medium text-slate-700">
-                {picking === "booker" ? "Who phoned the booking in?" : "Find the customer (the sender, who pays)"}
+                {picking === "booker" ? "Who phoned the booking in?" : picking === "receiver" ? "Find the receiver" : "Find the customer (the sender, who pays)"}
               </p>
               <CustomerPicker autoFocus onPick={(h) => link(picking, h.id)} />
               <Button variant="secondary" className="mt-2" onClick={() => setPicking(null)}>

@@ -2,13 +2,15 @@
 
 import { useState, type FormEvent } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
-import { MapPin } from "lucide-react";
+import { useParams, useRouter } from "next/navigation";
+import { FileText, MapPin, TriangleAlert } from "lucide-react";
 import ContactButtons from "@/components/contact/ContactButtons";
 import CustomerForm from "@/components/customers/CustomerForm";
+import { IdPhoto } from "@/components/customers/IdCard";
+import ReceiversCard from "@/components/customers/ReceiversCard";
 import PageHeader from "@/components/ui/PageHeader";
 import { Button, Card, ErrorMessage, StatusBadge, inputClass } from "@/components/ui/form";
-import { customerMapsUrl, ROLE_LABEL, type ContactRole, type Customer, type TimelineRow } from "@/lib/customers";
+import { customerMapsUrl, ROLE_LABEL, type ContactRole, type Customer, type IdDocument, type TimelineRow } from "@/lib/customers";
 import { formatDate, formatDay } from "@/lib/format";
 import { useQuery } from "@/lib/hooks";
 import { formatPhone } from "@/lib/phone";
@@ -34,6 +36,7 @@ const KIND_LABEL: Record<TimelineRow["r_kind"], string> = {
 
 export default function CustomerPage() {
   const { id } = useParams<{ id: string }>();
+  const router = useRouter();
   const { can } = usePermissions();
   const canEdit = can("customers.edit");
   const canNote = can("notes.write");
@@ -45,7 +48,18 @@ export default function CustomerPage() {
   );
   const timeline = useQuery<TimelineRow[]>(() => supabase.rpc("customer_timeline", { p_customer_id: id, p_limit: 100, p_offset: 0 }) as never, [id]);
 
+  const bookingIds = (linked.data ?? []).flatMap((l) => (l.booking ? [l.booking.id] : []));
+  const ids = useQuery<IdDocument[]>(
+    () =>
+      can("customers.id_photo") && bookingIds.length
+        ? (supabase.from("id_documents").select("*").in("booking_id", bookingIds).order("created_at", { ascending: false }) as never)
+        : Promise.resolve({ data: [], error: null }),
+    [bookingIds.join(","), can("customers.id_photo")]
+  );
+
   const [editing, setEditing] = useState(false);
+  const [warning, setWarning] = useState<string | null>(null); // null = not editing
+  const [warnError, setWarnError] = useState<string | null>(null);
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -65,6 +79,22 @@ export default function CustomerPage() {
     timeline.reload();
   }
 
+  async function saveWarning() {
+    setWarnError(null);
+    const { error } = await supabase.rpc("set_customer_warning", { p_id: id, p_note: warning });
+    if (error) return setWarnError(error.message);
+    setWarning(null);
+    customer.reload();
+    timeline.reload();
+  }
+
+  async function removeCustomer() {
+    if (!window.confirm("Delete this customer? This cannot be undone.")) return;
+    const { error } = await supabase.rpc("delete_customer", { p_id: id });
+    if (error) return setError(error.message);
+    router.push("/customers");
+  }
+
   if (customer.loading && !c) return <p className="text-sm text-slate-500">Loading…</p>;
   if (!c) return <p className="text-sm text-slate-600">{customer.error ?? "This customer was not found, or you may not open it."}</p>;
 
@@ -77,6 +107,12 @@ export default function CustomerPage() {
         ← All customers
       </Link>
       <PageHeader title={c.full_name} description={`Customer since ${formatDay(c.created_at.slice(0, 10))}${c.created_by_name ? ` · added by ${c.created_by_name}` : ""}`} />
+
+      {c.warning_note && warning === null && (
+        <p role="alert" className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-900">
+          <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" /> {c.warning_note}
+        </p>
+      )}
 
       <Card title="Details">
         {canEdit && !editing && (
@@ -130,7 +166,57 @@ export default function CustomerPage() {
         )}
       </Card>
 
+      {canEdit && (
+        <Card title="Warning">
+          {warning === null ? (
+            <>
+              <p className="mb-2 text-sm text-slate-600">
+                {c.warning_note ? "A warning is showing on this customer and on all of their invoices." : "A warning note shows on this customer and on every one of their invoices, for example \u201ccollect payment first\u201d."}
+              </p>
+              <Button variant="secondary" onClick={() => setWarning(c.warning_note ?? "")}>
+                {c.warning_note ? "Change or remove the warning" : "Add a warning"}
+              </Button>
+            </>
+          ) : (
+            <div className="space-y-2">
+              <textarea value={warning} onChange={(e) => setWarning(e.target.value)} maxLength={300} rows={2} aria-label="Warning note" className={inputClass} placeholder="Leave empty to remove the warning" />
+              <ErrorMessage message={warnError} />
+              <div className="flex gap-2">
+                <Button onClick={saveWarning}>Save</Button>
+                <Button variant="secondary" onClick={() => setWarning(null)}>
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
+        </Card>
+      )}
+
+      <ReceiversCard customerId={id} />
+
+      {(ids.data?.length ?? 0) > 0 && (
+        <Card title="Emirates ID">
+          <ul className="space-y-3 text-sm">
+            {ids.data!.map((d) => (
+              <li key={d.id} className="space-y-2">
+                <p className="font-mono">{d.emirates_id ?? "Photo only"}</p>
+                {d.photo_path && <IdPhoto path={d.photo_path} />}
+                <p className="text-xs text-slate-500">
+                  Added by {d.uploaded_by_name} · {formatDate(d.created_at)}
+                </p>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 text-xs text-slate-500">To delete an ID photo, open the invoice it was taken for.</p>
+        </Card>
+      )}
+
       <Card title={`Invoices (${bookings.length})`}>
+        {can("accounts.view") && bookings.length > 0 && (
+          <Link href={`/customers/${id}/statement`} className="mb-3 inline-flex items-center gap-1.5 text-sm font-medium text-blue-700">
+            <FileText className="h-4 w-4" /> Statement of account
+          </Link>
+        )}
         {linked.loading && !linked.data ? (
           <p className="text-sm text-slate-500">Loading…</p>
         ) : !bookings.length ? (
@@ -159,6 +245,12 @@ export default function CustomerPage() {
         )}
         <ErrorMessage message={linked.error} />
       </Card>
+
+      {can("customers.manage") && !bookings.length && (
+        <Button variant="secondary" onClick={removeCustomer}>
+          Delete this customer
+        </Button>
+      )}
 
       <Card title="History">
         {canNote && (

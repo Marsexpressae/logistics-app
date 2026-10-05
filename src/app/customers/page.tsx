@@ -9,7 +9,7 @@ import ListSearch from "@/components/ui/ListSearch";
 import PageHeader from "@/components/ui/PageHeader";
 import EmptyState from "@/components/ui/EmptyState";
 import { Button, Card, ErrorMessage, StatusBadge } from "@/components/ui/form";
-import type { BookingWithoutCustomer, CustomerHit } from "@/lib/customers";
+import type { BookingWithoutCustomer, CustomerHit, DuplicateGroup } from "@/lib/customers";
 import { useQuery } from "@/lib/hooks";
 import { formatPhone } from "@/lib/phone";
 import { usePermissions } from "@/lib/profile-context";
@@ -21,7 +21,7 @@ export default function CustomersPage() {
   const router = useRouter();
   const { can } = usePermissions();
   const canEdit = can("customers.edit");
-  const [tab, setTab] = useState<"all" | "todo">("all");
+  const [tab, setTab] = useState<"all" | "todo" | "dupes">("all");
   const [text, setText] = useState("");
   const [q, setQ] = useState(""); // the text once typing pauses
   const [creating, setCreating] = useState(false);
@@ -39,6 +39,20 @@ export default function CustomersPage() {
     [q, searching]
   );
   const todo = useQuery<{ bookings: BookingWithoutCustomer[]; total: number }>(() => supabase.rpc("bookings_without_customer", { p_limit: 100 }) as never, []);
+
+  const dupes = useQuery<DuplicateGroup[]>(() => supabase.rpc("possible_duplicates") as never, []);
+  const groups = dupes.data ?? [];
+
+  async function merge(keep: string, remove: string, names: string) {
+    if (!window.confirm(`Merge ${names}? All invoices, notes and receivers move to the record you keep. This cannot be undone.`)) return;
+    setBusy(remove);
+    setError(null);
+    const { error } = await supabase.rpc("merge_customers", { p_keep: keep, p_remove: remove });
+    setBusy(null);
+    if (error) return setError(error.message);
+    dupes.reload();
+    list.reload();
+  }
 
   const customers = list.data?.customers ?? [];
   const waiting = todo.data?.total ?? 0;
@@ -73,6 +87,7 @@ export default function CustomersPage() {
         {[
           { key: "all" as const, label: "All customers" },
           { key: "todo" as const, label: `Bookings without a customer (${waiting})` },
+          { key: "dupes" as const, label: `Possible duplicates (${groups.length})` },
         ].map((t) => (
           <button
             key={t.key}
@@ -85,7 +100,7 @@ export default function CustomersPage() {
         {tab === "all" && <ListSearch value={text} onChange={setText} placeholder="Name, mobile, Emirates ID or invoice" className="ml-auto" />}
       </div>
 
-      <ErrorMessage message={list.error ?? todo.error ?? error} />
+      <ErrorMessage message={list.error ?? todo.error ?? dupes.error ?? error} />
 
       {tab === "all" &&
         (list.loading && !list.data ? (
@@ -127,6 +142,47 @@ export default function CustomersPage() {
               {(list.data?.total ?? 0) > customers.length ? ". Search to find the others." : ""}
             </p>
           </>
+        ))}
+
+      {tab === "dupes" &&
+        (dupes.loading && !dupes.data ? (
+          <p className="text-sm text-slate-500">Loading…</p>
+        ) : !groups.length ? (
+          <EmptyState message="No duplicates found. Two customers with the same phone number or Emirates ID would show here." />
+        ) : (
+          <div className="space-y-3">
+            <p className="text-sm text-slate-600">
+              These customers share a phone number or an Emirates ID, so they are probably the same person.
+              {can("customers.manage") ? " Choose the record to keep; the other one is merged into it and nothing is lost." : " A manager can merge them."}
+            </p>
+            {groups.map((g) => (
+              <Card key={`${g.kind}-${g.value}`} title={g.kind === "phone" ? `Same phone: ${formatPhone(g.value)}` : `Same Emirates ID: ${g.value}`}>
+                <ul className="divide-y divide-slate-100 text-sm">
+                  {g.customers.map((c) => (
+                    <li key={c.id} className="flex flex-wrap items-center justify-between gap-2 py-3">
+                      <span>
+                        <Link href={`/customers/${c.id}`} className="font-medium text-blue-700">
+                          {c.full_name}
+                        </Link>
+                        <span className="block text-xs text-slate-500">
+                          {c.invoices} {c.invoices === 1 ? "invoice" : "invoices"}
+                          {c.address ? ` · ${c.address}` : ""}
+                        </span>
+                      </span>
+                      {can("customers.manage") &&
+                        g.customers
+                          .filter((o) => o.id !== c.id)
+                          .map((o) => (
+                            <Button key={o.id} variant="secondary" disabled={busy !== null} onClick={() => merge(c.id, o.id, `${o.full_name} into ${c.full_name}`)}>
+                              Keep this, merge {g.customers.length > 2 ? o.full_name : "the other"} into it
+                            </Button>
+                          ))}
+                    </li>
+                  ))}
+                </ul>
+              </Card>
+            ))}
+          </div>
         ))}
 
       {tab === "todo" &&

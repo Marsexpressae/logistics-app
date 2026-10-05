@@ -7,6 +7,7 @@ export type Customer = {
   geo_lat: number | null;
   geo_lng: number | null;
   emirates_id: string | null;
+  warning_note: string | null;
   created_by_name: string | null;
   created_at: string;
   updated_at: string;
@@ -56,3 +57,20 @@ export function customerMapsUrl(c: { geo_lat?: number | null; geo_lng?: number |
   if (c.address) return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(c.address)}`;
   return null;
 }
+
+export type ReceiverEntry = { id: string; receiver_id: string; name: string; phone: string | null; whatsapp: string | null; address: string | null };
+
+export type DuplicateGroup = {
+  kind: "phone" | "emirates_id";
+  value: string;
+  customers: { id: string; full_name: string; phone: string | null; emirates_id: string | null; address: string | null; invoices: number }[];
+};
+
+export type IdDocument = {
+  id: string;
+  booking_id: string;
+  emirates_id: string | null;
+  photo_path: string | null;
+  uploaded_by_name: string | null;
+  created_at: string;
+};

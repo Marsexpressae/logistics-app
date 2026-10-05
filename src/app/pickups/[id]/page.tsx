@@ -6,6 +6,8 @@ import { useParams } from "next/navigation";
 import { ArrowLeft, CalendarDays, CheckCircle2, MapPin, Navigation, Printer } from "lucide-react";
 import BookingChangePanel from "@/components/bookings/BookingChangePanel";
 import DeleteBooking from "@/components/bookings/DeleteBooking";
+import WarningBanner from "@/components/customers/WarningBanner";
+import IdCard from "@/components/customers/IdCard";
 import CustomerCard from "@/components/customers/CustomerCard";
 import NotesCard from "@/components/bookings/NotesCard";
 import TrackingLink from "@/components/bookings/TrackingLink";
@@ -28,6 +30,15 @@ export default function PickupDetailPage() {
   const items = useQuery<BookingItem[]>(() =>
     supabase.from("booking_items").select("*").eq("booking_id", id).order("id")
   );
+  // Settings can require the sender's Emirates ID before a pickup is marked collected.
+  const needId = useQuery<boolean>(async () => {
+    const { data, error } = await supabase.from("app_settings").select("value").eq("key", "require_id_before_collected").maybeSingle();
+    return { data: data?.value === true, error };
+  });
+  const hasId = useQuery<boolean>(async () => {
+    const { count, error } = await supabase.from("id_documents").select("id", { count: "exact", head: true }).eq("booking_id", id).not("emirates_id", "is", null);
+    return { data: (count ?? 0) > 0, error };
+  }, [id]);
   const [error, setError] = useState<string | null>(null);
   const [changes, setChanges] = useState(0); // bumps after a reschedule/cancel so the history refreshes
 
@@ -51,6 +62,8 @@ export default function PickupDetailPage() {
       <Link href="/pickups" className="inline-flex items-center gap-1 text-sm text-slate-600">
         <ArrowLeft className="h-4 w-4" /> Pickups
       </Link>
+
+      <WarningBanner bookingId={id} />
 
       <Card>
         <div className="flex items-center justify-between">
@@ -103,6 +116,7 @@ export default function PickupDetailPage() {
       </Card>
 
       <CustomerCard bookingId={id} />
+      <IdCard bookingId={id} onChanged={() => hasId.reload()} />
       <NotesCard bookingId={id} />
 
       {b.invoice_no && <TrackingLink booking={b} />}
@@ -113,9 +127,13 @@ export default function PickupDetailPage() {
 
       <ErrorMessage message={error} />
 
+      {b.status === "booked" && needId.data === true && hasId.data !== true && (
+        <p className="text-sm text-amber-800">Enter the sender&apos;s Emirates ID above before marking this pickup collected.</p>
+      )}
+
       <div className="grid gap-2 pb-6 sm:grid-cols-2">
         {b.status === "booked" && (
-          <Button onClick={markCollected} disabled={!items.data?.length} className="py-3">
+          <Button onClick={markCollected} disabled={!items.data?.length || (needId.data === true && hasId.data !== true)} className="py-3">
             <CheckCircle2 className="h-4 w-4" /> Mark collected
           </Button>
         )}

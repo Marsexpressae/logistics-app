@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ArrowLeft, PackageCheck, Plus, Printer, Trash2 } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
+import WarningBanner from "@/components/customers/WarningBanner";
 import NotesCard from "@/components/bookings/NotesCard";
 import ParcelLabel from "@/components/ui/ParcelLabel";
 import ParcelPosition from "@/components/warehouse/ParcelPosition";
@@ -93,6 +94,7 @@ export default function ReceivePage() {
       />
 
       <div className="space-y-4 print:hidden">
+        <WarningBanner bookingId={bookingId} />
         {!received && (
           <Card title="Receive into the warehouse">
             <div className="mb-3 max-w-xs">

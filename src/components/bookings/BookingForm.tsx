@@ -5,7 +5,7 @@ import { LocateFixed } from "lucide-react";
 import CustomerPicker from "@/components/customers/CustomerPicker";
 import PhoneInput from "@/components/ui/PhoneInput";
 import { Button, Card, ErrorMessage, Field, inputClass } from "@/components/ui/form";
-import type { CustomerHit } from "@/lib/customers";
+import type { CustomerHit, ReceiverEntry } from "@/lib/customers";
 import { AREAS } from "@/config/areas";
 import { formatGeo, mapsUrl, parseGeo } from "@/lib/geo";
 import { todayISO } from "@/lib/format";
@@ -27,6 +27,10 @@ export default function BookingForm({ booking, submitLabel, onSaved }: BookingFo
   const canPickCustomer = !booking && can("customers.view");
   // A returning customer picked from the list: their details fill the form, and the booking is linked to them when saved.
   const [picked, setPicked] = useState<CustomerHit | null>(null);
+  // The picked customer's address book, and the receiver chosen from it.
+  const [book, setBook] = useState<ReceiverEntry[]>([]);
+  const [receiverPick, setReceiverPick] = useState<ReceiverEntry | null>(null);
+  const [receiverName, setReceiverName] = useState({ value: booking?.receiver_name ?? "", n: 0 });
   const [fill, setFill] = useState({ name: booking?.sender_name ?? "", address: booking?.pickup_address ?? "", n: 0 });
   const drivers = useQuery<Driver[]>(() =>
     supabase.from("drivers").select("*").eq("active", true).order("name")
@@ -41,8 +45,11 @@ export default function BookingForm({ booking, submitLabel, onSaved }: BookingFo
   const [sameWhatsapp, setSameWhatsapp] = useState(!booking?.sender_whatsapp);
   const [whatsappPhone, setWhatsappPhone] = useState(formatPhone(booking?.sender_whatsapp));
 
-  function pickCustomer(c: CustomerHit) {
+  async function pickCustomer(c: CustomerHit) {
     setPicked(c);
+    setReceiverPick(null);
+    const { data } = await supabase.rpc("customer_receivers_of", { p_sender: c.id });
+    setBook((data as ReceiverEntry[] | null) ?? []);
     setFill((f) => ({ name: c.full_name, address: c.address ?? f.address, n: f.n + 1 }));
     setSenderPhone(formatPhone(c.phone));
     setSameWhatsapp(!c.whatsapp);
@@ -100,6 +107,8 @@ export default function BookingForm({ booking, submitLabel, onSaved }: BookingFo
       sender_whatsapp: whatsapp && whatsapp.e164 !== call.e164 ? whatsapp.e164 : null,
       // Receiver: only the name at booking time. Phone and address are added later with the invoice/shipment details.
       receiver_name: text("receiver_name"),
+      // From the address book: the invoice keeps its own copy of the receiver's phone and address.
+      ...(receiverPick && !booking && text("receiver_name") === receiverPick.name ? { receiver_phone: receiverPick.phone, receiver_address: receiverPick.address } : {}),
       pickup_area: text("pickup_area"),
       pickup_address: text("pickup_address"),
       // When editing, the date can only change through Reschedule (reason + notification), so it is not sent.
@@ -142,7 +151,12 @@ export default function BookingForm({ booking, submitLabel, onSaved }: BookingFo
       return setError(error.message);
     }
     // Link the picked customer. If this fails the booking still exists; the customer can be linked from the booking page.
-    if (!booking && picked) await supabase.rpc("link_booking_customer", { p_booking_id: data.id, p_customer_id: picked.id, p_role: "customer" });
+    if (!booking && picked) {
+      await supabase.rpc("link_booking_customer", { p_booking_id: data.id, p_customer_id: picked.id, p_role: "customer" });
+      if (receiverPick && f.get("receiver_name") === receiverPick.name) {
+        await supabase.rpc("link_booking_customer", { p_booking_id: data.id, p_customer_id: receiverPick.receiver_id, p_role: "receiver" });
+      }
+    }
     onSaved(data.code);
   }
 
@@ -286,9 +300,30 @@ export default function BookingForm({ booking, submitLabel, onSaved }: BookingFo
       <Card title="Receiver (optional)">
         <div className="max-w-sm">
           <Field label="Name">
-            <input name="receiver_name" defaultValue={booking?.receiver_name ?? ""} className={inputClass} />
+            <input key={`r${receiverName.n}`} name="receiver_name" defaultValue={receiverName.value} className={inputClass} />
           </Field>
         </div>
+        {picked && book.length > 0 && (
+          <div className="mt-3">
+            <p className="mb-1 text-xs font-medium text-slate-600">{picked.full_name}&apos;s receivers. Tap one to fill the name, phone and address.</p>
+            <div className="flex flex-wrap gap-2">
+              {book.map((r) => (
+                <button
+                  key={r.id}
+                  type="button"
+                  onClick={() => {
+                    setReceiverPick(r);
+                    setReceiverName((x) => ({ value: r.name, n: x.n + 1 }));
+                  }}
+                  className={`rounded-md border px-3 py-1.5 text-left text-sm ${receiverPick?.id === r.id ? "border-blue-600 bg-blue-50" : "border-slate-300 bg-white"}`}
+                >
+                  <span className="font-medium">{r.name}</span>
+                  {r.address && <span className="block max-w-56 truncate text-xs text-slate-500">{r.address}</span>}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         <p className="mt-2 text-xs text-slate-500">Phone and address are added later with the invoice and shipment details.</p>
       </Card>
 

@@ -10,10 +10,10 @@ type Db = {
   [table: string]: any;
   drivers: Row[]; warehouses: Row[]; bookings: Row[]; booking_items: Row[]; payments: Row[];
   containers: Row[]; parcels: Row[]; parcel_events: Row[]; profiles: Row[]; audit_log: Row[]; roles: Row[]; permissions: Row[]; role_permissions: Row[];
-  booking_events: Row[]; notifications: Row[]; app_settings: Row[]; returns: Row[]; booking_notes: Row[]; client_errors: Row[]; number_series: Row[]; organization: Row[]; customers: Row[]; booking_contacts: Row[]; customer_notes: Row[];
+  booking_events: Row[]; notifications: Row[]; app_settings: Row[]; returns: Row[]; booking_notes: Row[]; client_errors: Row[]; number_series: Row[]; organization: Row[]; customers: Row[]; booking_contacts: Row[]; customer_notes: Row[]; customer_receivers: Row[]; id_documents: Row[];
 };
 
-const STORAGE_KEY = "logistics-mock-db-v30";
+const STORAGE_KEY = "logistics-mock-db-v31";
 const AUTH_KEY = "logistics-mock-signed-out";
 
 const uid = () => crypto.randomUUID();
@@ -60,6 +60,7 @@ const PERMISSIONS: Row[] = [
   ["notes.write", "Bookings", "Write notes on jobs", "Add notes to a booking or invoice and mention colleagues"],
   ["customers.view", "Customers", "See customers", "Open the customer list and each customer's history"],
   ["customers.edit", "Customers", "Add and edit customers", "Create customers, correct their details, and link them to bookings"],
+  ["customers.id_photo", "Customers", "See and add Emirates ID photos", "Record the Emirates ID and photo at pickup, and see them on the jobs you can open"],
   ["customers.manage", "Customers", "Merge and delete customers", "Merge duplicate customers or delete one (managers)"],
   ["returns.manage", "Warehouse", "Edit or delete returns", "Correct the date, note or receiver of a return, or delete a return (a reason is required)"],
   ["numbers.edit", "Bookings", "Set invoice and booking numbers", "Type a custom invoice or booking number, or change one, for example to match the accounting system"],
@@ -71,11 +72,11 @@ const GRANTS: Record<string, string[]> = {
   manager: ["containers.override_payment", "containers.override_departure", "dashboard.view", "bookings.view", "bookings.create", "bookings.edit", "bookings.cancel", "pickups.view_all",
     "pickups.collect", "warehouse.view", "warehouse.manage", "containers.view", "containers.manage", "accounts.view",
     "payments.manage", "drivers.manage", "users.manage", "activity.view", "notifications.view", "bookings.reschedule",
-    "items.edit", "items.edit_after", "notes.write", "numbers.edit", "returns.manage", "customers.view", "customers.edit", "customers.manage"],
+    "items.edit", "items.edit_after", "notes.write", "numbers.edit", "returns.manage", "customers.view", "customers.edit", "customers.manage", "customers.id_photo"],
   staff: ["dashboard.view", "bookings.view", "bookings.create", "bookings.edit", "bookings.cancel", "pickups.view_all",
-    "pickups.collect", "warehouse.view", "containers.view", "accounts.view", "notifications.view", "bookings.reschedule", "items.edit", "items.edit_after", "notes.write", "customers.view", "customers.edit"],
+    "pickups.collect", "warehouse.view", "containers.view", "accounts.view", "notifications.view", "bookings.reschedule", "items.edit", "items.edit_after", "notes.write", "customers.view", "customers.edit", "customers.id_photo"],
   warehouse: ["dashboard.view", "warehouse.view", "warehouse.manage", "containers.view", "containers.manage", "notifications.view", "notes.write"],
-  driver: ["pickups.view_own", "pickups.collect", "pickups.cancel", "pickups.reschedule", "notifications.view", "pickups.edit_contact", "items.edit", "notes.write"],
+  driver: ["pickups.view_own", "pickups.collect", "pickups.cancel", "pickups.reschedule", "notifications.view", "pickups.edit_contact", "items.edit", "notes.write", "customers.id_photo"],
 };
 const ROLE_PERMISSIONS: Row[] = Object.entries(GRANTS).flatMap(([role, perms]) => perms.map((permission) => ({ role, permission })));
 
@@ -154,7 +155,9 @@ function seed(): Db {
       { kind: "booking", prefix: "BK-", next_number: 1005 },
     ],
     app_settings: [{ key: "require_payment_before_loading", value: false, label: "Require payment before loading into a container",
-      description: "When on, a parcel can only be loaded if its booking has an invoice amount and it is paid in full. People with \"Load without full payment\" can override it with a reason.", updated_at: now() }],
+      description: "When on, a parcel can only be loaded if its booking has an invoice amount and it is paid in full. People with \"Load without full payment\" can override it with a reason.", updated_at: now() },
+    { key: "require_id_before_collected", value: false, label: "Require the Emirates ID before marking a pickup collected",
+      description: "When on, the driver must enter the sender's Emirates ID number before a pickup can be marked collected.", updated_at: now() }],
     notifications: [],
     profiles: [
       { id: "mock-user", full_name: "Tester (super admin)", role: "super_admin", active: true, email: "tester@example.test" },
@@ -166,7 +169,7 @@ function seed(): Db {
     roles: ROLES,
     permissions: PERMISSIONS,
     role_permissions: ROLE_PERMISSIONS,
-    customers: [], booking_contacts: [], customer_notes: [],
+    customers: [], booking_contacts: [], customer_notes: [], customer_receivers: [], id_documents: [],
   } as Db);
 }
 
@@ -177,7 +180,7 @@ function buildCustomers(d: Db): Db {
     let c = d.customers.find((x: Row) => x.key === key);
     if (!c) {
       c = { id: uid(), key, full_name: b.sender_name, phone: b.sender_phone ?? null, whatsapp: b.sender_whatsapp ?? null, address: b.pickup_address, geo_lat: b.geo_lat ?? null, geo_lng: b.geo_lng ?? null,
-        emirates_id: null, created_by_name: null, created_at: b.created_at, updated_at: b.created_at };
+        emirates_id: null, warning_note: null, created_by_name: null, created_at: b.created_at, updated_at: b.created_at };
       d.customers.push(c);
     }
     d.booking_contacts.push({ booking_id: b.id, role: "customer", customer_id: c.id, created_at: b.created_at });
@@ -332,6 +335,7 @@ class Query implements PromiseLike<any> {
   eq(col: string, v: any) { this.filters.push((r) => r[col] === v); return this; }
   neq(col: string, v: any) { this.filters.push((r) => r[col] !== v); return this; }
   is(col: string, v: any) { this.filters.push((r) => (r[col] ?? null) === v); return this; }
+  not(col: string, op: string, v: any) { this.filters.push((r) => (op === "is" ? (r[col] ?? null) !== v : r[col] !== v)); return this; }
   limit(n: number) { this.limitN = n; return this; }
   in(col: string, vs: any[]) { this.filters.push((r) => vs.includes(r[col])); return this; }
   order(col: string, opts?: { ascending?: boolean }) { this.orders.push({ col, asc: opts?.ascending ?? true }); return this; }
@@ -371,6 +375,11 @@ class Query implements PromiseLike<any> {
           for (const r of matched) {
             const err = checkNumbers({ ...r, ...this.payload }, r);
             if (err) return { data: null, error: err, count: null };
+            const dbx = db();
+            if (this.payload.status === "collected" && r.status !== "collected" && dbx.app_settings.find((x: Row) => x.key === "require_id_before_collected")?.value === true
+              && !dbx.id_documents.some((x: Row) => x.booking_id === r.id && x.emirates_id)) {
+              return { data: null, error: { message: "Enter the sender's Emirates ID before marking this pickup collected" }, count: null };
+            }
           }
         }
         matched.forEach((r) => {
@@ -429,6 +438,18 @@ function withDefaults(table: string, it: Row): Row {
       Object.assign(row, { code: `CN-${d.seq.container++}`, status: "loading", departed_at: null, arrived_at: null, created_at: now(), ...it });
       if (typeof it.code === "string") row.code = it.code.trim().toUpperCase();
       break;
+    case "id_documents": {
+      let eid: string | null = null;
+      try { eid = cleanEid(it.emirates_id); } catch { eid = it.emirates_id ?? null; }
+      Object.assign(row, { emirates_id: eid, photo_path: it.photo_path ?? null, uploaded_by_name: "Tester (super admin)", created_at: now() });
+      if (eid) {
+        for (const l of d.booking_contacts.filter((x) => x.booking_id === it.booking_id && x.role === "customer")) {
+          const cu = d.customers.find((x) => x.id === l.customer_id);
+          if (cu && !cu.emirates_id) cu.emirates_id = eid;
+        }
+      }
+      break;
+    }
     case "customer_notes":
       Object.assign(row, { author_id: "mock-user", author_name: "Tester (super admin)", created_at: now() });
       break;
@@ -640,6 +661,7 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
     d.booking_items = d.booking_items.filter((i) => i.booking_id !== b.id);
     d.booking_notes = d.booking_notes.filter((n) => n.booking_id !== b.id);
     d.booking_contacts = d.booking_contacts.filter((l) => l.booking_id !== b.id);
+    d.id_documents = d.id_documents.filter((x) => x.booking_id !== b.id);
     d.booking_events = d.booking_events.filter((e) => e.booking_id !== b.id);
     d.notifications = d.notifications.filter((n) => n.booking_id !== b.id);
     d.bookings = d.bookings.filter((x) => x !== b);
@@ -832,10 +854,153 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
     return { data: null, error: null };
   },
 
+  save_booking_receiver({ p_booking_id }) {
+    const d = db();
+    const b = d.bookings.find((x) => x.id === p_booking_id);
+    if (!b) return fail("Booking not found");
+    const sender = d.booking_contacts.find((l) => l.booking_id === b.id && l.role === "customer")?.customer_id as string | undefined;
+    if (!sender) return fail("Link a customer to this booking first");
+    if (!String(b.receiver_name ?? "").trim()) return fail("This booking has no receiver name yet");
+    const phone = /^\+[1-9]\d{6,14}$/.test(b.receiver_phone ?? "") ? b.receiver_phone : null;
+    const addr = String(b.receiver_address ?? "").trim().slice(0, 300) || null;
+    let rid = (phone && d.customers.find((x) => x.phone === phone)?.id) || null;
+    if (!rid) {
+      rid = uid();
+      d.customers.push({ id: rid, full_name: String(b.receiver_name).trim().slice(0, 120), phone, whatsapp: null, address: addr, geo_lat: null, geo_lng: null, emirates_id: null,
+        warning_note: null, created_by_name: "Tester (super admin)", created_at: now(), updated_at: now() });
+    }
+    if (rid !== sender && !d.customer_receivers.some((x) => x.sender_id === sender && x.receiver_id === rid && (x.address ?? "") === (addr ?? ""))) {
+      d.customer_receivers.push({ id: uid(), sender_id: sender, receiver_id: rid, address: addr, created_at: now() });
+    }
+    d.booking_contacts = d.booking_contacts.filter((l) => !(l.booking_id === b.id && l.role === "receiver"));
+    d.booking_contacts.push({ booking_id: b.id, role: "receiver", customer_id: rid, created_at: now() });
+    save();
+    return { data: rid, error: null };
+  },
+
+  set_customer_warning({ p_id, p_note }) {
+    const c = db().customers.find((x) => x.id === p_id);
+    if (!c) return fail("Customer not found");
+    c.warning_note = String(p_note ?? "").trim().slice(0, 300) || null;
+    save();
+    return { data: null, error: null };
+  },
+
+  booking_warning({ p_booking_id }) {
+    const d = db();
+    const l = d.booking_contacts.find((x) => x.booking_id === p_booking_id && x.role === "customer");
+    return { data: (l && d.customers.find((x) => x.id === l.customer_id)?.warning_note) || null, error: null };
+  },
+
+  add_receiver({ p_sender, p_name, p_phone, p_address, p_receiver_id = null }) {
+    try {
+      const d = db();
+      if (!d.customers.some((x) => x.id === p_sender)) return fail("Customer not found");
+      let rid = p_receiver_id as string | null;
+      const phone = cleanPhone(p_phone, "phone number");
+      const addr = String(p_address ?? "").trim() || null;
+      if (!rid) {
+        const nm = String(p_name ?? "").trim();
+        if (nm.length < 1 || nm.length > 120) return fail("Enter the receiver's name");
+        rid = (phone && d.customers.find((x) => x.phone === phone)?.id) || null;
+        if (!rid) {
+          rid = uid();
+          d.customers.push({ id: rid, full_name: nm, phone, whatsapp: null, address: addr, geo_lat: null, geo_lng: null, emirates_id: null, warning_note: null,
+            created_by_name: "Tester (super admin)", created_at: now(), updated_at: now() });
+        }
+      } else if (!d.customers.some((x) => x.id === rid)) return fail("Customer not found");
+      if (rid === p_sender) return fail("A customer cannot be their own receiver");
+      let entry = d.customer_receivers.find((x) => x.sender_id === p_sender && x.receiver_id === rid && (x.address ?? "") === (addr ?? ""));
+      if (!entry) {
+        entry = { id: uid(), sender_id: p_sender, receiver_id: rid, address: addr, created_at: now() };
+        d.customer_receivers.push(entry);
+      }
+      save();
+      return { data: entry.id, error: null };
+    } catch (e) { return fail((e as Error).message); }
+  },
+
+  remove_receiver({ p_id }) {
+    db().customer_receivers = db().customer_receivers.filter((x) => x.id !== p_id);
+    save();
+    return { data: null, error: null };
+  },
+
+  customer_receivers_of({ p_sender }) {
+    const d = db();
+    const out = d.customer_receivers.filter((x) => x.sender_id === p_sender).map((x) => ({ r: x, c: d.customers.find((c) => c.id === x.receiver_id)! }))
+      .sort((a, b) => a.c.full_name.localeCompare(b.c.full_name))
+      .map(({ r: x, c }) => ({ id: x.id, receiver_id: c.id, name: c.full_name, phone: c.phone, whatsapp: c.whatsapp, address: x.address ?? c.address }));
+    return { data: out, error: null };
+  },
+
+  delete_id_document({ p_id, p_reason }) {
+    const d = db();
+    const doc = d.id_documents.find((x) => x.id === p_id);
+    if (String(p_reason ?? "").trim().length < 3) return fail("Please give a reason");
+    if (!doc) return fail("Not found");
+    d.audit_log.push({ id: uid(), table_name: "deletion_reason", row_id: doc.id, booking_id: doc.booking_id, action: "delete", actor_name: "You (sample data)", changed_at: now(),
+      changes: { reason: String(p_reason).trim(), deleted: "Emirates ID number and photo" } });
+    d.id_documents = d.id_documents.filter((x) => x !== doc);
+    save();
+    return { data: doc.photo_path, error: null };
+  },
+
+  possible_duplicates() {
+    const d = db();
+    const groups: Row[] = [];
+    for (const kind of ["phone", "emirates_id"] as const) {
+      const values = [...new Set(d.customers.map((c) => c[kind]).filter(Boolean))].sort();
+      for (const value of values) {
+        const cs = d.customers.filter((c) => c[kind] === value);
+        if (cs.length > 1) groups.push({ kind, value, customers: cs.map((c) => ({ id: c.id, full_name: c.full_name, phone: c.phone, emirates_id: c.emirates_id, address: c.address, invoices: linkedBookings(c.id).length })) });
+      }
+    }
+    return { data: groups, error: null };
+  },
+
+  merge_customers({ p_keep, p_remove }) {
+    const d = db();
+    if (p_keep === p_remove) return fail("Choose two different customers");
+    const k = d.customers.find((x) => x.id === p_keep);
+    const rm = d.customers.find((x) => x.id === p_remove);
+    if (!k || !rm) return fail("Customer not found");
+    d.booking_contacts.forEach((l) => { if (l.customer_id === rm.id) l.customer_id = k.id; });
+    d.customer_notes.forEach((n) => { if (n.customer_id === rm.id) n.customer_id = k.id; });
+    for (const x of d.customer_receivers) {
+      if (x.sender_id === rm.id) x.sender_id = k.id;
+      if (x.receiver_id === rm.id) x.receiver_id = k.id;
+    }
+    const seen = new Set<string>();
+    d.customer_receivers = d.customer_receivers.filter((x) => {
+      const key = `${x.sender_id}|${x.receiver_id}|${x.address ?? ""}`;
+      if (x.sender_id === x.receiver_id || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    for (const f of ["phone", "whatsapp", "address", "geo_lat", "geo_lng", "emirates_id", "warning_note"]) k[f] = k[f] ?? rm[f];
+    k.updated_at = now();
+    d.customer_notes.push({ id: uid(), customer_id: k.id, author_id: "mock-user", author_name: "Tester (super admin)", created_at: now(),
+      body: `Merged with the record of ${rm.full_name}${rm.phone ? ` (${rm.phone})` : ""}. All invoices, notes and receivers moved here.` });
+    d.customers = d.customers.filter((x) => x !== rm);
+    save();
+    return { data: null, error: null };
+  },
+
+  delete_customer({ p_id }) {
+    const d = db();
+    if (d.booking_contacts.some((l) => l.customer_id === p_id)) return fail("This customer is linked to invoices. Merge them into another customer, or unlink the invoices first.");
+    if (!d.customers.some((x) => x.id === p_id)) return fail("Customer not found");
+    d.customers = d.customers.filter((x) => x.id !== p_id);
+    d.customer_receivers = d.customer_receivers.filter((x) => x.sender_id !== p_id && x.receiver_id !== p_id);
+    save();
+    return { data: null, error: null };
+  },
+
   create_customer(a) {
     try {
       const d = db();
-      const row = { id: uid(), ...customerArgs(a), created_by_name: "Tester (super admin)", created_at: now(), updated_at: now() };
+      const row = { id: uid(), ...customerArgs(a), warning_note: null, created_by_name: "Tester (super admin)", created_at: now(), updated_at: now() };
       d.customers.push(row);
       save();
       return { data: row.id, error: null };
@@ -872,7 +1037,7 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
     if (!b) return fail("Booking not found");
     const id = uid();
     d.customers.push({ id, full_name: String(b.sender_name).slice(0, 120), phone: b.sender_phone ?? null, whatsapp: b.sender_whatsapp ?? null,
-      address: /^legacy invoice/i.test(b.pickup_address) ? null : b.pickup_address, geo_lat: b.geo_lat ?? null, geo_lng: b.geo_lng ?? null, emirates_id: null,
+      address: /^legacy invoice/i.test(b.pickup_address) ? null : b.pickup_address, geo_lat: b.geo_lat ?? null, geo_lng: b.geo_lng ?? null, emirates_id: null, warning_note: null,
       created_by_name: "Tester (super admin)", created_at: now(), updated_at: now() });
     d.booking_contacts = d.booking_contacts.filter((l) => !(l.booking_id === b.id && l.role === "customer"));
     d.booking_contacts.push({ booking_id: b.id, role: "customer", customer_id: id, created_at: now() });
@@ -1159,8 +1324,26 @@ export function createMockClient() {
     rpc: (name: string, args: any) =>
       new Promise((resolve) => setTimeout(() => resolve(RPC[name](args)), 60)),
     auth,
+    storage: { from: () => mockStorage },
   };
 }
+
+// Private file storage for the ID photos. In sample data mode the files only live in this browser tab.
+const files = new Map<string, Blob>();
+const mockStorage = {
+  async upload(path: string, file: Blob) {
+    files.set(path, file);
+    return { data: { path }, error: null };
+  },
+  async createSignedUrl(path: string) {
+    const f = files.get(path);
+    return { data: { signedUrl: f ? URL.createObjectURL(f) : "" }, error: f ? null : { message: "Photo not found (sample data keeps photos only until the page is reloaded)" } };
+  },
+  async remove(paths: string[]) {
+    paths.forEach((p) => files.delete(p));
+    return { data: null, error: null };
+  },
+};
 
 /**
  * Sample-data stand-in for the /api/users server route (the Users screen). Same rules as the real route:
