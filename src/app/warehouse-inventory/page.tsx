@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ChevronDown, ChevronRight, MoveRight, Undo2 } from "lucide-react";
@@ -10,7 +10,10 @@ import { Button, Card, ErrorMessage, StatusBadge, inputClass } from "@/component
 import { formatDay, kg } from "@/lib/format";
 import ParcelPosition from "@/components/warehouse/ParcelPosition";
 import ListSearch from "@/components/ui/ListSearch";
+import SwipeHint from "@/components/ui/SwipeHint";
 import { matchesSearch } from "@/lib/search";
+import { neighbour } from "@/lib/swipe";
+import { useSwipe } from "@/lib/use-swipe";
 import { useQuery } from "@/lib/hooks";
 import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
@@ -32,6 +35,19 @@ function WarehouseContent() {
   const [tab, setTab] = useState<Tab>(TABS.some((t) => t.key === asked) ? (asked as Tab) : "intake");
   const [filter, setFilter] = useState("all");
   const [q, setQ] = useState("");
+  const [slide, setSlide] = useState<"next" | "previous" | null>(null); // which way the tab content slides in after a swipe
+  // Swiping over a wide table scrolls the table (the swipe helper ignores it); anywhere else it changes the tab.
+  const swipeRef = useSwipe((direction) => {
+    const to = neighbour(TABS.map((x) => x.key), tab, direction);
+    if (to) {
+      setSlide(direction);
+      setTab(to);
+    }
+  });
+  // keep the chosen tab in view in the row of tabs
+  useEffect(() => {
+    document.getElementById(`warehouse-tab-${tab}`)?.scrollIntoView({ inline: "center", block: "nearest" });
+  }, [tab]);
   const [picked, setPicked] = useState<string[]>([]);
   const [open, setOpen] = useState<string[]>([]); // invoices whose packages are showing
   const [openReturns, setOpenReturns] = useState<string[]>([]); // invoices whose returns are showing
@@ -307,13 +323,19 @@ function WarehouseContent() {
       <PageHeader title="Warehouse" description="Receive cargo, then unpack, pack and return." />
       <ErrorMessage message={awaiting.error ?? parcels.error ?? returns.error} />
 
+      <SwipeHint id="warehouse">Swipe left or right to change tab: Intake, Unpacked, Packed, Returns.</SwipeHint>
+      <div ref={swipeRef} className="min-h-[70vh]">
       <div role="tablist" className="mb-2 flex gap-2 overflow-x-auto pb-1">
         {TABS.map((t) => (
           <button
             key={t.key}
+            id={`warehouse-tab-${t.key}`}
             role="tab"
             aria-selected={tab === t.key}
-            onClick={() => setTab(t.key)}
+            onClick={() => {
+              setSlide(null);
+              setTab(t.key);
+            }}
             className={`shrink-0 rounded-full px-4 py-1.5 text-sm font-medium ${
               tab === t.key ? "bg-blue-600 text-white" : "border border-slate-300 bg-white text-slate-700"
             }`}
@@ -332,6 +354,7 @@ function WarehouseContent() {
         />
       </div>
 
+      <div key={tab} className={slide ? `swipe-in-${slide}` : ""}>
       {tab === "intake" && (
         <Card id="awaiting-intake">
           {!intake.length ? (
@@ -426,6 +449,8 @@ function WarehouseContent() {
           )}
         </Card>
       )}
+      </div>
+      </div>
     </>
   );
 }

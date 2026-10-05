@@ -1,0 +1,56 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { MoveHorizontal, X } from "lucide-react";
+
+const SHOWN_LIMIT = 3;
+
+const readCount = (key: string) => {
+  try {
+    return Number(localStorage.getItem(key) ?? 0);
+  } catch {
+    return 0; // storage can be blocked; then the hint simply shows
+  }
+};
+
+/**
+ * A small one-line hint for the swipe gesture. Phones only, shown on the first three visits, never again after that
+ * or once it is dismissed.
+ */
+export default function SwipeHint({ id, children }: { id: string; children: string }) {
+  const key = `swipe-hint-${id}`;
+  const [visible, setVisible] = useState(
+    () => typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches && readCount(key) < SHOWN_LIMIT
+  );
+
+  useEffect(() => {
+    if (!visible) return;
+    try {
+      localStorage.setItem(key, String(readCount(key) + 1));
+    } catch {
+      // not saved, so it may show again: harmless
+    }
+  }, [visible, key]);
+
+  if (!visible) return null;
+  return (
+    <p className="mb-3 flex items-center gap-2 rounded-md bg-blue-50 px-3 py-2 text-xs text-blue-800 md:hidden">
+      <MoveHorizontal className="h-4 w-4 shrink-0" />
+      <span className="flex-1">{children}</span>
+      <button
+        aria-label="Hide this hint"
+        onClick={() => {
+          try {
+            localStorage.setItem(key, String(SHOWN_LIMIT));
+          } catch {
+            // ignore
+          }
+          setVisible(false);
+        }}
+        className="p-1"
+      >
+        <X className="h-3.5 w-3.5" />
+      </button>
+    </p>
+  );
+}

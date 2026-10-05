@@ -1,13 +1,16 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { CalendarDays, MapPin, Navigation, User } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
 import EmptyState from "@/components/ui/EmptyState";
 import ListSearch from "@/components/ui/ListSearch";
+import SwipeHint from "@/components/ui/SwipeHint";
 import { matchesSearch } from "@/lib/search";
+import { neighbour } from "@/lib/swipe";
+import { useSwipe } from "@/lib/use-swipe";
 import ContactButtons from "@/components/contact/ContactButtons";
 import { ErrorMessage, StatusBadge, inputClass } from "@/components/ui/form";
 import { AREAS } from "@/config/areas";
@@ -34,6 +37,19 @@ function PickupsContent() {
   const [status, setStatus] = useState(initialStatus === "booked" || initialStatus === "collected" || initialStatus === "all" ? initialStatus : "booked");
   const [area, setArea] = useState("all");
   const [search, setSearch] = useState("");
+  const [slide, setSlide] = useState<"next" | "previous" | null>(null); // which way the list slides in after a swipe
+  const areas = ["all", ...AREAS];
+  const swipeRef = useSwipe((direction) => {
+    const to = neighbour(areas, area, direction);
+    if (to) {
+      setSlide(direction);
+      setArea(to);
+    }
+  });
+  // keep the chosen area's chip in view in the row of chips
+  useEffect(() => {
+    document.getElementById(`area-chip-${area}`)?.scrollIntoView({ inline: "center", block: "nearest" });
+  }, [area]);
   const [driverChoice, setDriverChoice] = useState<string | null>(null);
 
   // A signed-in driver defaults to their own pickups; staff see everyone's.
@@ -57,12 +73,18 @@ function PickupsContent() {
   return (
     <>
       <PageHeader title="Pickups" description="Open pickups by area. Tap one to record items and payment." />
+      <SwipeHint id="pickups">Swipe left or right to change the area.</SwipeHint>
+      <div ref={swipeRef} className="min-h-[70vh]">
 
       <div className="mb-3 flex gap-2 overflow-x-auto pb-1">
-        {["all", ...AREAS].map((a) => (
+        {areas.map((a) => (
           <button
             key={a}
-            onClick={() => setArea(a)}
+            id={`area-chip-${a}`}
+            onClick={() => {
+              setSlide(null);
+              setArea(a);
+            }}
             className={`shrink-0 rounded-full px-3 py-1.5 text-sm font-medium ${
               area === a ? "bg-blue-600 text-white" : "border border-slate-300 bg-white text-slate-700"
             }`}
@@ -107,7 +129,7 @@ function PickupsContent() {
       ) : !visible.length ? (
         <EmptyState message="No open pickups here." />
       ) : (
-        <ul className="space-y-3">
+        <ul key={area} className={`space-y-3 ${slide ? `swipe-in-${slide}` : ""}`}>
           {visible.map((b) => (
             <li key={b.id}>
               {/* The whole card opens the pickup (stretched link), while Call / WhatsApp stay separately tappable. */}
@@ -154,6 +176,7 @@ function PickupsContent() {
           ))}
         </ul>
       )}
+      </div>
     </>
   );
 }

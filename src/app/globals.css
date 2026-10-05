@@ -4,3 +4,18 @@
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
+
+/* The content slides in a little from the side after a swipe between tabs. */
+@keyframes swipe-in-next {
+  from { opacity: 0; transform: translateX(28px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes swipe-in-previous {
+  from { opacity: 0; transform: translateX(-28px); }
+  to { opacity: 1; transform: none; }
+}
+.swipe-in-next { animation: swipe-in-next 180ms ease-out; }
+.swipe-in-previous { animation: swipe-in-previous 180ms ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  .swipe-in-next, .swipe-in-previous { animation: none; }
+}
