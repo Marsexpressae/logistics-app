@@ -14,6 +14,8 @@ import SwipeHint from "@/components/ui/SwipeHint";
 import { matchesSearch } from "@/lib/search";
 import { neighbour } from "@/lib/swipe";
 import ScanParcel from "@/components/scan/ScanParcel";
+import ShowMore from "@/components/ui/ShowMore";
+import { PAGE_SIZE } from "@/lib/window";
 import { nextTabIndex } from "@/lib/tab-keys";
 import { useSwipe } from "@/lib/use-swipe";
 import { useQuery } from "@/lib/hooks";
@@ -56,6 +58,7 @@ function WarehouseContent() {
     document.getElementById(`warehouse-tab-${tab}`)?.scrollIntoView({ inline: "center", block: "nearest" });
   }, [tab]);
   const [picked, setPicked] = useState<string[]>([]);
+  const [groupLimit, setGroupLimit] = useState(PAGE_SIZE); // invoices shown in the Unpacked and Packed lists
   const [open, setOpen] = useState<string[]>([]); // invoices whose packages are showing
   const [openReturns, setOpenReturns] = useState<string[]>([]); // invoices whose returns are showing
   const [returnError, setReturnError] = useState<string | null>(null);
@@ -182,6 +185,8 @@ function WarehouseContent() {
         (filter === "all" || p.warehouse?.code === filter) &&
         matchesSearch(q, [p.barcode, p.description, p.position, p.booking?.invoice_no, p.booking?.code, p.booking?.sender_name, p.warehouse?.name, p.warehouse?.code])
     );
+    const allGroups = groups(visible);
+    const shownGroups = allGroups.slice(0, groupLimit);
     return (
       <>
         <div className="mb-3 flex flex-wrap gap-2">
@@ -236,7 +241,7 @@ function WarehouseContent() {
           <>
           {/* Phones: one big card per invoice, with finger-sized checkboxes and buttons (the table below is for wide screens). */}
           <ul className="space-y-3 md:hidden">
-            {groups(visible).map((g) => {
+            {shownGroups.map((g) => {
               const isOpen = open.includes(g.bookingId);
               const selectable = g.parcels.filter((p) => p.status === "in_warehouse");
               const ticked = selectable.filter((p) => picked.includes(p.id)).length;
@@ -340,7 +345,7 @@ function WarehouseContent() {
                   <th className="px-4 py-3"></th>
                 </tr>
               </thead>
-              {groups(visible).map((g) => {
+              {shownGroups.map((g) => {
                 const isOpen = open.includes(g.bookingId);
                 const selectable = g.parcels.filter((p) => p.status === "in_warehouse");
                 const ticked = selectable.filter((p) => picked.includes(p.id)).length;
@@ -423,6 +428,7 @@ function WarehouseContent() {
               })}
             </table>
           </div>
+          <ShowMore remaining={Math.max(0, allGroups.length - groupLimit)} onClick={() => setGroupLimit((n) => n + PAGE_SIZE)} what="invoices" />
           </>
         )}
       </>

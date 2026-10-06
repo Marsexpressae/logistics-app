@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { CalendarDays, MapPin, Navigation, User } from "lucide-react";
 import Chip from "@/components/ui/Chip";
+import ShowMore from "@/components/ui/ShowMore";
+import { useWindow } from "@/lib/window";
 import PageHeader from "@/components/ui/PageHeader";
 import EmptyState from "@/components/ui/EmptyState";
 import ListSearch from "@/components/ui/ListSearch";
@@ -70,6 +72,7 @@ function PickupsContent() {
   );
   const countFor = (a: string) => open.filter((b) => a === "all" || b.pickup_area === a).length;
   const visible = open.filter((b) => area === "all" || b.pickup_area === area);
+  const win = useWindow(visible);
 
   return (
     <>
@@ -128,8 +131,9 @@ function PickupsContent() {
       ) : !visible.length ? (
         <EmptyState message="No open pickups here." />
       ) : (
+        <>
         <ul key={area} className={`space-y-3 ${slide ? `swipe-in-${slide}` : ""}`}>
-          {visible.map((b) => (
+          {win.shown.map((b) => (
             <li key={b.id}>
               {/* The whole card opens the pickup (stretched link), while Call / WhatsApp stay separately tappable. */}
               <div className="relative rounded-lg border border-slate-200 bg-white p-4 active:bg-slate-50">
@@ -174,6 +178,8 @@ function PickupsContent() {
             </li>
           ))}
         </ul>
+        <ShowMore remaining={win.remaining} onClick={win.showMore} what="pickups" />
+        </>
       )}
       </div>
     </>

@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Plus } from "lucide-react";
 import RowCard from "@/components/ui/RowCard";
+import ShowMore from "@/components/ui/ShowMore";
+import { useWindow } from "@/lib/window";
 import PageHeader from "@/components/ui/PageHeader";
 import EmptyState from "@/components/ui/EmptyState";
 import ListSearch from "@/components/ui/ListSearch";
@@ -49,6 +51,7 @@ function BookingsContent() {
         [b.sender_phone, b.sender_whatsapp, b.receiver_phone, b.receiver_whatsapp]
       )
   );
+  const win = useWindow(rows);
 
   return (
     <>
@@ -86,7 +89,7 @@ function BookingsContent() {
         <>
         {/* Phones: one big card per booking. Wide screens: the table below. */}
         <ul className="space-y-3 md:hidden">
-          {rows.map((b) => {
+          {win.shown.map((b) => {
             const paid = totalPaid(b.payments);
             return (
               <RowCard key={b.id} href={`/bookings/${b.id}`}>
@@ -129,7 +132,7 @@ function BookingsContent() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {rows.map((b) => {
+              {win.shown.map((b) => {
                 const paid = totalPaid(b.payments);
                 return (
                   <tr key={b.id} className="hover:bg-slate-50">
@@ -175,6 +178,7 @@ function BookingsContent() {
             </tbody>
           </table>
         </div>
+        <ShowMore remaining={win.remaining} onClick={win.showMore} what="bookings" />
         </>
       )}
     </>
