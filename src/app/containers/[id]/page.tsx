@@ -6,6 +6,7 @@ import { CheckCheck, MapPinCheck, PackagePlus, Rocket, ScanLine, X } from "lucid
 import PageHeader from "@/components/ui/PageHeader";
 import ListSearch from "@/components/ui/ListSearch";
 import { matchesSearch } from "@/lib/search";
+import CameraScanner from "@/components/scan/CameraScanner";
 import { Button, Card, ErrorMessage, StatusBadge, inputClass, Loading } from "@/components/ui/form";
 import { formatDay, todayISO } from "@/lib/format";
 import { useQuery } from "@/lib/hooks";
@@ -44,6 +45,7 @@ export default function ContainerManifestPage() {
   const dateArg = (d: string) => (d && d !== todayISO() ? d : null);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const scanRef = useRef<HTMLInputElement>(null);
+  const [camera, setCamera] = useState(false);
   // When "payment before loading" is on, a manager can load anyway by giving a reason. The reason is remembered
   // for the same booking while this page stays open, so a batch of parcels asks once.
   const overrides = useRef<Record<string, string>>({});
@@ -192,10 +194,24 @@ export default function ContainerManifestPage() {
       {open && (
         <div className="grid gap-4 md:grid-cols-2">
           <Card title="Scan or type barcode">
+            <Button size="large" className="mb-3" onClick={() => setCamera(true)}>
+              <ScanLine className="h-6 w-6" aria-hidden="true" /> Scan with the camera
+            </Button>
+            <CameraScanner
+              open={camera}
+              continuous
+              title="Load parcels"
+              onClose={() => setCamera(false)}
+              onCode={async (code) => {
+                const ok = await load(code);
+                refresh();
+                return { ok, text: ok ? "loaded" : "not loaded (see the message below)" };
+              }}
+            />
             <form onSubmit={onScan} className="flex gap-2">
-              <input ref={scanRef} autoFocus placeholder="BK-1001-P1" aria-label="Parcel barcode to load" className={`${inputClass} font-mono`} />
-              <Button type="submit">
-                <ScanLine className="h-4 w-4" /> Load
+              <input ref={scanRef} placeholder="BK-1001-P1" aria-label="Parcel barcode to load" className={`${inputClass} font-mono`} />
+              <Button type="submit" variant="secondary">
+                <ScanLine className="h-4 w-4" aria-hidden="true" /> Load
               </Button>
             </form>
           </Card>

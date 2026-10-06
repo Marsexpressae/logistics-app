@@ -13,6 +13,7 @@ import ListSearch from "@/components/ui/ListSearch";
 import SwipeHint from "@/components/ui/SwipeHint";
 import { matchesSearch } from "@/lib/search";
 import { neighbour } from "@/lib/swipe";
+import ScanParcel from "@/components/scan/ScanParcel";
 import { nextTabIndex } from "@/lib/tab-keys";
 import { useSwipe } from "@/lib/use-swipe";
 import { useQuery } from "@/lib/hooks";
@@ -431,6 +432,7 @@ function WarehouseContent() {
   return (
     <>
       <PageHeader title="Warehouse" description="Receive cargo, then unpack, pack and return." />
+      <ScanParcel />
       <ErrorMessage message={awaiting.error ?? parcels.error ?? returns.error} />
 
       <SwipeHint id="warehouse">Swipe left or right to change tab: Intake, Unpacked, Packed, Returns.</SwipeHint>
