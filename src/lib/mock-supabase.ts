@@ -373,6 +373,9 @@ class Query implements PromiseLike<any> {
           if (err) return { data: null, error: err, count: null };
         }
       }
+      if (this.table === "payments") {
+        for (const r of rows) if (typeof r.created_at === "string" && Date.parse(r.created_at) > Date.now() + 5 * 60_000) return { data: null, error: { message: "The payment date cannot be in the future" }, count: null };
+      }
       if (this.table === "containers") {
         for (const r of rows) {
           if (!NUMBER_RE.test(r.code)) return { data: null, error: { message: "Use letters, numbers, dashes or slashes for the container number, for example 38 or CN-120" }, count: null };
@@ -395,6 +398,10 @@ class Query implements PromiseLike<any> {
             }
           }
         }
+        if (this.table === "bookings" && typeof this.payload.collected_at === "string" && Date.parse(this.payload.collected_at) > Date.now() + 5 * 60_000)
+          return { data: null, error: { message: "The collection date cannot be in the future" }, count: null };
+        if (this.table === "payments" && typeof this.payload.created_at === "string" && Date.parse(this.payload.created_at) > Date.now() + 5 * 60_000)
+          return { data: null, error: { message: "The payment date cannot be in the future" }, count: null };
         if (this.table === "containers" && typeof this.payload.code === "string") {
           const code = this.payload.code.trim().toUpperCase();
           if (!NUMBER_RE.test(code)) return { data: null, error: { message: "Use letters, numbers, dashes or slashes for the container number, for example 38 or CN-120" }, count: null };
@@ -498,6 +505,7 @@ function withDefaults(table: string, it: Row): Row {
       const bk = d.bookings.find((x) => x.id === it.booking_id);
       if (bk && !bk.invoice_no) bk.invoice_no = takeNumber("invoice");
       Object.assign(row, { created_at: now(), invoice_no: bk?.invoice_no ?? null });
+      if (typeof it.created_at === "string") row.created_at = it.created_at;
       break;
     }
   }
@@ -574,7 +582,7 @@ function recordChange(b: Row, kind: string, reason: string, oldDate: string | nu
 }
 
 const RPC: Record<string, (a: any) => { data: any; error: { message: string } | null }> = {
-  split_booking({ p_booking_id, p_warehouse_id, p_parcels }) {
+  split_booking({ p_booking_id, p_warehouse_id, p_parcels, p_date }) {
     const d = db();
     const b = d.bookings.find((x) => x.id === p_booking_id);
     if (!b) return fail("Booking not found");
@@ -584,6 +592,9 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
       return fail(`Some parcels of ${b.code} have already left the warehouse; cannot re-split`);
 
     if (p_parcels.some((p: Row) => Number(p.weight_kg ?? 0) < 0)) return fail("A parcel weight cannot be negative");
+    let ts: string | null;
+    try { ts = eventTime(p_date); } catch (e) { return fail((e as Error).message); }
+    if (ts && b.collected_at && ts.slice(0, 10) < String(b.collected_at).slice(0, 10)) return fail(`Received cannot be before the collection date (${String(b.collected_at).slice(0, 10)})`);
 
     // Repacking keeps history: the old parcels are marked repacked, the new ones get the next round and new barcodes.
     const mine = d.parcels.filter((p) => p.booking_id === b.id);
@@ -602,11 +613,17 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
       d.parcel_events.push({ id: uid(), parcel_id: row.id, status: "in_warehouse", created_at: now() });
     });
     b.status = "at_warehouse";
+    if (ts) {
+      const ids = d.parcels.filter((p) => p.booking_id === b.id).map((p) => p.id);
+      const fresh = d.parcels.filter((p) => p.booking_id === b.id && p.round === round).map((p) => p.id);
+      backdate(fresh, "in_warehouse", ts);
+      backdate(ids.filter((i) => !fresh.includes(i)), "repacked", new Date(new Date(ts).getTime() - 60000).toISOString());
+    }
     save();
     return { data: p_parcels.length, error: null };
   },
 
-  load_parcel({ p_container_id, p_barcode, p_override_reason }) {
+  load_parcel({ p_container_id, p_barcode, p_override_reason, p_date }) {
     const d = db();
     const c = d.containers.find((x) => x.id === p_container_id);
     if (!c) return fail("Container not found");
@@ -625,8 +642,14 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
           old_date: null, new_date: null, actor_name: "You (sample data)", created_at: now() });
       }
     }
+    let ts: string | null;
+    try { ts = eventTime(p_date); } catch (e) { return fail((e as Error).message); }
     p.container_id = c.id;
     setParcelStatus(p, "loaded");
+    if (ts) {
+      backdate([p.id], "loaded", ts);
+      backdate([p.id], "in_warehouse", new Date(new Date(ts).getTime() - 60000).toISOString()); // the earlier step cannot be later than the loading
+    }
     save();
     return { data: p, error: null };
   },
@@ -1287,13 +1310,15 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
     if (!b) return fail("Booking not found");
     if (!String(p_reason ?? "").trim()) return fail("A reason is required");
     if (b.status !== "booked") return fail("Only pickups that have not been collected can be rescheduled");
-    if (!p_new_date || p_new_date < today()) return fail("Choose today or a future date");
+    if (!p_new_date) return fail("Choose a date");
     if (p_new_date === b.pickup_date) return fail("The pickup is already on that date");
     const old = b.pickup_date;
     b.pickup_date = p_new_date;
     b.updated_at = now();
     recordChange(b, "rescheduled", String(p_reason).trim(), old, p_new_date,
       `${b.code} rescheduled`, `Moved from ${old} to ${p_new_date}. Reason: ${String(p_reason).trim()}`);
+    // Nobody needs an alert about a day that has already passed (the usual reason is entering an old record).
+    if (p_new_date < today()) db().notifications.pop();
     save();
     return { data: null, error: null };
   },

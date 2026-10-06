@@ -3,7 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { Check, Pencil, Trash2, X } from "lucide-react";
 import { Button, Card, ErrorMessage, Field, StatusBadge, inputClass } from "@/components/ui/form";
-import { formatDate, invoiceStatus, methodLabel, money, round2, totalPaid } from "@/lib/format";
+import { dateStamp, formatDate, todayISO, invoiceStatus, methodLabel, money, round2, totalPaid } from "@/lib/format";
 import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
 import type { Booking, Payment } from "@/lib/types";
@@ -27,7 +27,7 @@ export default function PaymentsCard({ booking, payments, onChanged }: PaymentsC
   const canCorrect = can("payments.manage"); // who has it is set on the Roles page
 
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [draft, setDraft] = useState({ amount: "", method: "cash", note: "" });
+  const [draft, setDraft] = useState({ amount: "", method: "cash", note: "", date: todayISO() });
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -69,6 +69,8 @@ export default function PaymentsCard({ booking, payments, onChanged }: PaymentsC
         amount,
         method,
         received_by_driver: booking.driver_id,
+        // the day the money was really received (today unless you pick an earlier day)
+        ...(String(f.get("paid_on") || todayISO()) !== todayISO() ? { created_at: dateStamp(String(f.get("paid_on"))) } : {}),
       })
     );
     if (ok) form.reset();
@@ -76,7 +78,7 @@ export default function PaymentsCard({ booking, payments, onChanged }: PaymentsC
 
   function startEdit(p: Payment) {
     setEditingId(p.id);
-    setDraft({ amount: String(Number(p.amount)), method: p.method, note: p.note ?? "" });
+    setDraft({ amount: String(Number(p.amount)), method: p.method, note: p.note ?? "", date: p.created_at.slice(0, 10) });
     setError(null);
   }
 
@@ -86,7 +88,7 @@ export default function PaymentsCard({ booking, payments, onChanged }: PaymentsC
     const ok = await run(
       supabase
         .from("payments")
-        .update({ amount, method: draft.method, note: draft.note.trim() || null })
+        .update({ amount, method: draft.method, note: draft.note.trim() || null, ...(draft.date && draft.date !== sorted.find((x) => x.id === editingId)?.created_at.slice(0, 10) ? { created_at: dateStamp(draft.date) } : {}) })
         .eq("id", editingId!)
     );
     if (ok) setEditingId(null);
@@ -151,6 +153,10 @@ export default function PaymentsCard({ booking, payments, onChanged }: PaymentsC
                     <option value="bank_transfer">Bank transfer</option>
                   </select>
                 </div>
+                <label className="block text-sm">
+                  <span className="mb-1 block text-xs text-slate-500">Payment date</span>
+                  <input type="date" max={todayISO()} value={draft.date} onChange={(e) => setDraft({ ...draft, date: e.target.value })} className={`${inputClass} w-auto`} />
+                </label>
                 <input
                   value={draft.note}
                   onChange={(e) => setDraft({ ...draft, note: e.target.value })}
@@ -206,6 +212,11 @@ export default function PaymentsCard({ booking, payments, onChanged }: PaymentsC
               <option value="bank_transfer">Bank transfer</option>
             </select>
           </Field>
+          <div className="col-span-2">
+            <Field label="Payment date">
+              <input name="paid_on" type="date" max={todayISO()} defaultValue={todayISO()} className={`${inputClass} w-auto`} />
+            </Field>
+          </div>
           <div className="col-span-2">
             <Button type="submit" className="w-full" disabled={busy}>
               Log payment

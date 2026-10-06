@@ -12,6 +12,7 @@ import DeleteBooking from "@/components/bookings/DeleteBooking";
 import WarningBanner from "@/components/customers/WarningBanner";
 import IdCard from "@/components/customers/IdCard";
 import CustomerCard from "@/components/customers/CustomerCard";
+import CollectedDate from "@/components/bookings/CollectedDate";
 import NotesCard from "@/components/bookings/NotesCard";
 import TrackingLink from "@/components/bookings/TrackingLink";
 import ItemsCard from "@/components/bookings/ItemsCard";
@@ -124,6 +125,7 @@ export default function EditBookingPage() {
           </Card>
         )}
         <CustomerCard bookingId={id} />
+        {b.collected_at && <CollectedDate bookingId={id} collectedAt={b.collected_at} canEdit={canEdit} onChanged={() => { booking.reload(); history.reload(); }} />}
       </div>
 
       {/* Without bookings.edit the whole form is read-only (the database blocks the write anyway). */}

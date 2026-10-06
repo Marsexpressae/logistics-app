@@ -30,6 +30,12 @@ export const todayISO = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
 
+/**
+ * The moment to save for a day somebody picked: now when it is today, otherwise noon on that day.
+ * Used when entering old records, so the invoice, payment and history show the real day.
+ */
+export const dateStamp = (day: string) => (!day || day === todayISO() ? new Date().toISOString() : new Date(`${day}T12:00:00`).toISOString());
+
 /** "Fri, 3 Oct 2026" from a YYYY-MM-DD date (parsed as local, so no timezone shift). */
 export const formatDay = (date: string) =>
   new Date(`${date}T00:00:00`).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", year: "numeric" });

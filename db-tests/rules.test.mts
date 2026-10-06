@@ -284,3 +284,35 @@ test("a typed booking or invoice number must start with the prefix from Settings
     assert.equal(await db.error(() => db.as(person, "update bookings set invoice_no = $2 where id = $1", [booking, `${invoicePrefix}9998`])), null);
   });
 });
+
+test("old records: every step can carry its real day, never a future day", { skip }, async () => {
+  await inTransaction(async (db) => {
+    const office = await db.person(["bookings.view", "bookings.edit", "bookings.reschedule", "payments.manage"]);
+    const warehouseUser = await db.person(["warehouse.view", "warehouse.manage", "containers.view", "containers.manage"]);
+    const booking = await db.booking({ invoice_no: "T-OLD-1" });
+
+    // pickup date: a past day is allowed
+    assert.equal(await db.error(() => db.as(office, "select reschedule_booking($1, '2025-12-27', 'Entering the old record')", [booking])), null);
+
+    // collected day (the invoice date) and payment day: past yes, future no
+    await db.owner("update bookings set status = 'collected', collected_at = '2025-12-27T12:00:00Z' where id = $1", [booking]);
+    assert.match((await db.error(() => db.owner("update bookings set collected_at = now() + interval '3 days' where id = $1", [booking]))) ?? "", /collection date cannot be in the future/);
+    assert.equal(await db.error(() => db.owner("insert into payments (booking_id, amount, method, created_at) values ($1, 50, 'cash', '2025-12-27T12:00:00Z')", [booking])), null);
+    assert.match((await db.error(() => db.owner("insert into payments (booking_id, amount, method, created_at) values ($1, 5, 'cash', now() + interval '3 days')", [booking]))) ?? "", /payment date cannot be in the future/);
+
+    // received in the warehouse: not before the collection, not in the future
+    const wh = (await db.owner("select id from warehouses order by code limit 1"))[0].id;
+    const parcels = JSON.stringify([{ description: "Box", weight_kg: 10 }]);
+    assert.match((await db.error(() => db.as(warehouseUser, "select split_booking($1, $2, $3::jsonb, '2025-12-01')", [booking, wh, parcels]))) ?? "", /before the collection/);
+    assert.match((await db.error(() => db.as(warehouseUser, "select split_booking($1, $2, $3::jsonb, '2999-01-01')", [booking, wh, parcels]))) ?? "", /future/);
+    assert.equal(await db.error(() => db.as(warehouseUser, "select split_booking($1, $2, $3::jsonb, '2025-12-28')", [booking, wh, parcels])), null);
+
+    // loaded into a container: the history shows the real days, in order
+    const parcel = (await db.owner("select id, barcode from parcels where booking_id = $1 and status = 'in_warehouse'", [booking]))[0];
+    const container = (await db.owner("insert into containers (destination) values ('Test') returning id"))[0].id;
+    assert.equal(await db.error(() => db.as(warehouseUser, "select load_parcel($1, $2, null, '2025-12-30')", [container, parcel.barcode])), null);
+    const days = Object.fromEntries((await db.owner("select status, created_at::date::text d from parcel_events where parcel_id = $1", [parcel.id])).map((r) => [r.status, r.d]));
+    assert.equal(days.in_warehouse, "2025-12-28");
+    assert.equal(days.loaded, "2025-12-30");
+  });
+});

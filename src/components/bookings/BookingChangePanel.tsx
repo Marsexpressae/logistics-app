@@ -3,7 +3,6 @@
 import { useState, type FormEvent } from "react";
 import { Ban, CalendarClock } from "lucide-react";
 import { Button, Card, ErrorMessage, Field, inputClass } from "@/components/ui/form";
-import { todayISO } from "@/lib/format";
 import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
 import type { Booking } from "@/lib/types";
@@ -93,7 +92,6 @@ export default function BookingChangePanel({ booking, onChanged }: { booking: Bo
                 <input
                   type="date"
                   required
-                  min={todayISO()}
                   value={date}
                   onChange={(e) => setDate(e.target.value)}
                   className={inputClass}

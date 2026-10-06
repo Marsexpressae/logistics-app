@@ -15,11 +15,11 @@ import ItemsCard from "@/components/bookings/ItemsCard";
 import PaymentsCard from "@/components/bookings/PaymentsCard";
 import ContactCard from "@/components/contact/ContactCard";
 import ScheduleHistory from "@/components/bookings/ScheduleHistory";
-import { Button, Card, ErrorMessage, StatusBadge, Loading } from "@/components/ui/form";
+import { Button, Card, ErrorMessage, StatusBadge, inputClass, Loading } from "@/components/ui/form";
 import { useQuery } from "@/lib/hooks";
 import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
-import { formatDay } from "@/lib/format";
+import { dateStamp, formatDay, todayISO } from "@/lib/format";
 import { mapsUrl } from "@/lib/geo";
 import type { Booking, BookingItem } from "@/lib/types";
 import BackLink from "@/components/ui/BackLink";
@@ -43,6 +43,7 @@ export default function PickupDetailPage() {
     return { data: (count ?? 0) > 0, error };
   }, [id]);
   const [error, setError] = useState<string | null>(null);
+  const [collectedOn, setCollectedOn] = useState(todayISO());
   const [changes, setChanges] = useState(0); // bumps after a reschedule/cancel so the history refreshes
 
   const b = booking.data;
@@ -57,8 +58,9 @@ export default function PickupDetailPage() {
     items.reload();
   }
 
+  // Left as today it is collected now. Pick an earlier day when entering an old pickup: the invoice and receipt show that day.
   const markCollected = () =>
-    run(supabase.from("bookings").update({ status: "collected", collected_at: new Date().toISOString() }).eq("id", id));
+    run(supabase.from("bookings").update({ status: "collected", collected_at: dateStamp(collectedOn) }).eq("id", id));
 
   return (
     <div className="mx-auto max-w-xl space-y-4">
@@ -130,6 +132,13 @@ export default function PickupDetailPage() {
 
       {b.status === "booked" && needId.data === true && hasId.data !== true && (
         <p className="text-sm text-amber-800">Enter the customer&apos;s Emirates ID above before marking this pickup collected.</p>
+      )}
+
+      {b.status === "booked" && (
+        <label className="block text-sm">
+          <span className="mb-1 block text-xs text-slate-500">Collected on</span>
+          <input type="date" max={todayISO()} value={collectedOn} onChange={(e) => setCollectedOn(e.target.value)} className={`${inputClass} w-auto`} />
+        </label>
       )}
 
       <div className="grid gap-2 pb-6 sm:grid-cols-2">

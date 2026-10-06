@@ -38,6 +38,7 @@ export default function ContainerManifestPage() {
   const [find, setFind] = useState("");
   // Real dates: left as today, nothing special happens. Pick an earlier day when entering an old shipment.
   const [departDate, setDepartDate] = useState(todayISO());
+  const [loadDate, setLoadDate] = useState(todayISO());
   const [arriveDate, setArriveDate] = useState(todayISO());
   const [delivering, setDelivering] = useState<{ id: string; partner: string; tracking: string; date: string } | null>(null);
   const partners = useQuery<{ delivery_partner: string | null }[]>(() => supabase.from("parcels").select("delivery_partner").limit(500));
@@ -66,7 +67,7 @@ export default function ContainerManifestPage() {
   async function load(barcode: string) {
     const code = barcode.trim().toUpperCase().replace(/-(R\d+-)?P\d+$/, "");
     const attempt = (reason?: string) =>
-      supabase.rpc("load_parcel", { p_container_id: id, p_barcode: barcode, p_override_reason: reason ?? overrides.current[code] ?? null });
+      supabase.rpc("load_parcel", { p_container_id: id, p_barcode: barcode, p_override_reason: reason ?? overrides.current[code] ?? null, p_date: dateArg(loadDate) });
     let { error } = await attempt();
 
     const needsPayment = error?.message.match(/^PAYMENT_REQUIRED (\S+) : (.*)$/);
@@ -216,6 +217,10 @@ export default function ContainerManifestPage() {
       {open && (
         <div className="grid gap-4 md:grid-cols-2">
           <Card title="Scan or type barcode">
+            <label className="mb-3 block text-sm">
+              <span className="mb-1 block text-xs text-slate-500">Loading date (for parcels loaded now)</span>
+              <input type="date" max={todayISO()} value={loadDate} onChange={(e) => setLoadDate(e.target.value)} className={`${inputClass} w-auto`} />
+            </label>
             <Button size="large" className="mb-3" onClick={() => setCamera(true)}>
               <ScanLine className="h-6 w-6" aria-hidden="true" /> Scan with the camera
             </Button>
