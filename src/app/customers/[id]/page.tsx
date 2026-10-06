@@ -17,6 +17,8 @@ import { formatPhone } from "@/lib/phone";
 import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
 import { confirmAction } from "@/lib/ask";
+import BackLink from "@/components/ui/BackLink";
+import { textLink } from "@/components/ui/links";
 
 type LinkedBooking = {
   role: ContactRole;
@@ -104,9 +106,7 @@ export default function CustomerPage() {
 
   return (
     <div className="max-w-3xl space-y-4">
-      <Link href="/customers" className="text-sm text-blue-700">
-        ← All customers
-      </Link>
+      <BackLink href="/customers">All customers</BackLink>
       <PageHeader title={c.full_name} description={`Customer since ${formatDay(c.created_at.slice(0, 10))}${c.created_by_name ? ` · added by ${c.created_by_name}` : ""}`} />
 
       {c.warning_note && warning === null && (
@@ -214,7 +214,7 @@ export default function CustomerPage() {
 
       <Card title={`Invoices (${bookings.length})`}>
         {can("accounts.view") && bookings.length > 0 && (
-          <Link href={`/customers/${id}/statement`} className="mb-3 inline-flex items-center gap-1.5 text-sm font-medium text-blue-700">
+          <Link href={`/customers/${id}/statement`} className={textLink}>
             <FileText className="h-4 w-4" /> Statement of account
           </Link>
         )}
@@ -228,7 +228,7 @@ export default function CustomerPage() {
               <li key={`${b!.id}-${role}`} className="flex items-center justify-between gap-3 py-3">
                 <span>
                   {can("bookings.view") ? (
-                    <Link href={`/bookings/${b!.id}`} className="font-mono font-medium text-blue-700">
+                    <Link href={`/bookings/${b!.id}`} className="inline-flex min-h-11 items-center font-mono font-medium text-blue-700">
                       {b!.invoice_no ?? b!.code}
                     </Link>
                   ) : (
@@ -285,7 +285,7 @@ export default function CustomerPage() {
                   {t.r_invoice && (
                     <span className="font-mono text-xs text-slate-500">
                       {t.r_booking_id && can("bookings.view") ? (
-                        <Link href={`/bookings/${t.r_booking_id}`} className="text-blue-700">
+                        <Link href={`/bookings/${t.r_booking_id}`} className="inline-flex min-h-11 items-center px-1 text-blue-700">
                           {t.r_invoice}
                         </Link>
                       ) : (

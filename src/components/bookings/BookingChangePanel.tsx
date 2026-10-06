@@ -68,7 +68,7 @@ export default function BookingChangePanel({ booking, onChanged }: { booking: Bo
 
   return (
     <div className="space-y-3">
-      {notice && <p className="rounded-md bg-green-50 px-3 py-2 text-sm text-green-800">{notice}</p>}
+      {notice && <p role="status" className="rounded-md bg-green-50 px-3 py-2 text-sm text-green-800">{notice}</p>}
 
       {!mode && (mayReschedule || mayCancel) && (
         <div className="flex flex-wrap gap-2">

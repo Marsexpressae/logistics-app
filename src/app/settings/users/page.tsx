@@ -185,7 +185,7 @@ export default function UsersPage() {
       )}
 
       <ErrorMessage message={error ?? users.error} />
-      {notice && <p className="mb-3 rounded-md bg-green-50 px-3 py-2 text-sm text-green-700">{notice}</p>}
+      {notice && <p role="status" className="mb-3 rounded-md bg-green-50 px-3 py-2 text-sm text-green-700">{notice}</p>}
 
       {users.data && (
         <div className="mb-3">

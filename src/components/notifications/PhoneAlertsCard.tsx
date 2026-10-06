@@ -73,7 +73,7 @@ export default function PhoneAlertsCard() {
           )}
         </span>
       </div>
-      {note && <p className="mt-2 text-sm text-green-700">{note}</p>}
+      {note && <p role="status" className="mt-2 text-sm text-green-700">{note}</p>}
       <ErrorMessage message={error} />
     </Card>
   );

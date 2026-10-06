@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { ArrowLeft, CalendarDays, CheckCircle2, MapPin, Navigation, Printer } from "lucide-react";
+import { CalendarDays, CheckCircle2, MapPin, Navigation, Printer } from "lucide-react";
 import BookingChangePanel from "@/components/bookings/BookingChangePanel";
 import DeleteBooking from "@/components/bookings/DeleteBooking";
 import WarningBanner from "@/components/customers/WarningBanner";
@@ -22,6 +22,7 @@ import { supabase } from "@/lib/supabase";
 import { formatDay } from "@/lib/format";
 import { mapsUrl } from "@/lib/geo";
 import type { Booking, BookingItem } from "@/lib/types";
+import BackLink from "@/components/ui/BackLink";
 
 export default function PickupDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -61,9 +62,7 @@ export default function PickupDetailPage() {
 
   return (
     <div className="mx-auto max-w-xl space-y-4">
-      <Link href="/pickups" className="inline-flex items-center gap-1 text-sm text-slate-600">
-        <ArrowLeft className="h-4 w-4" /> Pickups
-      </Link>
+      <BackLink href="/pickups">Pickups</BackLink>
 
       <WarningBanner bookingId={id} />
 
@@ -86,7 +85,7 @@ export default function PickupDetailPage() {
           </span>
         </p>
         <a
-          className="mt-2 inline-flex items-center gap-2 rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white"
+          className="mt-2 inline-flex min-h-11 items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white"
           href={mapsUrl(b)}
           target="_blank"
           rel="noreferrer"

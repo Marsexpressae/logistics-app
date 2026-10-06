@@ -82,3 +82,12 @@ export function Loading({ label = "Loading…" }: { label?: string }) {
     </p>
   );
 }
+
+/** A success message that screen readers announce (errors use ErrorMessage, which announces itself too). */
+export function Notice({ children, className = "" }: { children: ReactNode; className?: string }) {
+  return (
+    <p role="status" className={`rounded-md bg-green-50 px-3 py-2 text-sm text-green-800 ${className}`}>
+      {children}
+    </p>
+  );
+}

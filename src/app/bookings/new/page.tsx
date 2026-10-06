@@ -13,8 +13,7 @@ export default function NewBookingPage() {
       <BookingForm
         submitLabel="Create booking"
         onSaved={(code) => {
-          alert(`Booking ${code} created`);
-          router.push("/bookings");
+          router.push(`/bookings?created=${encodeURIComponent(code)}`);
         }}
       />
     </>

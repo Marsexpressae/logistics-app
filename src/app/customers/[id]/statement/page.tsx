@@ -1,8 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { useParams } from "next/navigation";
-import { ArrowLeft, MessageCircle, Printer } from "lucide-react";
+import { MessageCircle, Printer } from "lucide-react";
 import ShareButton from "@/components/ui/ShareButton";
 import { Button, ErrorMessage, Loading } from "@/components/ui/form";
 import { site } from "@/config/site";
@@ -14,6 +13,7 @@ import { formatPhone, whatsappLink } from "@/lib/phone";
 import { usePermissions } from "@/lib/profile-context";
 import { buildStatement, type StatementBooking } from "@/lib/statement";
 import { supabase } from "@/lib/supabase";
+import BackLink from "@/components/ui/BackLink";
 
 const STATE_LABEL = { not_invoiced: "No amount yet", unpaid: "Unpaid", partial: "Part paid", paid: "Paid" } as const;
 
@@ -48,9 +48,7 @@ export default function StatementPage() {
   return (
     <div className="mx-auto max-w-2xl">
       <div className="mb-4 flex flex-wrap justify-between gap-2 print:hidden">
-        <Link href={`/customers/${id}`} className="inline-flex items-center gap-1 text-sm text-slate-600">
-          <ArrowLeft className="h-4 w-4" /> Back
-        </Link>
+        <BackLink href={`/customers/${id}`}>Back</BackLink>
         <span className="flex gap-2">
           <a href={share} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700">
             <MessageCircle className="h-4 w-4" /> Send summary on WhatsApp

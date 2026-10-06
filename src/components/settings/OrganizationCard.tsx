@@ -97,7 +97,7 @@ export default function OrganizationCard() {
           </span>
         </div>
       )}
-      {saved && changed === 0 && <p className="mt-3 text-sm text-green-700">Saved.</p>}
+      {saved && changed === 0 && <p role="status" className="mt-3 text-sm text-green-700">Saved.</p>}
     </Card>
   );
 }

@@ -215,7 +215,7 @@ function WarehouseContent() {
             </span>
           </div>
         )}
-        {moved && <p className="mb-3 text-sm text-green-700">{moved}</p>}
+        {moved && <p role="status" className="mb-3 text-sm text-green-700">{moved}</p>}
         <ErrorMessage message={returnError} />
 
         {!visible.length ? (

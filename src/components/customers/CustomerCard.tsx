@@ -60,7 +60,7 @@ export default function CustomerCard({ bookingId }: { bookingId: string }) {
     <li key={role} className="flex items-start justify-between gap-3 py-3">
       <span className="min-w-0">
         <span className="block text-xs font-medium uppercase text-slate-500">{ROLE_LABEL[role]}</span>
-        <Link href={`/customers/${c.id}`} className="block font-medium text-blue-700">
+        <Link href={`/customers/${c.id}`} className="flex min-h-11 items-center text-base font-semibold text-blue-700">
           {c.full_name}
         </Link>
         <span className="block text-sm text-slate-600">{formatPhone(c.phone)}</span>
@@ -68,8 +68,8 @@ export default function CustomerCard({ bookingId }: { bookingId: string }) {
         <ContactButtons phone={c.phone} whatsapp={c.whatsapp} name={c.full_name} compact className="mt-2" />
       </span>
       {canEdit && (
-        <button aria-label={`Unlink ${c.full_name}`} disabled={busy} onClick={() => link(role, null)} className="p-3 text-slate-600 hover:text-red-700">
-          <X className="h-4 w-4" />
+        <button aria-label={`Unlink ${c.full_name}`} disabled={busy} onClick={() => link(role, null)} className="flex h-11 w-11 shrink-0 items-center justify-center text-slate-600 hover:text-red-700">
+          <X className="h-5 w-5" />
         </button>
       )}
     </li>
@@ -104,7 +104,7 @@ export default function CustomerCard({ bookingId }: { bookingId: string }) {
                   Link a receiver
                 </Button>
               )}
-              <button type="button" onClick={() => setPicking("customer")} className="text-xs font-medium text-slate-500 underline">
+              <button type="button" onClick={() => setPicking("customer")} className="min-h-11 px-2 text-sm font-medium text-slate-700 underline">
                 Wrong customer? Change
               </button>
             </div>

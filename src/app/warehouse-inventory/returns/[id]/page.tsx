@@ -1,9 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, CheckCircle2, Pencil, Printer, Trash2 } from "lucide-react";
+import { CheckCircle2, Pencil, Printer, Trash2 } from "lucide-react";
 import { Button, ErrorMessage, StatusBadge, inputClass, Loading } from "@/components/ui/form";
 import { site } from "@/config/site";
 import { useOrganization } from "@/lib/organization";
@@ -15,6 +14,7 @@ import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
 import type { ReturnForm } from "@/lib/types";
 import { askText, confirmAction } from "@/lib/ask";
+import BackLink from "@/components/ui/BackLink";
 
 export default function ReturnFormPage() {
   const { id } = useParams<{ id: string }>();
@@ -97,9 +97,7 @@ export default function ReturnFormPage() {
   return (
     <div className="mx-auto max-w-2xl space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
-        <Link href="/warehouse-inventory" className="inline-flex min-h-11 items-center gap-1 text-base text-slate-700">
-          <ArrowLeft className="h-4 w-4" /> Warehouse
-        </Link>
+        <BackLink href="/warehouse-inventory">Warehouse</BackLink>
         <span className="flex flex-wrap items-center gap-2">
           <StatusBadge large status={r.status} />
           {canManage && (

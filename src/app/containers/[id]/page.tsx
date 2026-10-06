@@ -1,9 +1,8 @@
 "use client";
 
 import { useRef, useState, type FormEvent } from "react";
-import Link from "next/link";
 import { useParams } from "next/navigation";
-import { ArrowLeft, CheckCheck, MapPinCheck, PackagePlus, Rocket, ScanLine, X } from "lucide-react";
+import { CheckCheck, MapPinCheck, PackagePlus, Rocket, ScanLine, X } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
 import ListSearch from "@/components/ui/ListSearch";
 import { matchesSearch } from "@/lib/search";
@@ -14,6 +13,7 @@ import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
 import type { Container, Parcel } from "@/lib/types";
 import { askText, confirmAction } from "@/lib/ask";
+import BackLink from "@/components/ui/BackLink";
 
 type WarehouseParcel = Parcel & { warehouse: { code: string; name?: string } | null; booking: { code: string; invoice_no: string | null; sender_name: string } | null };
 type CheckRow = { booking_id: string; booking_code: string; invoice_no: string | null; expected: number; loaded: number; missing: string[] };
@@ -168,9 +168,7 @@ export default function ContainerManifestPage() {
 
   return (
     <div className="max-w-4xl space-y-4">
-      <Link href="/containers" className="inline-flex items-center gap-1 text-sm text-slate-600">
-        <ArrowLeft className="h-4 w-4" /> Containers
-      </Link>
+      <BackLink href="/containers">Containers</BackLink>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <PageHeader
           title={`Container ${c.code}`}
@@ -186,7 +184,7 @@ export default function ContainerManifestPage() {
       </div>
 
       {message && (
-        <p className={`rounded-md px-3 py-2 text-sm ${message.ok ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>
+        <p role={message.ok ? "status" : "alert"} className={`rounded-md px-3 py-2 text-sm ${message.ok ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>
           {message.text}
         </p>
       )}

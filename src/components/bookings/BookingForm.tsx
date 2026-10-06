@@ -223,7 +223,7 @@ export default function BookingForm({ booking, submitLabel, onSaved }: BookingFo
           {linkedCustomer.data && (
             <p className="text-xs text-slate-500 sm:col-span-2">
               To change the customer&apos;s name or numbers, edit them on{" "}
-              <Link href={`/customers/${linkedCustomer.data.customer_id}`} className="font-medium text-blue-700">
+              <Link href={`/customers/${linkedCustomer.data.customer_id}`} className="inline-flex min-h-11 items-center font-medium text-blue-700">
                 the customer&apos;s page
               </Link>
               . Until the pickup is collected, this booking follows the changes.

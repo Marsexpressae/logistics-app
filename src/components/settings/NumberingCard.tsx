@@ -111,7 +111,7 @@ export default function NumberingCard() {
           </span>
         </div>
       )}
-      {saved && changed.length === 0 && <p className="mt-3 text-sm text-green-700">Saved. New numbers use it straight away.</p>}
+      {saved && changed.length === 0 && <p role="status" className="mt-3 text-sm text-green-700">Saved. New numbers use it straight away.</p>}
     </Card>
   );
 }

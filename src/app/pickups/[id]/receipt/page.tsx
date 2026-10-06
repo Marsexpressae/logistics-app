@@ -1,8 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { useParams } from "next/navigation";
-import { ArrowLeft, Printer } from "lucide-react";
+import { Printer } from "lucide-react";
 import ShareButton from "@/components/ui/ShareButton";
 import { Button, ErrorMessage, Loading } from "@/components/ui/form";
 import { site } from "@/config/site";
@@ -13,6 +12,7 @@ import { supabase } from "@/lib/supabase";
 import { formatDate, kg, methodLabel, money, round2, totalPaid } from "@/lib/format";
 import { formatPhone } from "@/lib/phone";
 import type { Booking, BookingItem } from "@/lib/types";
+import BackLink from "@/components/ui/BackLink";
 
 export default function ReceiptPage() {
   const { id } = useParams<{ id: string }>();
@@ -36,9 +36,7 @@ export default function ReceiptPage() {
   return (
     <div className="mx-auto max-w-xl">
       <div className="mb-4 flex justify-between print:hidden">
-        <Link href={`/pickups/${id}`} className="inline-flex items-center gap-1 text-sm text-slate-600">
-          <ArrowLeft className="h-4 w-4" /> Back
-        </Link>
+        <BackLink href={`/pickups/${id}`}>Back</BackLink>
         {canPrint && (
           <span className="flex gap-2">
           <ShareButton targetId="share-doc" filename={`Receipt-${b.invoice_no ?? b.code}`} />

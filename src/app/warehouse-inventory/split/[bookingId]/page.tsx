@@ -1,9 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { useParams } from "next/navigation";
-import { ArrowLeft, PackageCheck, Plus, Printer, Trash2 } from "lucide-react";
+import { PackageCheck, Plus, Printer, Trash2 } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
 import WarningBanner from "@/components/customers/WarningBanner";
 import NotesCard from "@/components/bookings/NotesCard";
@@ -16,6 +15,7 @@ import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
 import type { Booking, BookingItem, Parcel, Warehouse } from "@/lib/types";
 import { confirmAction } from "@/lib/ask";
+import BackLink from "@/components/ui/BackLink";
 
 type Row = { description: string; weight_kg: string };
 
@@ -84,9 +84,7 @@ export default function ReceivePage() {
 
   return (
     <div className="max-w-3xl space-y-4">
-      <Link href="/warehouse-inventory" className="inline-flex items-center gap-1 text-sm text-slate-600 print:hidden">
-        <ArrowLeft className="h-4 w-4" /> Warehouse
-      </Link>
+      <BackLink href="/warehouse-inventory" className="print:hidden">Warehouse</BackLink>
       <PageHeader
         title={`Receive ${b.invoice_no ?? b.code}`}
         description={
@@ -238,7 +236,7 @@ export default function ReceivePage() {
     const sameKg = Math.abs(liveKg - collectedWeight) <= 0.01;
     const ok = sameKg && sameCount;
     return (
-      <p className={`rounded-md px-3 py-2 text-sm print:hidden ${ok ? "bg-green-50 text-green-700" : "bg-amber-50 text-amber-800"}`}>
+      <p role="status" className={`rounded-md px-3 py-2 text-sm print:hidden ${ok ? "bg-green-50 text-green-700" : "bg-amber-50 text-amber-800"}`}>
         {ok
           ? `Matches the pickup: ${collected.length} ${collected.length === 1 ? "package" : "packages"}, ${kg(collectedWeight)}.`
           : `Does not match the pickup. Collected ${collected.length} ${collected.length === 1 ? "package" : "packages"}, ${kg(collectedWeight)}. Received ${live.length} ${live.length === 1 ? "parcel" : "parcels"}, ${kg(liveKg)}.`}

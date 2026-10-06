@@ -10,7 +10,7 @@ import EmptyState from "@/components/ui/EmptyState";
 import ListSearch from "@/components/ui/ListSearch";
 import { matchesSearch } from "@/lib/search";
 import RowLimitNotice from "@/components/ui/RowLimitNotice";
-import { ErrorMessage, StatusBadge, inputClass, Loading } from "@/components/ui/form";
+import { ErrorMessage, StatusBadge, inputClass, Loading, Notice } from "@/components/ui/form";
 import { useQuery } from "@/lib/hooks";
 import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
@@ -35,7 +35,9 @@ function BookingsContent() {
   );
   const canCreate = usePermissions().can("bookings.create");
   const [search, setSearch] = useState("");
-  const initial = useSearchParams().get("status") ?? "all";
+  const params = useSearchParams();
+  const initial = params.get("status") ?? "all";
+  const created = params.get("created");
   const [status, setStatus] = useState(STATUS_FILTERS.some((f) => f.value === initial) ? initial : "all");
 
   const rows = (data ?? []).filter(
@@ -73,6 +75,7 @@ function BookingsContent() {
         </select>
       </div>
 
+      {created && <Notice className="mb-3">Booking {created} created.</Notice>}
       <ErrorMessage message={error} />
       <RowLimitNotice count={data?.length} what="bookings" effect="older ones will not appear here. Use Search, or tell the developer." />
       {loading ? (

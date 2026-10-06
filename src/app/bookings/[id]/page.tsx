@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Printer } from "lucide-react";
+import { Printer } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
 import AuditList from "@/components/audit/AuditList";
 import BookingChangePanel from "@/components/bookings/BookingChangePanel";
@@ -23,6 +23,8 @@ import { useQuery } from "@/lib/hooks";
 import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
 import type { AuditEntry, Booking, BookingItem, Payment } from "@/lib/types";
+import BackLink from "@/components/ui/BackLink";
+import { textLink } from "@/components/ui/links";
 
 export default function EditBookingPage() {
   const { id } = useParams<{ id: string }>();
@@ -53,9 +55,7 @@ export default function EditBookingPage() {
 
   return (
     <>
-      <Link href="/bookings" className="mb-3 inline-flex items-center gap-1 text-sm text-slate-600">
-        <ArrowLeft className="h-4 w-4" /> Bookings
-      </Link>
+      <BackLink href="/bookings" className="mb-1">Bookings</BackLink>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <PageHeader
           title={`${canEdit ? "Edit" : "View"} ${b.code}`}
@@ -64,10 +64,7 @@ export default function EditBookingPage() {
         <div className="flex items-center gap-3">
           <StatusBadge status={b.status} />
           {canPrint && (
-            <Link
-              href={`/pickups/${id}/receipt`}
-              className="inline-flex items-center gap-1.5 text-sm font-medium text-blue-700"
-            >
+            <Link href={`/pickups/${id}/receipt`} className={textLink}>
               <Printer className="h-4 w-4" /> Receipt
             </Link>
           )}
