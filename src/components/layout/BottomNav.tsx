@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { Download, Ellipsis, LogOut, UserCog, X } from "lucide-react";
 import CountBadge from "@/components/ui/CountBadge";
 import { navItems } from "@/config/navigation";
+import { useMenuSwitches } from "@/lib/nav-settings";
 import { useBadges } from "@/lib/badges";
 import { useInstall } from "@/lib/pwa";
 import { useCurrentProfile, usePermissions } from "@/lib/profile-context";
@@ -30,7 +31,8 @@ export default function BottomNav() {
   const sheet = useRef<HTMLDivElement>(null);
   const wasOpen = useRef(false);
 
-  const items = navItems.filter((i) => canAny(...i.anyOf));
+  const shown = useMenuSwitches();
+  const items = navItems.filter((i) => canAny(...i.anyOf) && shown(i));
   const tabs = items.slice(0, MAX_TABS);
   const overflow = items.slice(MAX_TABS);
 

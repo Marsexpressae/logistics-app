@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { LogOut, UserCog } from "lucide-react";
 import BrandMark from "@/components/brand/BrandMark";
 import { homePath, navItems } from "@/config/navigation";
+import { useMenuSwitches } from "@/lib/nav-settings";
 import InstallButton from "@/components/pwa/InstallButton";
 import CountBadge from "@/components/ui/CountBadge";
 import { useBadges } from "@/lib/badges";
@@ -22,7 +23,8 @@ export default function Sidebar() {
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);
 
-  const items = navItems.filter((i) => canAny(...i.anyOf));
+  const shown = useMenuSwitches();
+  const items = navItems.filter((i) => canAny(...i.anyOf) && shown(i));
 
   return (
     <aside className="hidden w-64 shrink-0 flex-col border-r border-slate-200 bg-white print:hidden md:flex">

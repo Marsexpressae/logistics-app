@@ -18,6 +18,7 @@ export type NavItem = {
   href: string;
   icon: LucideIcon;
   shortLabel: string; // fits under a phone tab icon
+  setting?: string; // an on/off switch in Settings can hide this menu link (key in app_settings)
   anyOf: string[]; // the page is available to anyone holding at least one of these permissions
 };
 
@@ -30,8 +31,8 @@ export const navItems: NavItem[] = [
   { label: "Pickups", shortLabel: "Pickups", href: "/pickups", icon: Truck, anyOf: ["pickups.view_all", "pickups.view_own"] },
   { label: "Warehouse", shortLabel: "Warehouse", href: "/warehouse-inventory", icon: Boxes, anyOf: ["warehouse.view"] },
   { label: "Containers", shortLabel: "Containers", href: "/containers", icon: Container, anyOf: ["containers.view", "containers.manage"] },
-  { label: "Tracking", shortLabel: "Tracking", href: "/tracking", icon: MapPinned, anyOf: ["bookings.view", "warehouse.view", "pickups.view_all", "pickups.view_own"] },
   { label: "Accounts", shortLabel: "Accounts", href: "/accounts", icon: Wallet, anyOf: ["accounts.view"] },
+  { label: "Tracking", shortLabel: "Tracking", href: "/tracking", icon: MapPinned, setting: "show_tracking_menu", anyOf: ["bookings.view", "warehouse.view", "pickups.view_all", "pickups.view_own"] },
   { label: "Activity", shortLabel: "Activity", href: "/activity", icon: History, anyOf: ["activity.view"] },
   { label: "Notifications", shortLabel: "Alerts", href: "/notifications", icon: Bell, anyOf: ["notifications.view"] },
   { label: "Settings", shortLabel: "Settings", href: "/settings", icon: Settings, anyOf: ["settings.manage", "users.manage", "roles.manage"] },

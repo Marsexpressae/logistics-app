@@ -12,6 +12,7 @@ import { Button, Card, ErrorMessage, Loading } from "@/components/ui/form";
 import { useQuery } from "@/lib/hooks";
 import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
+import { NAV_SETTINGS_CHANGED } from "@/lib/nav-settings";
 
 type Setting = { key: string; value: unknown; label: string; description: string | null };
 
@@ -50,6 +51,7 @@ export default function SettingsPage() {
       }
     }
     setDraft({});
+    window.dispatchEvent(new Event(NAV_SETTINGS_CHANGED)); // a menu switch takes effect straight away
     setSaved(true);
     setBusy(false);
     settings.reload();

@@ -45,3 +45,10 @@ test("a known page still needs its permission", () => {
   assert.equal(canAccess(["bookings.view"], "/settings/roles"), false);
   assert.equal(canAccess(["roles.manage"], "/settings/roles"), true);
 });
+
+test("Tracking sits right after Accounts in the menu, and Settings can hide it", async () => {
+  const { navItems } = await import("../src/config/navigation.ts");
+  const labels = navItems.map((i) => i.label);
+  assert.equal(labels[labels.indexOf("Accounts") + 1], "Tracking");
+  assert.equal(navItems.find((i) => i.label === "Tracking")!.setting, "show_tracking_menu");
+});
