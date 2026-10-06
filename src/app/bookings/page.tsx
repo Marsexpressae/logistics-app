@@ -4,6 +4,7 @@ import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Plus } from "lucide-react";
+import RowCard from "@/components/ui/RowCard";
 import PageHeader from "@/components/ui/PageHeader";
 import EmptyState from "@/components/ui/EmptyState";
 import ListSearch from "@/components/ui/ListSearch";
@@ -79,7 +80,38 @@ function BookingsContent() {
       ) : !rows.length ? (
         <EmptyState message={data?.length ? "No bookings match your filters." : "No bookings yet."} />
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+        <>
+        {/* Phones: one big card per booking. Wide screens: the table below. */}
+        <ul className="space-y-3 md:hidden">
+          {rows.map((b) => {
+            const paid = totalPaid(b.payments);
+            return (
+              <RowCard key={b.id} href={`/bookings/${b.id}`}>
+                <span className="flex items-start justify-between gap-2">
+                  <span>
+                    <span className="block font-mono text-lg font-semibold text-blue-700">{b.invoice_no ?? b.code}</span>
+                    {b.invoice_no && <span className="block font-mono text-sm text-slate-600">{b.code}</span>}
+                  </span>
+                  <StatusBadge large status={b.status} />
+                </span>
+                <span className="mt-1 block text-base text-slate-900">
+                  {b.sender_name} → {b.receiver_name ?? <span className="text-slate-600">receiver not set</span>}
+                </span>
+                <span className="mt-1 block text-base text-slate-700">
+                  {formatDay(b.pickup_date)} · {b.pickup_area}
+                  {b.driver?.name ? ` · ${b.driver.name}` : ""}
+                </span>
+                <span className="mt-1 block text-base font-medium text-slate-800">
+                  {b.invoice_amount !== null
+                    ? `${money(paid)} / ${money(b.invoice_amount)}`
+                    : `${paid > 0 ? `${money(paid)} paid · ` : ""}${b.estimated_bill !== null ? `est. ${money(b.estimated_bill)}` : "not invoiced"}`}
+                </span>
+                {b.status === "cancelled" && b.cancellation_reason && <span className="mt-1 block text-sm text-slate-600">{b.cancellation_reason}</span>}
+              </RowCard>
+            );
+          })}
+        </ul>
+        <div className="hidden overflow-x-auto rounded-lg border border-slate-200 bg-white md:block">
           <table className="w-full text-left text-sm">
             <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase text-slate-500">
               <tr>
@@ -140,6 +172,7 @@ function BookingsContent() {
             </tbody>
           </table>
         </div>
+        </>
       )}
     </>
   );

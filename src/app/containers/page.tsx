@@ -4,6 +4,7 @@ import { Suspense, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import Chip from "@/components/ui/Chip";
+import RowCard from "@/components/ui/RowCard";
 import PageHeader from "@/components/ui/PageHeader";
 import ListSearch from "@/components/ui/ListSearch";
 import { matchesSearch } from "@/lib/search";
@@ -42,10 +43,10 @@ function ContainersContent() {
       <PageHeader title="Containers" description="Open a container, load parcels, then mark it departed." />
 
       {canOperate && <Card className="mb-6">
-        <form onSubmit={create} className="flex flex-wrap gap-2">
-          <input name="code" placeholder="Number (optional, e.g. 38)" aria-label="Container number" className={`${inputClass} max-w-[11rem] font-mono`} />
-          <input name="destination" placeholder="Destination (optional)" className={`${inputClass} max-w-xs`} />
-          <Button type="submit">New container</Button>
+        <form onSubmit={create} className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+          <input name="code" placeholder="Number, e.g. 38 (optional)" aria-label="Container number" className={`${inputClass} font-mono sm:max-w-[13rem]`} />
+          <input name="destination" placeholder="Destination (optional)" className={`${inputClass} sm:max-w-xs`} />
+          <Button type="submit" className="w-full sm:w-auto">New container</Button>
         </form>
         <ErrorMessage message={error} />
       </Card>}
@@ -68,7 +69,25 @@ function ContainersContent() {
       {!shown.length ? (
         <EmptyState message="No containers yet." />
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+        <>
+          <ul className="space-y-3 md:hidden">
+            {shown.map((c) => (
+              <RowCard key={c.id} href={`/containers/${c.id}`}>
+                <span className="flex items-start justify-between gap-2">
+                  <span>
+                    <span className="block font-mono text-lg font-semibold text-blue-700">{c.code}</span>
+                    <span className="block text-base text-slate-900">{c.destination ?? "No destination"}</span>
+                  </span>
+                  <StatusBadge large status={c.status} />
+                </span>
+                <span className="mt-1 block text-base text-slate-700">
+                  {c.parcels?.[0]?.count ?? 0} {(c.parcels?.[0]?.count ?? 0) === 1 ? "parcel" : "parcels"}
+                  {c.departed_at ? ` · departed ${formatDate(c.departed_at)}` : ""}
+                </span>
+              </RowCard>
+            ))}
+          </ul>
+          <div className="hidden overflow-x-auto rounded-lg border border-slate-200 bg-white md:block">
           <table className="w-full text-left text-sm">
             <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase text-slate-500">
               <tr>
@@ -98,6 +117,7 @@ function ContainersContent() {
             </tbody>
           </table>
         </div>
+        </>
       )}
     </>
   );

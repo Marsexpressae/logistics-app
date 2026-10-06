@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { UserPlus } from "lucide-react";
 import CustomerForm from "@/components/customers/CustomerForm";
+import RowCard from "@/components/ui/RowCard";
 import ListSearch from "@/components/ui/ListSearch";
 import Chip from "@/components/ui/Chip";
 import PageHeader from "@/components/ui/PageHeader";
@@ -95,7 +96,20 @@ export default function CustomersPage() {
           <EmptyState message={searching ? "No customer found." : "No customers yet."} />
         ) : (
           <>
-            <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+            <ul className="space-y-3 md:hidden">
+              {customers.map((c) => (
+                <RowCard key={c.id} href={`/customers/${c.id}`}>
+                  <span className="block text-lg font-semibold text-blue-700">{c.full_name}</span>
+                  <span className="block text-base text-slate-900">{formatPhone(c.phone) || "No phone"}</span>
+                  {c.address && <span className="block text-base text-slate-700">{c.address}</span>}
+                  <span className="mt-1 block text-sm text-slate-600">
+                    {c.invoices} {c.invoices === 1 ? "invoice" : "invoices"}
+                    {c.last_invoice ? ` · last ${c.last_invoice}` : ""}
+                  </span>
+                </RowCard>
+              ))}
+            </ul>
+            <div className="hidden overflow-x-auto rounded-lg border border-slate-200 bg-white md:block">
               <table className="w-full text-left text-sm">
                 <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase text-slate-500">
                   <tr>

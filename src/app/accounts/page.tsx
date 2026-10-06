@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ChevronRight, Search } from "lucide-react";
 import Chip from "@/components/ui/Chip";
+import RowCard from "@/components/ui/RowCard";
 import PageHeader from "@/components/ui/PageHeader";
 import EmptyState from "@/components/ui/EmptyState";
 import { Button, ErrorMessage, StatusBadge, inputClass, Loading } from "@/components/ui/form";
@@ -153,7 +154,37 @@ export default function AccountsPage() {
         <EmptyState message={search || status !== "all" ? "No invoices match." : "No invoices yet. An invoice number is issued when a pickup is collected."} />
       ) : (
         <>
-          <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+          <ul className="space-y-3 md:hidden">
+            {rows.map((r) => (
+              <RowCard key={r.r_booking_id} href={`/bookings/${r.r_booking_id}`}>
+                <span className="flex items-start justify-between gap-2">
+                  <span>
+                    <span className="block font-mono text-lg font-semibold text-blue-700">{r.r_invoice_no}</span>
+                    <span className="block text-base text-slate-900">{r.r_customer}</span>
+                  </span>
+                  <span className="flex flex-col items-end gap-1">
+                    <StatusBadge large status={r.r_pay_status} />
+                    {r.r_booking_status === "cancelled" && <StatusBadge large status="cancelled" />}
+                  </span>
+                </span>
+                <span className="mt-2 grid grid-cols-3 gap-2 text-base">
+                  <span>
+                    <span className="block text-sm text-slate-600">Amount</span>
+                    {r.r_amount === null ? "—" : money(Number(r.r_amount))}
+                  </span>
+                  <span>
+                    <span className="block text-sm text-slate-600">Paid</span>
+                    {money(Number(r.r_paid))}
+                  </span>
+                  <span>
+                    <span className="block text-sm text-slate-600">Balance</span>
+                    <span className="font-semibold">{r.r_balance === null ? "—" : money(Number(r.r_balance))}</span>
+                  </span>
+                </span>
+              </RowCard>
+            ))}
+          </ul>
+          <div className="hidden overflow-x-auto rounded-lg border border-slate-200 bg-white md:block">
             <table className="w-full text-left text-sm">
               <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase text-slate-500">
                 <tr>
