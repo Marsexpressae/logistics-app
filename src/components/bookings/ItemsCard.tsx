@@ -7,6 +7,7 @@ import { kg, round2 } from "@/lib/format";
 import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
 import type { BookingItem } from "@/lib/types";
+import { confirmAction } from "@/lib/ask";
 
 type ItemsCardProps = {
   bookingId: string;
@@ -82,10 +83,13 @@ export default function ItemsCard({ bookingId, status, items, onChanged }: Items
     if (ok) setEditingId(null);
   }
 
-  function remove(i: BookingItem) {
-    const sure = confirm(
-      `Remove "${i.description}" (${i.quantity} × ${kg(Number(i.weight_kg))})?\n\nThis is saved straight away and recorded in the Activity log.`
-    );
+  async function remove(i: BookingItem) {
+    const sure = await confirmAction({
+      title: `Remove "${i.description}"?`,
+      message: `${i.quantity} × ${kg(Number(i.weight_kg))}\n\nThis is saved straight away and recorded in the Activity log.`,
+      confirmLabel: "Remove",
+      danger: true,
+    });
     if (sure) run(supabase.from("booking_items").delete().eq("id", i.id));
   }
 

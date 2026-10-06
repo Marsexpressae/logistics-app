@@ -15,6 +15,7 @@ import { useQuery } from "@/lib/hooks";
 import { formatPhone } from "@/lib/phone";
 import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
+import { confirmAction } from "@/lib/ask";
 
 const PAGE = 50;
 
@@ -44,7 +45,7 @@ export default function CustomersPage() {
   const groups = dupes.data ?? [];
 
   async function merge(keep: string, remove: string, names: string) {
-    if (!window.confirm(`Merge ${names}? All invoices, notes and receivers move to the record you keep. This cannot be undone.`)) return;
+    if (!(await confirmAction({ title: `Merge ${names}?`, message: "All invoices, notes and receivers move to the record you keep. This cannot be undone.", confirmLabel: "Merge", danger: true }))) return;
     setBusy(remove);
     setError(null);
     const { error } = await supabase.rpc("merge_customers", { p_keep: keep, p_remove: remove });

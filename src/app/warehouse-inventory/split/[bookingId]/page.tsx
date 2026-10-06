@@ -15,6 +15,7 @@ import { useQuery } from "@/lib/hooks";
 import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
 import type { Booking, BookingItem, Parcel, Warehouse } from "@/lib/types";
+import { confirmAction } from "@/lib/ask";
 
 type Row = { description: string; weight_kg: string };
 
@@ -61,7 +62,7 @@ export default function ReceivePage() {
     setCustom(rows.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
 
   async function save(list: Row[]) {
-    if (received && !confirm("This replaces the parcels already received, and their barcodes. Continue?")) return;
+    if (received && !(await confirmAction({ title: "Replace the received parcels?", message: "This replaces the parcels already received, and their barcodes.", confirmLabel: "Replace", danger: true }))) return;
     if (list.some((r) => Number(r.weight_kg || 0) < 0)) return setError("A weight cannot be negative.");
     setBusy(true);
     setError(null);

@@ -7,6 +7,7 @@ import { useQuery } from "@/lib/hooks";
 import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
 import type { Warehouse } from "@/lib/types";
+import { confirmAction } from "@/lib/ask";
 
 /**
  * Settings > Organization > Warehouses: the names people choose when receiving cargo ("Warehouse A", "Tarpal 2", "East Shed").
@@ -51,8 +52,8 @@ export default function WarehousesCard() {
   const setActive = (w: Warehouse, active: boolean) =>
     run(supabase.rpc("update_warehouse", { p_id: w.id, p_name: w.name, p_code: w.code, p_active: active }));
 
-  function remove(w: Warehouse) {
-    if (confirm(`Delete "${w.name}"?\n\nThis only works if it never had any parcels.`)) run(supabase.rpc("delete_warehouse", { p_id: w.id }));
+  async function remove(w: Warehouse) {
+    if (await confirmAction({ title: `Delete "${w.name}"?`, message: "This only works if it never had any parcels.", confirmLabel: "Delete", danger: true })) run(supabase.rpc("delete_warehouse", { p_id: w.id }));
   }
 
   return (

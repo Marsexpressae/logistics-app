@@ -7,6 +7,7 @@ import { todayISO } from "@/lib/format";
 import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
 import type { Booking } from "@/lib/types";
+import { confirmAction } from "@/lib/ask";
 
 type Mode = "reschedule" | "cancel" | null;
 
@@ -47,7 +48,7 @@ export default function BookingChangePanel({ booking, onChanged }: { booking: Bo
     e.preventDefault();
     if (!reason.trim()) return setError("Please enter a reason.");
     if (mode === "reschedule" && !date) return setError("Please choose the new pickup date.");
-    if (mode === "cancel" && !confirm(`Cancel ${booking.code}? This cannot be undone.`)) return;
+    if (mode === "cancel" && !(await confirmAction({ title: `Cancel ${booking.code}?`, message: "This cannot be undone.", confirmLabel: "Cancel the booking", danger: true }))) return;
 
     setBusy(true);
     setError(null);

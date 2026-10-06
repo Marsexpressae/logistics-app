@@ -13,6 +13,7 @@ import { useQuery } from "@/lib/hooks";
 import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
 import type { Container, Parcel } from "@/lib/types";
+import { askText, confirmAction } from "@/lib/ask";
 
 type WarehouseParcel = Parcel & { warehouse: { code: string; name?: string } | null; booking: { code: string; invoice_no: string | null; sender_name: string } | null };
 type CheckRow = { booking_id: string; booking_code: string; invoice_no: string | null; expected: number; loaded: number; missing: string[] };
@@ -71,7 +72,13 @@ export default function ContainerManifestPage() {
       const [, booking, why] = needsPayment;
       const stop = { message: `${booking} is not fully paid (${why}). Not loaded. Payment is required first.` };
       if (can("containers.override_payment")) {
-        const reason = window.prompt(`${booking} is not fully paid (${why}).\n\nTo load it anyway, type the reason. It is recorded on the booking.`);
+        const reason = await askText({
+          title: `${booking} is not fully paid`,
+          message: `${why}\n\nTo load it anyway, type the reason. It is recorded on the booking.`,
+          field: { label: "Reason", multiline: true },
+          confirmLabel: "Load anyway",
+          danger: true,
+        });
         if (reason?.trim()) {
           overrides.current[code] = reason.trim();
           ({ error } = await attempt(reason.trim()));
@@ -111,7 +118,7 @@ export default function ContainerManifestPage() {
   }
 
   async function depart() {
-    if (!confirm(`Depart ${c!.code}? All ${loaded.data?.length} loaded parcels will be marked In transit.`)) return;
+    if (!(await confirmAction({ title: `Depart ${c!.code}?`, message: `All ${loaded.data?.length} loaded parcels will be marked In transit.`, confirmLabel: "Depart" }))) return;
     let { error } = await supabase.rpc("depart_container", { p_container_id: id, p_date: dateArg(departDate) });
 
     // Parcels of an invoice are still in the warehouse: only an authorised person can send it anyway, with a reason.
@@ -122,7 +129,13 @@ export default function ContainerManifestPage() {
         .map((r) => `${r.invoice_no ?? r.booking_code}: ${r.loaded} of ${r.expected} loaded, missing ${r.missing.join(", ")}`)
         .join("\n");
       if (can("containers.override_departure")) {
-        const reason = window.prompt(`Parcels are missing:\n${detail}\n\nTo send the container anyway, type the reason. It is recorded on each booking.`);
+        const reason = await askText({
+          title: "Parcels are missing",
+          message: `${detail}\n\nTo send the container anyway, type the reason. It is recorded on each booking.`,
+          field: { label: "Reason", multiline: true },
+          confirmLabel: "Depart anyway",
+          danger: true,
+        });
         if (reason?.trim()) ({ error } = await supabase.rpc("depart_container", { p_container_id: id, p_override_reason: reason.trim(), p_date: dateArg(departDate) }));
         else error = { message: `Not departed. Parcels missing: ${missing[1]}.` } as typeof error;
       } else {
@@ -134,7 +147,7 @@ export default function ContainerManifestPage() {
   }
 
   async function arrive() {
-    if (!confirm(`Mark ${c!.code} as arrived at its destination?`)) return;
+    if (!(await confirmAction({ title: `Mark ${c!.code} as arrived?`, message: "It has reached its destination.", confirmLabel: "Yes, arrived" }))) return;
     const { error } = await supabase.rpc("arrive_container", { p_container_id: id, p_date: dateArg(arriveDate) });
     setMessage(error ? { ok: false, text: error.message } : { ok: true, text: "Container arrived" });
     refresh();

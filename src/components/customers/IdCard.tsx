@@ -9,6 +9,7 @@ import { shrinkImage } from "@/lib/image";
 import { useQuery } from "@/lib/hooks";
 import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
+import { askText } from "@/lib/ask";
 
 /** Shows a stored ID photo through a short-lived private link. */
 export function IdPhoto({ path }: { path: string }) {
@@ -74,7 +75,7 @@ export default function IdCard({ bookingId, onChanged }: { bookingId: string; on
   }
 
   async function remove(d: IdDocument) {
-    const reason = window.prompt("Why is this Emirates ID being deleted?");
+    const reason = await askText({ title: "Delete this Emirates ID?", message: "The number and photo are removed. A manager's reason is recorded.", field: { label: "Reason" }, confirmLabel: "Delete", danger: true });
     if (!reason) return;
     const { data, error } = await supabase.rpc("delete_id_document", { p_id: d.id, p_reason: reason });
     if (error) return setError(error.message);

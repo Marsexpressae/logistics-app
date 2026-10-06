@@ -9,6 +9,7 @@ import BottomNav from "./BottomNav";
 import BrandMark from "@/components/brand/BrandMark";
 import NotificationToast from "@/components/notifications/NotificationToast";
 import GlobalSearch from "@/components/search/GlobalSearch";
+import AskHost from "@/components/ui/AskHost";
 import ErrorReporter from "@/components/system/ErrorReporter";
 import InstallBanner from "@/components/pwa/InstallBanner";
 import CountBadge from "@/components/ui/CountBadge";
@@ -20,6 +21,7 @@ import { useProfile, useSession } from "@/lib/hooks";
 import { ProfileContext } from "@/lib/profile-context";
 import { isMock, supabase } from "@/lib/supabase";
 import { resetMockData } from "@/lib/mock-supabase";
+import { confirmAction } from "@/lib/ask";
 
 // Pages that work without signing in.
 const isPublicPath = (path: string) => path === "/login" || path.startsWith("/track");
@@ -116,6 +118,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
           Skip to content
         </a>
         <ErrorReporter />
+        <AskHost />
         <NotificationToast />
         <Sidebar />
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
@@ -131,7 +134,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
           {isMock && (
             <div className="mb-4 flex items-center justify-between gap-3 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800 print:hidden">
               <span>Mock data mode: changes are saved in this browser only.</span>
-              <button className="font-medium underline" onClick={() => confirm("Reset all mock data?") && resetMockData()}>
+              <button className="font-medium underline" onClick={async () => (await confirmAction({ title: "Reset all sample data?", confirmLabel: "Reset", danger: true })) && resetMockData()}>
                 Reset
               </button>
             </div>

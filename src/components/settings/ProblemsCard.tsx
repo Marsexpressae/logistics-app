@@ -6,6 +6,7 @@ import { formatDate } from "@/lib/format";
 import { useQuery } from "@/lib/hooks";
 import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
+import { confirmAction } from "@/lib/ask";
 
 type Problem = { id: number; last_seen: string; count: number; user_name: string | null; path: string | null; message: string; stack: string | null };
 
@@ -20,7 +21,7 @@ export default function ProblemsCard() {
   const rows = list.data ?? [];
 
   async function clear() {
-    if (!confirm("Clear the whole problem list? Do this after you have looked at them.")) return;
+    if (!(await confirmAction({ title: "Clear the whole problem list?", message: "Do this after you have looked at them.", confirmLabel: "Clear list", danger: true }))) return;
     setBusy(true);
     setError(null);
     const { error } = await supabase.rpc("clear_client_errors");

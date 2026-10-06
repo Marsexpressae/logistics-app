@@ -12,6 +12,7 @@ import { formatDate } from "@/lib/format";
 import { isMock, supabase } from "@/lib/supabase";
 import { mockUsersApi } from "@/lib/mock-supabase";
 import type { RoleRow } from "@/lib/types";
+import { askText } from "@/lib/ask";
 
 type UserRow = {
   id: string;
@@ -281,8 +282,12 @@ export default function UsersPage() {
                       {(!locked || isMe) && (
                         <button
                           className="text-blue-700"
-                          onClick={() => {
-                            const pw = prompt(`New password for ${u.email} (min 8 characters):`);
+                          onClick={async () => {
+                            const pw = await askText({
+                              title: `New password for ${u.email}`,
+                              field: { label: "New password (at least 8 characters)", secret: true, minLength: 8 },
+                              confirmLabel: "Change password",
+                            });
                             if (pw) patch(u.id, { password: pw }, `Password changed for ${u.email}`);
                           }}
                         >

@@ -14,6 +14,7 @@ import ShareButton from "@/components/ui/ShareButton";
 import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
 import type { ReturnForm } from "@/lib/types";
+import { askText, confirmAction } from "@/lib/ask";
 
 export default function ReturnFormPage() {
   const { id } = useParams<{ id: string }>();
@@ -68,9 +69,13 @@ export default function ReturnFormPage() {
   }
 
   async function remove() {
-    const reason = window.prompt(
-      `Delete ${r!.code}?\n\nThe parcels go back into the warehouse stock, and the deletion is recorded on the booking.\nType the reason:`
-    );
+    const reason = await askText({
+      title: `Delete ${r!.code}?`,
+      message: "The parcels go back into the warehouse stock, and the deletion is recorded on the booking.",
+      field: { label: "Reason", multiline: true },
+      confirmLabel: "Delete return",
+      danger: true,
+    });
     if (!reason?.trim()) return;
     setBusy(true);
     setError(null);
@@ -80,12 +85,12 @@ export default function ReturnFormPage() {
     router.push("/warehouse-inventory?tab=returns");
   }
 
-  const complete = () => {
-    if (!confirm(`Confirm the parcels were handed to ${receivedBy.trim()} and the form is signed?\n\nThis marks the parcels as Returned.`)) return;
+  const complete = async () => {
+    if (!(await confirmAction({ title: "Mark as returned?", message: `Confirm the parcels were handed to ${receivedBy.trim()} and the form is signed.\n\nThis marks the parcels as Returned.`, confirmLabel: "Yes, returned" }))) return;
     act(supabase.rpc("complete_return", { p_return_id: id, p_received_by: receivedBy }));
   };
-  const cancel = () => {
-    if (!confirm("Cancel this return? The parcels go back to normal warehouse stock.")) return;
+  const cancel = async () => {
+    if (!(await confirmAction({ title: "Cancel this return?", message: "The parcels go back to normal warehouse stock.", confirmLabel: "Cancel the return", danger: true }))) return;
     act(supabase.rpc("cancel_return", { p_return_id: id }));
   };
 

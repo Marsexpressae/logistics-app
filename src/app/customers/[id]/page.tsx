@@ -16,6 +16,7 @@ import { useQuery } from "@/lib/hooks";
 import { formatPhone } from "@/lib/phone";
 import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
+import { confirmAction } from "@/lib/ask";
 
 type LinkedBooking = {
   role: ContactRole;
@@ -89,7 +90,7 @@ export default function CustomerPage() {
   }
 
   async function removeCustomer() {
-    if (!window.confirm("Delete this customer? This cannot be undone.")) return;
+    if (!(await confirmAction({ title: "Delete this customer?", message: "This cannot be undone.", confirmLabel: "Delete", danger: true }))) return;
     const { error } = await supabase.rpc("delete_customer", { p_id: id });
     if (error) return setError(error.message);
     router.push("/customers");

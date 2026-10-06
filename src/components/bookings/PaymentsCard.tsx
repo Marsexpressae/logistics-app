@@ -7,6 +7,7 @@ import { formatDate, invoiceStatus, methodLabel, money, round2, totalPaid } from
 import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
 import type { Booking, Payment } from "@/lib/types";
+import { confirmAction } from "@/lib/ask";
 
 type PaymentsCardProps = {
   booking: Booking;
@@ -58,7 +59,7 @@ export default function PaymentsCard({ booking, payments, onChanged }: PaymentsC
     const recent = sorted.find(
       (p) => Number(p.amount) === amount && p.method === method && Date.now() - new Date(p.created_at).getTime() < 15 * 60_000
     );
-    if (recent && !confirm(`A payment of ${money(amount)} (${methodLabel(method)}) was already recorded a few minutes ago.\n\nRecord another one?`)) {
+    if (recent && !(await confirmAction({ title: "Record another payment?", message: `A payment of ${money(amount)} (${methodLabel(method)}) was already recorded a few minutes ago.`, confirmLabel: "Yes, record it" }))) {
       return;
     }
 
@@ -91,10 +92,13 @@ export default function PaymentsCard({ booking, payments, onChanged }: PaymentsC
     if (ok) setEditingId(null);
   }
 
-  function remove(p: Payment) {
-    const sure = confirm(
-      `Delete the ${methodLabel(p.method)} payment of ${money(p.amount)}?\n\nThis is saved straight away and recorded in the Activity log.`
-    );
+  async function remove(p: Payment) {
+    const sure = await confirmAction({
+      title: `Delete the ${methodLabel(p.method)} payment of ${money(p.amount)}?`,
+      message: "This is saved straight away and recorded in the Activity log.",
+      confirmLabel: "Delete",
+      danger: true,
+    });
     if (sure) run(supabase.from("payments").delete().eq("id", p.id));
   }
 
