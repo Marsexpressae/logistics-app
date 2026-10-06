@@ -54,7 +54,7 @@ function BookingsContent() {
         {canCreate && (
           <Link
             href="/bookings/new"
-            className="inline-flex shrink-0 items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+            className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
           >
             <Plus className="h-4 w-4" /> New booking
           </Link>
@@ -99,7 +99,7 @@ function BookingsContent() {
                 return (
                   <tr key={b.id} className="hover:bg-slate-50">
                     <td className="px-4 py-3">
-                      <Link href={`/bookings/${b.id}`} className="font-mono font-medium text-blue-700">
+                      <Link href={`/bookings/${b.id}`} className="inline-flex min-h-11 items-center font-mono font-medium text-blue-700">
                         {b.code}
                       </Link>
                       {b.invoice_no && <span className="block font-mono text-xs text-slate-500">{b.invoice_no}</span>}

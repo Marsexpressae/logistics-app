@@ -59,7 +59,7 @@ export default function BottomNav() {
   }, [sheetOpen]);
 
   const tabClass = (active: boolean) =>
-    `flex min-h-14 w-full touch-manipulation flex-col items-center justify-center gap-0.5 px-1 text-[11px] font-medium transition-colors active:bg-slate-100 ${
+    `flex min-h-14 w-full touch-manipulation flex-col items-center justify-center gap-0.5 px-1 text-xs font-medium transition-colors active:bg-slate-100 ${
       active ? "text-blue-700" : "text-slate-500"
     }`;
 

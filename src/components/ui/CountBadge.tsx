@@ -22,7 +22,7 @@ export default function CountBadge({ count, variant = "number", className = "", 
 
   return (
     <span
-      className={`inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-bold leading-none text-white ${className}`}
+      className={`inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-xs font-bold leading-none text-white ${className}`}
       role="img"
       aria-label={`${count} ${label}`}
     >

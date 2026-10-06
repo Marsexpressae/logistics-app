@@ -4,6 +4,7 @@ import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { CalendarDays, MapPin, Navigation, User } from "lucide-react";
+import Chip from "@/components/ui/Chip";
 import PageHeader from "@/components/ui/PageHeader";
 import EmptyState from "@/components/ui/EmptyState";
 import ListSearch from "@/components/ui/ListSearch";
@@ -78,19 +79,17 @@ function PickupsContent() {
 
       <div className="mb-3 flex gap-2 overflow-x-auto pb-1">
         {areas.map((a) => (
-          <button
+          <Chip
             key={a}
             id={`area-chip-${a}`}
+            active={area === a}
             onClick={() => {
               setSlide(null);
               setArea(a);
             }}
-            className={`shrink-0 rounded-full px-3 py-1.5 text-sm font-medium ${
-              area === a ? "bg-blue-600 text-white" : "border border-slate-300 bg-white text-slate-700"
-            }`}
           >
-            {a === "all" ? "All areas" : a} <span className="opacity-70">({countFor(a)})</span>
-          </button>
+            {a === "all" ? "All areas" : a} <span className="ml-1 opacity-80">({countFor(a)})</span>
+          </Chip>
         ))}
       </div>
 

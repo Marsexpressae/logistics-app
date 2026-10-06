@@ -47,9 +47,9 @@ export default function SwipeHint({ id, children }: { id: string; children: stri
           }
           setVisible(false);
         }}
-        className="p-1"
+        className="flex h-11 w-11 shrink-0 items-center justify-center"
       >
-        <X className="h-3.5 w-3.5" />
+        <X className="h-5 w-5" />
       </button>
     </p>
   );

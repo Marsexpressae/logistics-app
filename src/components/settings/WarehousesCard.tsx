@@ -77,10 +77,10 @@ export default function WarehousesCard() {
                   aria-label="Short code"
                   onChange={(e) => setDraft({ ...draft, code: e.target.value })}
                 />
-                <button aria-label="Save changes" disabled={busy} onClick={() => saveEdit(w)} className="p-2 text-green-700">
+                <button aria-label="Save changes" disabled={busy} onClick={() => saveEdit(w)} className="flex h-11 w-11 items-center justify-center text-green-700">
                   <Check className="h-5 w-5" />
                 </button>
-                <button aria-label="Cancel" onClick={() => setEditing(null)} className="p-2 text-slate-500">
+                <button aria-label="Cancel" onClick={() => setEditing(null)} className="flex h-11 w-11 items-center justify-center text-slate-600">
                   <X className="h-5 w-5" />
                 </button>
               </li>
@@ -100,14 +100,14 @@ export default function WarehousesCard() {
                         setDraft({ name: w.name, code: w.code });
                         setError(null);
                       }}
-                      className="p-2 text-slate-400 hover:text-slate-700"
+                      className="flex h-11 w-11 items-center justify-center text-slate-600 hover:text-slate-900"
                     >
                       <Pencil className="h-4 w-4" />
                     </button>
-                    <button onClick={() => setActive(w, w.active === false)} disabled={busy} className="px-2 py-1 text-xs font-medium text-slate-600 hover:text-slate-900">
+                    <button onClick={() => setActive(w, w.active === false)} disabled={busy} className="min-h-11 px-3 text-sm font-medium text-slate-700 hover:text-slate-900">
                       {w.active === false ? "Activate" : "Deactivate"}
                     </button>
-                    <button aria-label={`Delete ${w.name}`} onClick={() => remove(w)} className="p-2 text-slate-400 hover:text-red-600">
+                    <button aria-label={`Delete ${w.name}`} onClick={() => remove(w)} className="flex h-11 w-11 items-center justify-center text-slate-600 hover:text-red-700">
                       <Trash2 className="h-4 w-4" />
                     </button>
                   </span>

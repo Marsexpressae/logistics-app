@@ -3,6 +3,7 @@
 import { Suspense, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import Chip from "@/components/ui/Chip";
 import PageHeader from "@/components/ui/PageHeader";
 import ListSearch from "@/components/ui/ListSearch";
 import { matchesSearch } from "@/lib/search";
@@ -56,15 +57,9 @@ function ContainersContent() {
           { value: "departed", label: "Departed" },
           { value: "arrived", label: "Arrived" },
         ].map((f) => (
-          <button
-            key={f.value}
-            onClick={() => setStatus(f.value)}
-            className={`rounded-full px-3 py-1 text-sm ${
-              status === f.value ? "bg-blue-600 text-white" : "border border-slate-300 bg-white text-slate-700"
-            }`}
-          >
+          <Chip key={f.value} active={status === f.value} onClick={() => setStatus(f.value)}>
             {f.label}
-          </button>
+          </Chip>
         ))}
         <ListSearch value={search} onChange={setSearch} placeholder="Container or destination" className="ml-auto" />
       </div>
@@ -88,7 +83,7 @@ function ContainersContent() {
               {shown.map((c) => (
                 <tr key={c.id}>
                   <td className="px-4 py-3">
-                    <Link href={`/containers/${c.id}`} className="font-mono font-medium text-blue-700">
+                    <Link href={`/containers/${c.id}`} className="inline-flex min-h-11 items-center font-mono font-medium text-blue-700">
                       {c.code}
                     </Link>
                   </td>

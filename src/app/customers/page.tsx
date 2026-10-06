@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { UserPlus } from "lucide-react";
 import CustomerForm from "@/components/customers/CustomerForm";
 import ListSearch from "@/components/ui/ListSearch";
+import Chip from "@/components/ui/Chip";
 import PageHeader from "@/components/ui/PageHeader";
 import EmptyState from "@/components/ui/EmptyState";
 import { Button, Card, ErrorMessage, Loading } from "@/components/ui/form";
@@ -77,14 +78,9 @@ export default function CustomersPage() {
           { key: "all" as const, label: "All customers" },
           { key: "dupes" as const, label: `Possible duplicates (${groups.length})` },
         ].map((t) => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            aria-pressed={tab === t.key}
-            className={`rounded-full px-3 py-1.5 text-sm font-medium ${tab === t.key ? "bg-blue-600 text-white" : "border border-slate-300 bg-white text-slate-700"}`}
-          >
+          <Chip key={t.key} active={tab === t.key} onClick={() => setTab(t.key)}>
             {t.label}
-          </button>
+          </Chip>
         ))}
         {tab === "all" && <ListSearch value={text} onChange={setText} placeholder="Name, mobile, Emirates ID or invoice" className="ml-auto" />}
       </div>
@@ -113,7 +109,7 @@ export default function CustomersPage() {
                   {customers.map((c) => (
                     <tr key={c.id} className="hover:bg-slate-50">
                       <td className="px-4 py-3">
-                        <Link href={`/customers/${c.id}`} className="font-medium text-blue-700">
+                        <Link href={`/customers/${c.id}`} className="inline-flex min-h-11 items-center font-medium text-blue-700">
                           {c.full_name}
                         </Link>
                       </td>
@@ -150,7 +146,7 @@ export default function CustomersPage() {
                   {g.customers.map((c) => (
                     <li key={c.id} className="flex flex-wrap items-center justify-between gap-2 py-3">
                       <span>
-                        <Link href={`/customers/${c.id}`} className="font-medium text-blue-700">
+                        <Link href={`/customers/${c.id}`} className="inline-flex min-h-11 items-center font-medium text-blue-700">
                           {c.full_name}
                         </Link>
                         <span className="block text-xs text-slate-500">

@@ -336,7 +336,7 @@ export default function BookingForm({ booking, submitLabel, onSaved }: BookingFo
                     setReceiverPick(r);
                     setReceiverName((x) => ({ value: r.name, n: x.n + 1 }));
                   }}
-                  className={`rounded-md border px-3 py-1.5 text-left text-sm ${receiverPick?.id === r.id ? "border-blue-600 bg-blue-50" : "border-slate-300 bg-white"}`}
+                  className={`min-h-11 rounded-md border px-3 py-2 text-left text-sm ${receiverPick?.id === r.id ? "border-blue-600 bg-blue-50" : "border-slate-300 bg-white"}`}
                 >
                   <span className="font-medium">{r.name}</span>
                   {r.address && <span className="block max-w-56 truncate text-xs text-slate-500">{r.address}</span>}

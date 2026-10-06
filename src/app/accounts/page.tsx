@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ChevronRight, Search } from "lucide-react";
+import Chip from "@/components/ui/Chip";
 import PageHeader from "@/components/ui/PageHeader";
 import EmptyState from "@/components/ui/EmptyState";
 import { Button, ErrorMessage, StatusBadge, inputClass, Loading } from "@/components/ui/form";
@@ -123,18 +124,16 @@ export default function AccountsPage() {
       <h2 id="invoices" className="mb-2 scroll-mt-4 text-base font-semibold">Invoices</h2>
       <div className="mb-3 flex flex-wrap items-center gap-2">
         {FILTERS.map((f) => (
-          <button
+          <Chip
             key={f.value}
+            active={status === f.value}
             onClick={() => {
               setStatus(f.value);
               setPage(0);
             }}
-            className={`rounded-full px-3 py-1 text-sm ${
-              status === f.value ? "bg-blue-600 text-white" : "border border-slate-300 bg-white text-slate-700"
-            }`}
           >
             {f.label}
-          </button>
+          </Chip>
         ))}
         <div className="relative ml-auto min-w-48 flex-1 sm:max-w-xs">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -170,7 +169,7 @@ export default function AccountsPage() {
                 {rows.map((r) => (
                   <tr key={r.r_booking_id}>
                     <td className="px-4 py-3">
-                      <Link href={`/bookings/${r.r_booking_id}`} className="font-mono font-medium text-blue-700">
+                      <Link href={`/bookings/${r.r_booking_id}`} className="inline-flex min-h-11 items-center font-mono font-medium text-blue-700">
                         {r.r_invoice_no}
                       </Link>
                       <span className="block font-mono text-xs text-slate-500">{r.r_code}</span>

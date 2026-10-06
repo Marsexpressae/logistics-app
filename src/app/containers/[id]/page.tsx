@@ -300,12 +300,12 @@ export default function ContainerManifestPage() {
                 <span className="flex items-center gap-3">
                   <StatusBadge status={p.status} />
                   {open && (
-                    <button aria-label="Unload parcel" onClick={() => unload(p.id)}>
-                      <X className="h-4 w-4 text-slate-400" />
+                    <button aria-label="Unload parcel" className="flex h-11 w-11 items-center justify-center" onClick={() => unload(p.id)}>
+                      <X className="h-5 w-5 text-slate-600" />
                     </button>
                   )}
                   {canOperate && p.status === "arrived" && delivering?.id !== p.id && (
-                    <Button variant="secondary" className="px-2 py-1 text-xs" onClick={() => setDelivering({ id: p.id, partner: "", tracking: "", date: todayISO() })}>
+                    <Button variant="secondary" className="text-sm" onClick={() => setDelivering({ id: p.id, partner: "", tracking: "", date: todayISO() })}>
                       <CheckCheck className="h-3.5 w-3.5" /> Mark delivered
                     </Button>
                   )}

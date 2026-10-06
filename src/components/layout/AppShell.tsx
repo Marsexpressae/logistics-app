@@ -86,7 +86,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
             </div>
           ) : (
             <>
-          <Link href={homePath(permissions)} aria-label={`${site.name} home`} className="flex items-center gap-2">
+          <Link href={homePath(permissions)} aria-label={`${site.name} home`} className="flex min-h-11 items-center gap-2">
             <BrandMark size={28} />
             <span className="font-semibold text-slate-900">{site.name}</span>
           </Link>
