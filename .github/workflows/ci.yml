@@ -1,0 +1,55 @@
+# Automatic checks on every change: code style, types, tests, and a full build.
+# If a second (test) database is set up, the real-database tests run there too. See docs/staging-setup.md.
+name: Checks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  app:
+    name: Lint, types, tests, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npx tsc --noEmit
+      - run: npm test
+      # Builds without any database keys, so it also proves the app starts in sample-data mode.
+      - run: npm run build
+
+  database:
+    name: Real-database tests (test copy only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Only runs when a TEST database address is saved as a repository secret. It never touches the live database.
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_STAGING_DB_URL }}
+    steps:
+      - uses: actions/checkout@v4
+        if: env.SUPABASE_DB_URL != ''
+      - uses: actions/setup-node@v4
+        if: env.SUPABASE_DB_URL != ''
+        with:
+          node-version: 24
+          cache: npm
+      - if: env.SUPABASE_DB_URL != ''
+        run: npm ci
+      # Bring the test copy up to date with the newest changes, then check the rules on it.
+      - if: env.SUPABASE_DB_URL != ''
+        run: npm run db:migrate
+      - if: env.SUPABASE_DB_URL != ''
+        run: npm run test:db
+      - if: env.SUPABASE_DB_URL == ''
+        run: echo "No test database is set up yet, so the real-database tests were skipped (see docs/staging-setup.md)."

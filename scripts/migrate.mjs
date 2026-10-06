@@ -1,10 +1,12 @@
 // Applies pending SQL files from supabase/migrations/ to the database in SUPABASE_DB_URL.
 // Usage: npm run db:migrate
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import pg from "pg";
 
-process.loadEnvFile(".env.local");
+// The file is optional (automatic checks have none). A variable set in the environment always wins over the file,
+// so `SUPABASE_DB_URL=<test database> npm run db:migrate` targets the test database even when .env.local has the live one.
+if (existsSync(".env.local")) process.loadEnvFile(".env.local");
 const url = process.env.SUPABASE_DB_URL;
 if (!url) {
   console.error("SUPABASE_DB_URL is not set in .env.local");
