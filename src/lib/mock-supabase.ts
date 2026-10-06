@@ -391,6 +391,12 @@ class Query implements PromiseLike<any> {
             }
           }
         }
+        if (this.table === "containers" && typeof this.payload.code === "string") {
+          const code = this.payload.code.trim().toUpperCase();
+          if (!NUMBER_RE.test(code)) return { data: null, error: { message: "Use letters, numbers, dashes or slashes for the container number, for example 38 or CN-120" }, count: null };
+          if (tableRows.some((x) => x.code === code && !matched.includes(x))) return { data: null, error: { message: 'duplicate key value violates unique constraint "containers_code_key"', code: "23505" }, count: null };
+          this.payload.code = code;
+        }
         matched.forEach((r) => {
           const before = r.invoice_no;
           Object.assign(r, this.payload, this.table === "bookings" ? { updated_at: now() } : {});

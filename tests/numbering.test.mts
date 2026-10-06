@@ -84,3 +84,12 @@ test("a typed number must keep the prefix from Settings, and returns and contain
   assert.equal((await c.from("containers").insert({ destination: "Test" }).select("*").single()).data.code, "ZZ-7000");
   assert.equal((await c.from("containers").insert({ destination: "Test", code: "38" }).select("*").single()).data.code, "38");
 });
+
+test("a container can be renamed, loaded parcels stay, and a used or badly written number is refused", async () => {
+  const a = (await c.from("containers").insert({ destination: "Test", code: "REN-1" }).select("*").single()).data;
+  const b = (await c.from("containers").insert({ destination: "Test", code: "REN-2" }).select("*").single()).data;
+  assert.equal((await c.from("containers").update({ code: "ren-9" }).eq("id", a.id)).error, null);
+  assert.equal((await c.from("containers").select("*").eq("id", a.id).single()).data.code, "REN-9");
+  assert.equal((await c.from("containers").update({ code: "REN-2" }).eq("id", a.id)).error.code, "23505");
+  assert.match((await c.from("containers").update({ code: "bad number!" }).eq("id", b.id)).error.message, /container number/);
+});

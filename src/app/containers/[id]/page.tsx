@@ -2,7 +2,7 @@
 
 import { useRef, useState, type FormEvent } from "react";
 import { useParams } from "next/navigation";
-import { CheckCheck, MapPinCheck, PackagePlus, Rocket, ScanLine, X } from "lucide-react";
+import { CheckCheck, MapPinCheck, PackagePlus, Pencil, Rocket, ScanLine, X } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
 import ListSearch from "@/components/ui/ListSearch";
 import { matchesSearch } from "@/lib/search";
@@ -168,6 +168,21 @@ export default function ContainerManifestPage() {
     refresh();
   }
 
+  /** Changes the container number. Parcels point at the container itself, so loaded parcels and labels are not affected. */
+  async function rename() {
+    const typed = await askText({
+      title: `Rename container ${c!.code}`,
+      message: "Type the new container number, for example 38 or CN-120. Loaded parcels stay in this container.",
+      field: { label: "Container number", placeholder: c!.code },
+      confirmLabel: "Save",
+    });
+    const code = typed?.trim().toUpperCase();
+    if (!code || code === c!.code) return;
+    const { error } = await supabase.from("containers").update({ code }).eq("id", id);
+    setMessage(error ? { ok: false, text: error.code === "23505" ? "That container number is already used." : error.message } : { ok: true, text: `Renamed to ${code}` });
+    refresh();
+  }
+
   return (
     <div className="max-w-4xl space-y-4">
       <BackLink href="/containers">Containers</BackLink>
@@ -182,7 +197,14 @@ export default function ContainerManifestPage() {
             .filter(Boolean)
             .join(" · ")}
         />
-        <StatusBadge status={c.status} />
+        <div className="flex flex-wrap items-center gap-3">
+          <StatusBadge status={c.status} />
+          {canOperate && (
+            <Button variant="secondary" onClick={rename}>
+              <Pencil className="h-4 w-4" /> Rename
+            </Button>
+          )}
+        </div>
       </div>
 
       {message && (
