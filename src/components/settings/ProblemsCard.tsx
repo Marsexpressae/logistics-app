@@ -1,7 +1,9 @@
 "use client";
 
+import CollapsibleCard from "@/components/ui/CollapsibleCard";
+
 import { useState } from "react";
-import { Button, Card, ErrorMessage, Loading } from "@/components/ui/form";
+import { Button, ErrorMessage, Loading } from "@/components/ui/form";
 import { formatDate } from "@/lib/format";
 import { useQuery } from "@/lib/hooks";
 import { usePermissions } from "@/lib/profile-context";
@@ -31,7 +33,7 @@ export default function ProblemsCard() {
   }
 
   return (
-    <Card title="Problems">
+    <CollapsibleCard title="Problems">
       <p className="mb-3 text-sm text-slate-500">
         Errors the app found in people&apos;s browsers. An empty list is good news. The same error from the same person is counted, not repeated.
       </p>
@@ -68,6 +70,6 @@ export default function ProblemsCard() {
           </div>
         </>
       )}
-    </Card>
+    </CollapsibleCard>
   );
 }

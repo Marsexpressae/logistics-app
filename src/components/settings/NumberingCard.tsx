@@ -1,7 +1,9 @@
 "use client";
 
+import CollapsibleCard from "@/components/ui/CollapsibleCard";
+
 import { useState } from "react";
-import { Button, Card, ErrorMessage, Field, inputClass, Loading } from "@/components/ui/form";
+import { Button, ErrorMessage, Field, inputClass, Loading } from "@/components/ui/form";
 import { useQuery } from "@/lib/hooks";
 import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
@@ -52,7 +54,7 @@ export default function NumberingCard() {
   }
 
   return (
-    <Card title="Numbering">
+    <CollapsibleCard title="Numbering" badge={changed.length > 0 ? <span className="rounded-full bg-brand-100 px-2 py-0.5 text-xs font-medium text-brand-800">{changed.length} unsaved</span> : null}>
       <p className="mb-3 text-sm text-slate-500">
         Every prefix in the app is set here, and only here. Automatic numbers are the prefix plus the next number. To continue an old series, set the next number here, for example 3835.
       </p>
@@ -113,6 +115,6 @@ export default function NumberingCard() {
         </div>
       )}
       {saved && changed.length === 0 && <p role="status" className="mt-3 text-sm text-green-700">Saved. New numbers use it straight away.</p>}
-    </Card>
+    </CollapsibleCard>
   );
 }

@@ -1,7 +1,9 @@
 "use client";
 
+import CollapsibleCard from "@/components/ui/CollapsibleCard";
+
 import { useState } from "react";
-import { Button, Card, ErrorMessage, Field, inputClass, Loading } from "@/components/ui/form";
+import { Button, ErrorMessage, Field, inputClass, Loading } from "@/components/ui/form";
 import { COUNTRIES, CURRENCIES, useOrganization } from "@/lib/organization";
 import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
@@ -38,7 +40,7 @@ export default function OrganizationCard() {
   }
 
   return (
-    <Card title="Organization">
+    <CollapsibleCard title="Organization">
       <ErrorMessage message={loadError ?? error} />
       {loading && !org ? (
         <Loading />
@@ -98,6 +100,6 @@ export default function OrganizationCard() {
         </div>
       )}
       {saved && changed === 0 && <p role="status" className="mt-3 text-sm text-green-700">Saved.</p>}
-    </Card>
+    </CollapsibleCard>
   );
 }

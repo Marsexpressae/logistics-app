@@ -1,8 +1,10 @@
 "use client";
 
+import CollapsibleCard from "@/components/ui/CollapsibleCard";
+
 import { useState, type FormEvent } from "react";
 import { Check, Pencil, Trash2, X } from "lucide-react";
-import { Button, Card, ErrorMessage, Field, inputClass, Loading } from "@/components/ui/form";
+import { Button, ErrorMessage, Field, inputClass, Loading } from "@/components/ui/form";
 import { useQuery } from "@/lib/hooks";
 import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
@@ -57,7 +59,7 @@ export default function WarehousesCard() {
   }
 
   return (
-    <Card title="Warehouses">
+    <CollapsibleCard title="Warehouses">
       <p className="mb-3 text-sm text-slate-500">
         The places cargo is kept: a warehouse, a tarpal, a shed or a rack position. The short code is printed on parcel labels. A place that has had parcels can be deactivated but not deleted.
       </p>
@@ -136,6 +138,6 @@ export default function WarehousesCard() {
       ) : (
         <p className="mt-2 text-xs text-slate-500">Only people with &quot;Change app settings&quot; can change this.</p>
       )}
-    </Card>
+    </CollapsibleCard>
   );
 }

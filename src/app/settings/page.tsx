@@ -8,7 +8,8 @@ import OrganizationCard from "@/components/settings/OrganizationCard";
 import ProblemsCard from "@/components/settings/ProblemsCard";
 import WarehousesCard from "@/components/settings/WarehousesCard";
 import PageHeader from "@/components/ui/PageHeader";
-import { Button, Card, ErrorMessage, Loading } from "@/components/ui/form";
+import CollapsibleCard from "@/components/ui/CollapsibleCard";
+import { Button, ErrorMessage, Loading } from "@/components/ui/form";
 import { useQuery } from "@/lib/hooks";
 import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
@@ -61,7 +62,7 @@ export default function SettingsPage() {
     <div className="max-w-3xl space-y-6">
       <PageHeader title="Settings" description="Control how the app behaves, and who can use it." />
 
-      <Card title="App controls">
+      <CollapsibleCard title="App controls" defaultOpen badge={changed > 0 ? <span className="rounded-full bg-brand-100 px-2 py-0.5 text-xs font-medium text-brand-800">{changed} unsaved</span> : null}>
         <ErrorMessage message={settings.error ?? error} />
         {settings.loading ? (
           <Loading />
@@ -105,7 +106,7 @@ export default function SettingsPage() {
           </div>
         )}
         {saved && changed === 0 && <p role="status" className="mt-3 text-sm text-green-700">Saved. It applies straight away.</p>}
-      </Card>
+      </CollapsibleCard>
 
       <OrganizationCard />
 
@@ -115,7 +116,7 @@ export default function SettingsPage() {
 
       <ProblemsCard />
 
-      <Card title="People and access">
+      <CollapsibleCard title="People and access" defaultOpen>
         <ul className="divide-y divide-slate-100">
           {can("users.manage") && (
             <li>
@@ -143,7 +144,7 @@ export default function SettingsPage() {
           )}
         </ul>
         {!can("users.manage") && !can("roles.manage") && <p className="text-sm text-slate-500">Nothing here for your role.</p>}
-      </Card>
+      </CollapsibleCard>
     </div>
   );
 }
