@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useState } from "react";
-import { Lock } from "lucide-react";
+import { ChevronDown, ChevronRight, Lock } from "lucide-react";
 import Chip from "@/components/ui/Chip";
 import PageHeader from "@/components/ui/PageHeader";
 import { Button, ErrorMessage, Loading } from "@/components/ui/form";
@@ -68,6 +68,21 @@ export default function RolesPage() {
   const m = matrix.data;
   const groups = m ? [...new Set(m.permissions.map((p) => p.group_name))] : [];
 
+  // Groups (General, Bookings, Pickups ...) open and close. They start closed so a long list is easy to scan;
+  // a group with unsaved ticks shows how many, so nothing is lost behind a closed group.
+  const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
+  const toggleGroup = (g: string) =>
+    setOpenGroups((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(g)) next.add(g);
+      return next;
+    });
+  const allOpen = groups.length > 0 && groups.every((g) => openGroups.has(g));
+  const groupOf = (permission: string) => m?.permissions.find((p) => p.key === permission)?.group_name;
+  const unsavedIn = (g: string) => [...pending.keys()].filter((k) => groupOf(k.split("|")[1]) === g).length;
+  const unsavedBadge = (g: string) =>
+    unsavedIn(g) > 0 ? <span className="ml-2 rounded-full bg-brand-100 px-2 py-0.5 text-xs font-medium normal-case text-brand-800">{unsavedIn(g)} unsaved</span> : null;
+
   return (
     <>
       <PageHeader
@@ -75,6 +90,13 @@ export default function RolesPage() {
         description="Choose what each role can do. Tick or untick, then press Save changes. It applies to everyone with that role (they may need to refresh)."
       />
       <ErrorMessage message={error ?? matrix.error} />
+      {m && (
+        <div className="mb-3">
+          <Button variant="secondary" onClick={() => setOpenGroups(allOpen ? new Set() : new Set(groups))}>
+            {allOpen ? "Close all groups" : "Open all groups"}
+          </Button>
+        </div>
+      )}
 
       {matrix.loading || !m ? (
         <Loading />
@@ -103,9 +125,24 @@ export default function RolesPage() {
                   )}
                 </p>
                 {groups.map((group) => (
-                  <section key={group} className="mb-4">
-                    <h2 className="mb-1 text-sm font-semibold uppercase text-slate-600">{group}</h2>
-                    <ul className="divide-y divide-slate-100 rounded-lg border border-slate-300 bg-white">
+                  <section key={group} className="mb-3">
+                    <h2 className="text-sm font-semibold uppercase text-slate-600">
+                      <button
+                        type="button"
+                        aria-expanded={openGroups.has(group)}
+                        onClick={() => toggleGroup(group)}
+                        className="flex min-h-12 w-full items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 text-left"
+                      >
+                        {openGroups.has(group) ? <ChevronDown className="h-5 w-5 shrink-0" aria-hidden="true" /> : <ChevronRight className="h-5 w-5 shrink-0" aria-hidden="true" />}
+                        <span className="flex-1">{group}</span>
+                        <span className="text-xs font-normal normal-case text-slate-600">
+                          {m.permissions.filter((p) => p.group_name === group && (role.key === "super_admin" || (pending.get(cell(role.key, p.key)) ?? m.granted.has(cell(role.key, p.key))))).length} of {m.permissions.filter((p) => p.group_name === group).length} on
+                        </span>
+                        {unsavedBadge(group)}
+                      </button>
+                    </h2>
+                    {openGroups.has(group) && (
+                    <ul className="mt-1 divide-y divide-slate-100 rounded-lg border border-slate-300 bg-white">
                       {m.permissions
                         .filter((p) => p.group_name === group)
                         .map((p) => {
@@ -130,6 +167,7 @@ export default function RolesPage() {
                           );
                         })}
                     </ul>
+                    )}
                   </section>
                 ))}
               </>
@@ -154,12 +192,22 @@ export default function RolesPage() {
               {groups.map((group) => (
                 <Fragment key={group}>
                   <tr className="bg-slate-50">
-                    <td colSpan={m.roles.length + 1} className="px-4 py-2 text-xs font-semibold uppercase text-slate-500">
-                      {group}
+                    <td colSpan={m.roles.length + 1} className="px-2 py-1 text-xs font-semibold uppercase text-slate-500">
+                      <button
+                        type="button"
+                        aria-expanded={openGroups.has(group)}
+                        onClick={() => toggleGroup(group)}
+                        className="flex min-h-10 w-full items-center gap-2 px-2 text-left uppercase"
+                      >
+                        {openGroups.has(group) ? <ChevronDown className="h-4 w-4" aria-hidden="true" /> : <ChevronRight className="h-4 w-4" aria-hidden="true" />}
+                        {group}
+                        <span className="font-normal normal-case text-slate-500">({m.permissions.filter((p) => p.group_name === group).length})</span>
+                        {unsavedBadge(group)}
+                      </button>
                     </td>
                   </tr>
                   {m.permissions
-                    .filter((p) => p.group_name === group)
+                    .filter((p) => p.group_name === group && openGroups.has(group))
                     .map((p) => (
                       <tr key={p.key} className="border-t border-slate-100">
                         <td className="px-4 py-2.5">

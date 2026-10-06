@@ -13,7 +13,7 @@ type Db = {
   booking_events: Row[]; notifications: Row[]; app_settings: Row[]; returns: Row[]; booking_notes: Row[]; client_errors: Row[]; number_series: Row[]; organization: Row[]; customers: Row[]; booking_contacts: Row[]; customer_notes: Row[]; customer_receivers: Row[]; id_documents: Row[];
 };
 
-const STORAGE_KEY = "logistics-mock-db-v33";
+const STORAGE_KEY = "logistics-mock-db-v34";
 const AUTH_KEY = "logistics-mock-signed-out";
 
 const uid = () => crypto.randomUUID();
@@ -28,6 +28,7 @@ const ROLES: Row[] = [
   { key: "staff", label: "Office staff", description: "Handles bookings, pickups and accounts.", sort: 3 },
   { key: "warehouse", label: "Warehouse worker", description: "Receives, splits and ships parcels.", sort: 4 },
   { key: "driver", label: "Driver", description: "Sees and completes only their own pickups.", sort: 5 },
+  { key: "accounts", label: "Accounts", description: "Sees invoices and customers and records payments. Cannot change bookings, pickups, the warehouse or containers.", sort: 6 },
 ];
 const PERMISSIONS: Row[] = [
   ["dashboard.view", "General", "View dashboard", "See the dashboard counts"],
@@ -76,6 +77,7 @@ const GRANTS: Record<string, string[]> = {
     "items.edit", "items.edit_after", "notes.write", "numbers.edit", "returns.manage", "customers.view", "customers.edit", "customers.manage", "customers.id_photo"],
   staff: ["dashboard.view", "bookings.view", "bookings.create", "bookings.edit", "bookings.cancel", "pickups.view_all",
     "pickups.collect", "warehouse.view", "containers.view", "accounts.view", "notifications.view", "bookings.reschedule", "items.edit", "items.edit_after", "notes.write", "customers.view", "customers.edit", "customers.id_photo"],
+  accounts: ["dashboard.view", "notifications.view", "bookings.view", "customers.view", "accounts.view", "payments.manage"],
   warehouse: ["dashboard.view", "warehouse.view", "warehouse.manage", "containers.view", "containers.manage", "notifications.view", "notes.write"],
   driver: ["pickups.view_own", "pickups.collect", "pickups.cancel", "pickups.reschedule", "notifications.view", "pickups.edit_contact", "items.edit", "notes.write", "customers.id_photo"],
 };
