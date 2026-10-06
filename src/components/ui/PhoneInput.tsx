@@ -40,11 +40,14 @@ export default function PhoneInput({ value, onChange, required, disabled, ariaLa
         }}
         className={`${inputClass} ${touched && invalid ? "border-red-400" : ""}`}
       />
-      {touched && invalid ? (
-        <p className="mt-1 text-xs text-red-600">Not a valid number. UAE numbers like 050 123 4567, or start with + for another country.</p>
-      ) : parsed ? (
-        <p className="mt-1 text-xs text-green-700">Will be saved as {parsed.e164}</p>
-      ) : null}
+      {/* announced politely as the number is typed, so screen-reader users hear what will be saved */}
+      <div aria-live="polite">
+        {touched && invalid ? (
+          <p className="mt-1 text-xs text-red-700">Not a valid number. UAE numbers like 050 123 4567, or start with + for another country.</p>
+        ) : parsed ? (
+          <p className="mt-1 text-xs text-green-800">Will be saved as {parsed.e164}</p>
+        ) : null}
+      </div>
     </div>
   );
 }

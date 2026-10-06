@@ -43,7 +43,7 @@ export default function TrackingLink({ booking }: { booking: Booking }) {
             href={`${whatsappLink(wa)}?text=${encodeURIComponent(message)}`}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700"
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-green-700 px-4 py-2 text-sm font-medium text-white hover:bg-green-800"
           >
             <MessageCircle className="h-4 w-4" /> Send on WhatsApp
           </a>

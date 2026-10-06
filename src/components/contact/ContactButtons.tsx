@@ -36,7 +36,7 @@ export default function ContactButtons({ phone, whatsapp, name, compact, classNa
           target="_blank"
           rel="noreferrer"
           aria-label={`WhatsApp${who} on ${formatPhone(wa)}`}
-          className={`${base} bg-green-600 text-white active:bg-green-700`}
+          className={`${base} bg-green-700 text-white active:bg-green-800`}
         >
           <MessageCircle className="h-4 w-4" /> WhatsApp
         </a>

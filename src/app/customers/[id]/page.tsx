@@ -274,33 +274,37 @@ export default function CustomerPage() {
         {timeline.loading && !timeline.data ? (
           <Loading />
         ) : !timeline.data?.length ? (
-          <p className="text-sm text-slate-500">Nothing has happened yet.</p>
+          <p className="text-sm text-slate-600">Nothing has happened yet.</p>
         ) : (
           <ol className="divide-y divide-slate-100 text-sm">
-            {timeline.data.map((t, i) => (
-              <li key={i} className="py-3">
-                <p className="flex flex-wrap items-baseline gap-x-2">
-                  <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">{KIND_LABEL[t.r_kind] ?? t.r_kind}</span>
-                  <span className="font-medium text-slate-900">{t.r_title}</span>
-                  {t.r_invoice && (
-                    <span className="font-mono text-xs text-slate-500">
-                      {t.r_booking_id && can("bookings.view") ? (
-                        <Link href={`/bookings/${t.r_booking_id}`} className="inline-flex min-h-11 items-center px-1 text-brand-700">
-                          {t.r_invoice}
-                        </Link>
-                      ) : (
-                        t.r_invoice
-                      )}
-                    </span>
+            {timeline.data.map((t, i) => {
+              const body = (
+                <>
+                  <p className="flex flex-wrap items-baseline gap-x-2">
+                    <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">{KIND_LABEL[t.r_kind] ?? t.r_kind}</span>
+                    <span className="font-medium text-slate-900">{t.r_title}</span>
+                    {t.r_invoice && <span className="font-mono text-xs text-brand-700">{t.r_invoice}</span>}
+                  </p>
+                  {t.r_detail && <p className="mt-1 whitespace-pre-wrap text-slate-700">{t.r_detail}</p>}
+                  <p className="mt-1 text-xs text-slate-600">
+                    {formatDate(t.r_at)}
+                    {t.r_actor ? ` · ${t.r_actor}` : ""}
+                  </p>
+                </>
+              );
+              // A row about an invoice opens that invoice: the whole row is the tap target.
+              return (
+                <li key={i}>
+                  {t.r_booking_id && can("bookings.view") ? (
+                    <Link href={`/bookings/${t.r_booking_id}`} className="block min-h-11 py-3 active:bg-slate-50">
+                      {body}
+                    </Link>
+                  ) : (
+                    <div className="py-3">{body}</div>
                   )}
-                </p>
-                {t.r_detail && <p className="mt-1 whitespace-pre-wrap text-slate-700">{t.r_detail}</p>}
-                <p className="mt-1 text-xs text-slate-500">
-                  {formatDate(t.r_at)}
-                  {t.r_actor ? ` · ${t.r_actor}` : ""}
-                </p>
-              </li>
-            ))}
+                </li>
+              );
+            })}
           </ol>
         )}
         <ErrorMessage message={timeline.error} />

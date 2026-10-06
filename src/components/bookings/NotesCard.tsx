@@ -91,7 +91,7 @@ export default function NotesCard({ bookingId }: { bookingId: string }) {
               <ul role="listbox" className="absolute left-0 right-0 z-10 mt-1 rounded-md border border-slate-200 bg-white shadow-lg">
                 {suggestions.map((p) => (
                   <li key={p.id}>
-                    <button type="button" role="option" aria-selected={false} onClick={() => pick(p)} className="flex w-full justify-between px-3 py-2 text-left text-sm hover:bg-slate-50">
+                    <button type="button" role="option" aria-selected={false} onClick={() => pick(p)} className="flex w-full justify-between px-3 py-2 text-left text-sm hover:bg-slate-50 active:bg-slate-100">
                       <span>{p.full_name}</span>
                       <span className="text-xs text-slate-500">{p.role_label}</span>
                     </button>

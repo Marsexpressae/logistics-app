@@ -33,6 +33,7 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: "#ffffff",
+  colorScheme: "light", // the app is light only: stops forced dark mode from turning form controls dark
   viewportFit: "cover", // lets safe-area insets (home bar, notch) apply on phones
 };
 

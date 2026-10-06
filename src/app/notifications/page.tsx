@@ -72,11 +72,11 @@ export default function NotificationsPage() {
               return (
                 <li key={n.id}>
                   {href ? (
-                    <Link href={href} onClick={() => markRead(n.id)} className="block hover:bg-slate-50">
+                    <Link href={href} onClick={() => markRead(n.id)} className="block hover:bg-slate-50 active:bg-slate-100">
                       {content}
                     </Link>
                   ) : (
-                    <button className="block w-full text-left hover:bg-slate-50" onClick={() => markRead(n.id)}>
+                    <button className="block w-full text-left hover:bg-slate-50 active:bg-slate-100" onClick={() => markRead(n.id)}>
                       {content}
                     </button>
                   )}

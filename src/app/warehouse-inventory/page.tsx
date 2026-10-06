@@ -26,7 +26,7 @@ type StockParcel = Parcel & { booking: { code: string; invoice_no: string | null
 // Each tab has its own colour and icon, so staff can recognise it without reading (used by the big tiles on phones).
 const TABS: { key: Tab; label: string; hint: string; icon: LucideIcon; tile: string; tileOn: string }[] = [
   { key: "intake", label: "Intake", hint: "Collected cargo waiting to be received into the warehouse.", icon: PackageCheck,
-    tile: "border-orange-400 bg-orange-50 text-orange-900", tileOn: "border-orange-600 bg-orange-600 text-white" },
+    tile: "border-orange-400 bg-orange-50 text-orange-900", tileOn: "border-orange-700 bg-orange-700 text-white" },
   { key: "unpacked", label: "Unpacked", hint: "Received parcels, as the driver collected them.", icon: Boxes,
     tile: "border-blue-400 bg-blue-50 text-blue-900", tileOn: "border-blue-700 bg-blue-700 text-white" },
   { key: "packed", label: "Packed", hint: "Parcels the warehouse repacked or consolidated, with new labels.", icon: Package,

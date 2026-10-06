@@ -2,6 +2,7 @@
 
 import { Fragment, useState, type FormEvent } from "react";
 import Link from "next/link";
+import EmptyState from "@/components/ui/EmptyState";
 import PageHeader from "@/components/ui/PageHeader";
 import { Button, Card, ErrorMessage, Field, inputClass } from "@/components/ui/form";
 import { useQuery } from "@/lib/hooks";
@@ -277,6 +278,8 @@ export default function UsersPage() {
                 </div>
               </form>
             );
+
+          if (!people.length) return <EmptyState message={find.trim() ? "No one matches your search." : "No users yet."} />;
 
           return (
             <>

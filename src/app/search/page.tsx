@@ -141,7 +141,7 @@ function SearchResults({ initial }: { initial: string }) {
           <ul className="divide-y divide-slate-100 text-sm">
             {customers.map((c) => (
               <li key={c.id}>
-                <Link href={`/customers/${c.id}`} className="flex items-center justify-between gap-2 py-3">
+                <Link href={`/customers/${c.id}`} className="flex items-center justify-between gap-2 py-3 active:bg-slate-50">
                   <span>
                     <span className="font-medium text-brand-700">{c.full_name}</span>
                     <span className="block text-xs text-slate-600">{[formatPhone(c.phone), c.address].filter(Boolean).join(" · ")}</span>
@@ -159,7 +159,7 @@ function SearchResults({ initial }: { initial: string }) {
           <ul className="divide-y divide-slate-100 text-sm">
             {result.containers.map((c) => (
               <li key={c.id}>
-                <Link href={`/containers/${c.id}`} className="flex items-center justify-between gap-2 py-3">
+                <Link href={`/containers/${c.id}`} className="flex items-center justify-between gap-2 py-3 active:bg-slate-50">
                   <span>
                     <span className="font-mono font-medium text-brand-700">{c.code}</span>
                     <span className="ml-2 text-slate-600">{c.destination ?? "No destination"}</span>

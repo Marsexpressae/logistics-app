@@ -68,7 +68,7 @@ export default function CustomerPicker({
           ) : (
             hits.map((h) => (
               <li key={h.id}>
-                <button type="button" onClick={() => onPick(h)} className="flex min-h-11 w-full items-start gap-3 px-3 py-2.5 text-left hover:bg-slate-50">
+                <button type="button" onClick={() => onPick(h)} className="flex min-h-11 w-full items-start gap-3 px-3 py-2.5 text-left hover:bg-slate-50 active:bg-slate-100">
                   <UserRound className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
                   <span className="min-w-0">
                     <span className="block font-medium text-slate-900">{h.full_name}</span>
