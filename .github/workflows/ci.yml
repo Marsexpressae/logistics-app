@@ -24,6 +24,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run lint
+      # Next.js writes some of its type names (RouteContext, LayoutProps) during a build; a fresh checkout needs them generated first.
+      - run: npx next typegen
       - run: npx tsc --noEmit
       - run: npm test
       # Builds without any database keys, so it also proves the app starts in sample-data mode.
