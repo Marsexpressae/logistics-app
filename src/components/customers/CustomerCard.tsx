@@ -65,6 +65,11 @@ export default function CustomerCard({ bookingId }: { bookingId: string }) {
         </Link>
         <span className="block text-sm text-slate-600">{formatPhone(c.phone)}</span>
         {c.address && <span className="block truncate text-xs text-slate-500">{c.address}</span>}
+        {role === "customer" && (
+          <Link href={`/customers/${c.id}`} className="mt-1 inline-flex min-h-11 items-center text-sm font-medium text-brand-700 underline">
+            Edit customer
+          </Link>
+        )}
         <ContactButtons phone={c.phone} whatsapp={c.whatsapp} name={c.full_name} compact className="mt-2" />
       </span>
       {canEdit && (

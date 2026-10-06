@@ -6,18 +6,18 @@ import { useQuery } from "@/lib/hooks";
 import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
 
-type Series = { kind: "invoice" | "booking"; prefix: string; next_number: number };
-const LABEL = { invoice: "Invoice numbers", booking: "Booking numbers" } as const;
+type Series = { kind: string; label: string; prefix: string; next_number: number };
 
 /**
- * Settings > Numbering. Automatic numbers are PREFIX + NEXT NUMBER (for example INV- and 3835 gives INV-3835),
- * and the next number goes up by one each time. People with "Set invoice and booking numbers" can also type a
- * custom number on a booking. Used numbers are skipped, so a typed number never causes a clash.
+ * Settings > Numbering: the ONE place for every prefix in the app. Automatic numbers are PREFIX + NEXT NUMBER
+ * (for example INV- and 3835 gives INV-3835), and the next number goes up by one each time. The list is read from the
+ * database, so a new kind of number added later appears here by itself. Used numbers are skipped, so a typed number
+ * never causes a clash.
  */
 export default function NumberingCard() {
   const { can } = usePermissions();
   const canChange = can("settings.manage");
-  const series = useQuery<Series[]>(() => supabase.from("number_series").select("*").order("kind"));
+  const series = useQuery<Series[]>(() => supabase.from("number_series").select("kind, label, prefix, next_number").order("sort"));
   const [draft, setDraft] = useState<Record<string, { prefix: string; next: string }>>({});
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -39,7 +39,7 @@ export default function NumberingCard() {
       const v = draft[s.kind];
       const { error } = await supabase.rpc("set_number_series", { p_kind: s.kind, p_prefix: v.prefix, p_next: Number(v.next) });
       if (error) {
-        setError(`${LABEL[s.kind]}: ${error.message}`);
+        setError(`${s.label}: ${error.message}`);
         setBusy(false);
         series.reload();
         return;
@@ -54,7 +54,7 @@ export default function NumberingCard() {
   return (
     <Card title="Numbering">
       <p className="mb-3 text-sm text-slate-500">
-        Automatic numbers are the prefix plus the next number. To continue an old series, set the next number here, for example 3835.
+        Every prefix in the app is set here, and only here. Automatic numbers are the prefix plus the next number. To continue an old series, set the next number here, for example 3835.
       </p>
       <ErrorMessage message={series.error ?? error} />
       {series.loading ? (
@@ -65,7 +65,7 @@ export default function NumberingCard() {
             const v = value(s);
             return (
               <div key={s.kind}>
-                <p className="mb-1 font-medium text-slate-900">{LABEL[s.kind]}</p>
+                <p className="mb-1 font-medium text-slate-900">{s.label}</p>
                 <div className="grid grid-cols-2 gap-3 sm:max-w-md">
                   <Field label="Prefix">
                     <input

@@ -67,3 +67,20 @@ test("the booking number cannot change once parcels exist", async () => {
   const fresh = (await newBooking()).data;
   assert.equal((await c.from("bookings").update({ code: "BK-9100" }).eq("id", fresh.id)).error, null);
 });
+
+test("a typed number must keep the prefix from Settings, and returns and containers use their own series", async () => {
+  const wrongBooking = await newBooking({ code: "XX-5000" });
+  assert.match(wrongBooking.error.message, /must start with BK-/);
+  const wrongInvoice = await newBooking({ invoice_no: "XX-5000" });
+  assert.match(wrongInvoice.error.message, /must start with INV-/);
+  assert.equal((await newBooking({ code: "BK-5000" })).error, null);
+
+  // each series is listed with its label, so Settings can show it
+  const kinds = (await rows("number_series")).map((x) => x.kind);
+  for (const kind of ["booking", "invoice", "return", "container"]) assert.ok(kinds.includes(kind), kind);
+
+  // a container takes the series prefix; a number somebody typed is kept
+  await c.rpc("set_number_series", { p_kind: "container", p_prefix: "zz-", p_next: 7000 });
+  assert.equal((await c.from("containers").insert({ destination: "Test" }).select("*").single()).data.code, "ZZ-7000");
+  assert.equal((await c.from("containers").insert({ destination: "Test", code: "38" }).select("*").single()).data.code, "38");
+});

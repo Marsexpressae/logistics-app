@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import Link from "next/link";
 import { LocateFixed } from "lucide-react";
 import CustomerPicker from "@/components/customers/CustomerPicker";
 import PhoneInput from "@/components/ui/PhoneInput";
@@ -19,12 +18,39 @@ import type { Booking, Driver } from "@/lib/types";
 type BookingFormProps = {
   booking?: Booking; // present = edit mode
   submitLabel: string;
+  numbersOpen?: boolean; // editing: the numbers show on top of the page and only open here when asked
   onSaved: (code: string) => void;
 };
 
-export default function BookingForm({ booking, submitLabel, onSaved }: BookingFormProps) {
+export default function BookingForm({ booking, submitLabel, onSaved, numbersOpen }: BookingFormProps) {
   const { can } = usePermissions();
   const canSetNumbers = can("numbers.edit");
+  // The prefix (BK-, INV-) is chosen in Settings only. On a booking, people type just the number after it.
+  const series = useQuery<{ kind: "invoice" | "booking"; prefix: string; next_number: number }[]>(() => supabase.from("number_series").select("kind, prefix, next_number"));
+  const prefixOf = (kind: "invoice" | "booking") => series.data?.find((x) => x.kind === kind)?.prefix ?? "";
+  // The counter in Settings can sit behind numbers that are already used, and those are skipped, so look ahead to the first free one.
+  const used = useQuery<{ code: string | null; invoice_no: string | null }[]>(() => {
+    const rows = series.data;
+    if (!rows || !canSetNumbers) return Promise.resolve({ data: [], error: null });
+    const ahead = (kind: "invoice" | "booking") => {
+      const r = rows.find((x) => x.kind === kind);
+      return r ? Array.from({ length: 300 }, (_, i) => `${r.prefix}${r.next_number + i}`) : [];
+    };
+    return supabase.from("bookings").select("code, invoice_no").or(`code.in.(${ahead("booking").join(",")}),invoice_no.in.(${ahead("invoice").join(",")})`) as never;
+  }, [series.data]);
+  const nextOf = (kind: "invoice" | "booking") => {
+    const r = series.data?.find((x) => x.kind === kind);
+    if (!r || !used.data) return undefined;
+    const taken = new Set(used.data.map((u) => (kind === "booking" ? u.code : u.invoice_no)));
+    let n = r.next_number;
+    while (taken.has(`${r.prefix}${n}`)) n += 1;
+    return n;
+  };
+  const bookingPrefix = prefixOf("booking");
+  const invoicePrefix = prefixOf("invoice");
+  const digitsOf = (value: string | null | undefined, prefix: string) => (value && prefix && value.toUpperCase().startsWith(prefix.toUpperCase()) ? value.slice(prefix.length) : "");
+  const [bookingDigits, setBookingDigits] = useState<string | null>(null);
+  const [invoiceDigits, setInvoiceDigits] = useState<string | null>(null);
   const canPickCustomer = !booking && can("customers.view");
   // A returning customer picked from the list: their details fill the form, and the booking is linked to them when saved.
   const [picked, setPicked] = useState<CustomerHit | null>(null);
@@ -65,6 +91,11 @@ export default function BookingForm({ booking, submitLabel, onSaved }: BookingFo
 
   // A known customer: their details are shown, not typed again, so the booking can never disagree with the customer record.
   const locked = !!picked || !!linkedCustomer.data;
+  // An existing booking with a customer: the Customer card above shows them, so this form only holds the pickup.
+  const onlyPickup = !!booking && !!linkedCustomer.data;
+  // ...and it reads as a summary until someone chooses to edit it. Only a new booking opens as a form.
+  const [editPickup, setEditPickup] = useState(false);
+  const summary = onlyPickup && !editPickup;
 
   const geo = parseGeo(geoText);
   const geoInvalid = geoText.trim() !== "" && !geo;
@@ -86,10 +117,10 @@ export default function BookingForm({ booking, submitLabel, onSaved }: BookingFo
   }
 
   // Typed numbers. On a new booking, anything typed is sent. On an existing one, only what changed.
-  function customNumbers(f: FormData) {
-    const typed = (k: string) => String(f.get(k) ?? "").trim().toUpperCase();
-    const code = typed("booking_number");
-    const invoice = typed("invoice_number");
+  function customNumbers() {
+    // Nothing touched = nothing changes. A typed number always keeps the prefix from Settings.
+    const code = bookingDigits ? `${bookingPrefix}${bookingDigits}` : "";
+    const invoice = invoiceDigits ? `${invoicePrefix}${invoiceDigits}` : "";
     const out: { code?: string; invoice_no?: string } = {};
     if (code && code !== booking?.code) out.code = code;
     if (invoice && invoice !== (booking?.invoice_no ?? "")) out.invoice_no = invoice;
@@ -130,7 +161,7 @@ export default function BookingForm({ booking, submitLabel, onSaved }: BookingFo
       ...(booking ? { invoice_amount: f.get("invoice_amount") ? Number(f.get("invoice_amount")) : null } : {}),
       notes: text("notes"),
       // Custom numbers: only people with the permission see these fields. Empty = automatic.
-      ...(canSetNumbers ? customNumbers(f) : {}),
+      ...(canSetNumbers ? customNumbers() : {}),
     };
 
     setBusy(true);
@@ -171,10 +202,42 @@ export default function BookingForm({ booking, submitLabel, onSaved }: BookingFo
 
   return (
     <form onSubmit={onSubmit} className="max-w-3xl space-y-4">
+      {canSetNumbers && (!booking || numbersOpen) && (
+        <Card title="Numbers" id="numbers-editor">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Booking number">
+              <NumberPart
+                prefix={bookingPrefix}
+                current={booking?.code ?? null}
+                value={bookingDigits ?? digitsOf(booking?.code, bookingPrefix)}
+                onChange={setBookingDigits}
+                placeholder={nextOf("booking") ? `Automatic, next is ${nextOf("booking")}` : "Automatic"}
+              />
+            </Field>
+            {booking?.invoice_no && (
+              <Field label="Invoice number">
+                <NumberPart
+                  prefix={invoicePrefix}
+                  current={booking?.invoice_no ?? null}
+                  value={invoiceDigits ?? digitsOf(booking?.invoice_no, invoicePrefix)}
+                  onChange={setInvoiceDigits}
+                  placeholder={nextOf("invoice") ? `Automatic, next is ${nextOf("invoice")}` : "Automatic when collected"}
+                />
+              </Field>
+            )}
+          </div>
+          <p className="mt-2 text-xs text-slate-500">
+            Leave empty for the automatic number. The prefix is set in Settings and cannot be changed here. A typed number must be unique.
+            {booking?.invoice_no ? " The booking number cannot change once parcels exist, and an invoice number can be changed but not removed." : " The booking number cannot change once parcels exist. The invoice number is issued when the cargo is collected."}
+          </p>
+        </Card>
+      )}
+
       {/* 1. Who is sending, and everything about collecting from them */}
-      <Card title="Customer &amp; pickup">
+      <Card title={onlyPickup ? "Pickup" : "Customer & pickup"}>
         <div className="grid gap-4 sm:grid-cols-2">
-          {canPickCustomer && (
+          {onlyPickup && <input type="hidden" name="sender_name" value={fill.name} />}
+          {!onlyPickup && canPickCustomer && (
             <div className="rounded-md border border-slate-200 bg-slate-50 p-3 sm:col-span-2">
               {picked ? (
                 <p className="flex flex-wrap items-center justify-between gap-2 text-sm">
@@ -194,6 +257,8 @@ export default function BookingForm({ booking, submitLabel, onSaved }: BookingFo
               )}
             </div>
           )}
+          {!onlyPickup && (
+            <>
           <Field label="Name">
             <input key={`n${fill.n}`} name="sender_name" required readOnly={locked} defaultValue={fill.name} className={`${inputClass} ${locked ? "cursor-not-allowed bg-slate-100 text-slate-600" : ""}`} />
           </Field>
@@ -220,20 +285,50 @@ export default function BookingForm({ booking, submitLabel, onSaved }: BookingFo
             )}
           </div>
 
-          {linkedCustomer.data && (
-            <p className="text-xs text-slate-500 sm:col-span-2">
-              To change the customer&apos;s name or numbers, edit them on{" "}
-              <Link href={`/customers/${linkedCustomer.data.customer_id}`} className="inline-flex min-h-11 items-center font-medium text-brand-700">
-                the customer&apos;s page
-              </Link>
-              . Until the pickup is collected, this booking follows the changes.
-            </p>
+            </>
           )}
 
-          <div className="border-t border-slate-100 pt-4 sm:col-span-2">
-            <h3 className="text-sm font-semibold text-slate-900">Pickup</h3>
+          <div className={onlyPickup ? "sm:col-span-2" : "border-t border-slate-100 pt-4 sm:col-span-2"}>
+            {!onlyPickup && <h3 className="text-sm font-semibold text-slate-900">Pickup</h3>}
             <p className="text-xs text-slate-500">Where, when and by whom the customer&apos;s cargo is collected.</p>
           </div>
+          {summary && booking && (
+            <>
+              <input type="hidden" name="pickup_area" value={booking.pickup_area ?? ""} />
+              <input type="hidden" name="pickup_address" value={fill.address} />
+              <input type="hidden" name="driver_id" value={booking.driver_id ?? ""} />
+              <dl className="grid gap-x-6 gap-y-3 text-sm sm:col-span-2 sm:grid-cols-2">
+                <div>
+                  <dt className="text-xs font-medium uppercase text-slate-500">Area</dt>
+                  <dd className="text-base text-slate-900">{booking.pickup_area ?? "Not set"}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-medium uppercase text-slate-500">Pickup date</dt>
+                  <dd className="text-base text-slate-900">{new Date(`${booking.pickup_date}T00:00:00`).toLocaleDateString("en-GB")}</dd>
+                </div>
+                <div className="sm:col-span-2">
+                  <dt className="text-xs font-medium uppercase text-slate-500">Address</dt>
+                  <dd className="text-base text-slate-900">{fill.address || "Not set"}</dd>
+                  {geo && (
+                    <a href={mapsUrl({ geo_lat: geo.lat, geo_lng: geo.lng, pickup_address: "" })} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center text-sm font-medium text-brand-700 underline">
+                      Open the pin on the map
+                    </a>
+                  )}
+                </div>
+                <div>
+                  <dt className="text-xs font-medium uppercase text-slate-500">Driver</dt>
+                  <dd className="text-base text-slate-900">{drivers.data?.find((d) => d.id === booking.driver_id)?.name ?? "Unassigned"}</dd>
+                </div>
+              </dl>
+              <div className="sm:col-span-2">
+                <Button type="button" variant="secondary" onClick={() => setEditPickup(true)}>
+                  Edit pickup details
+                </Button>
+              </div>
+            </>
+          )}
+          {!summary && (
+            <>
           <Field label="Pickup area">
             <select name="pickup_area" required defaultValue={booking?.pickup_area ?? ""} className={inputClass}>
               <option value="" disabled>
@@ -314,6 +409,8 @@ export default function BookingForm({ booking, submitLabel, onSaved }: BookingFo
               ))}
             </select>
           </Field>
+            </>
+          )}
         </div>
       </Card>
 
@@ -347,36 +444,6 @@ export default function BookingForm({ booking, submitLabel, onSaved }: BookingFo
         )}
         <p className="mt-2 text-xs text-slate-500">Phone and address are added later with the invoice and shipment details.</p>
       </Card>
-
-      {/* Custom numbers, like in an accounting system. Leave empty for automatic numbers. */}
-      {canSetNumbers && (
-        <Card title="Numbers">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Booking number">
-              <input
-                name="booking_number"
-                defaultValue={booking?.code ?? ""}
-                placeholder="Automatic"
-                className={`${inputClass} font-mono`}
-                autoCapitalize="characters"
-              />
-            </Field>
-            <Field label="Invoice number">
-              <input
-                name="invoice_number"
-                defaultValue={booking?.invoice_no ?? ""}
-                placeholder={booking ? "Automatic when collected" : "Automatic when collected, or type one"}
-                className={`${inputClass} font-mono`}
-                autoCapitalize="characters"
-              />
-            </Field>
-          </div>
-          <p className="mt-2 text-xs text-slate-500">
-            Leave empty for automatic numbers. A typed number must be unique. The booking number cannot change once parcels exist,
-            and an invoice number can be changed but not removed.
-          </p>
-        </Card>
-      )}
 
       {/* 3. Money and anything else worth noting */}
       <Card title="Billing &amp; notes">
@@ -427,5 +494,23 @@ export default function BookingForm({ booking, submitLabel, onSaved }: BookingFo
         {busy ? "Saving…" : submitLabel}
       </Button>
     </form>
+  );
+}
+
+/** The fixed prefix from Settings, then a box for the digits only. An old number with a different prefix is shown but kept as it is. */
+function NumberPart({ prefix, current, value, onChange, placeholder }: { prefix: string; current: string | null; value: string; onChange: (v: string) => void; placeholder: string }) {
+  const legacy = !!current && !!prefix && !current.toUpperCase().startsWith(prefix.toUpperCase());
+  if (legacy) return <input value={current ?? ""} readOnly className={`${inputClass} cursor-not-allowed bg-slate-100 font-mono text-slate-600`} />;
+  return (
+    <div className="flex">
+      <span className="flex min-h-11 items-center rounded-l-md border border-r-0 border-slate-300 bg-slate-100 px-3 font-mono text-sm text-slate-700 sm:min-h-10">{prefix || "…"}</span>
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value.replace(/\D/g, ""))}
+        inputMode="numeric"
+        placeholder={placeholder}
+        className={`${inputClass} rounded-l-none font-mono`}
+      />
+    </div>
   );
 }

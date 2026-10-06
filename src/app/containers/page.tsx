@@ -22,6 +22,8 @@ function ContainersContent() {
   const containers = useQuery<Container[]>(() =>
     supabase.from("containers").select("*, parcels(count)").order("created_at", { ascending: false })
   );
+  const series = useQuery<{ prefix: string; next_number: number }[]>(() => supabase.from("number_series").select("prefix, next_number").eq("kind", "container"));
+  const nextCode = series.data?.[0] ? `${series.data[0].prefix}${series.data[0].next_number}` : null;
   const [error, setError] = useState<string | null>(null);
   const initial = useSearchParams().get("status") ?? "all";
   const [status, setStatus] = useState(["loading", "departed", "arrived"].includes(initial) ? initial : "all");
@@ -44,7 +46,7 @@ function ContainersContent() {
 
       {canOperate && <Card className="mb-6">
         <form onSubmit={create} className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-          <input name="code" placeholder="Number, e.g. 38 (optional)" aria-label="Container number" className={`${inputClass} font-mono sm:max-w-[13rem]`} />
+          <input name="code" placeholder={nextCode ? `Automatic: ${nextCode}, or type your own` : "Number (optional)"} aria-label="Container number" className={`${inputClass} font-mono sm:max-w-[17rem]`} />
           <input name="destination" placeholder="Destination (optional)" aria-label="Destination (optional)" className={`${inputClass} sm:max-w-xs`} />
           <Button type="submit" className="w-full sm:w-auto">New container</Button>
         </form>

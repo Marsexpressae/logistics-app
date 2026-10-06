@@ -13,7 +13,7 @@ type Db = {
   booking_events: Row[]; notifications: Row[]; app_settings: Row[]; returns: Row[]; booking_notes: Row[]; client_errors: Row[]; number_series: Row[]; organization: Row[]; customers: Row[]; booking_contacts: Row[]; customer_notes: Row[]; customer_receivers: Row[]; id_documents: Row[];
 };
 
-const STORAGE_KEY = "logistics-mock-db-v31";
+const STORAGE_KEY = "logistics-mock-db-v32";
 const AUTH_KEY = "logistics-mock-signed-out";
 
 const uid = () => crypto.randomUUID();
@@ -154,8 +154,10 @@ function seed(): Db {
     client_errors: [],
     organization: [{ id: uid(), legal_name: "", currency: "AED", country: "United Arab Emirates", updated_at: now() }],
     number_series: [
-      { kind: "invoice", prefix: "INV-", next_number: 1004 },
-      { kind: "booking", prefix: "BK-", next_number: 1005 },
+      { kind: "booking", label: "Booking numbers", sort: 10, prefix: "BK-", next_number: 1005, lookup_table: "bookings", lookup_column: "code" },
+      { kind: "invoice", label: "Invoice numbers", sort: 20, prefix: "INV-", next_number: 1004, lookup_table: "bookings", lookup_column: "invoice_no" },
+      { kind: "return", label: "Return numbers", sort: 30, prefix: "RT-", next_number: 1001, lookup_table: "returns", lookup_column: "code" },
+      { kind: "container", label: "Container numbers", sort: 40, prefix: "CN-", next_number: 103, lookup_table: "containers", lookup_column: "code" },
     ],
     app_settings: [{ key: "require_payment_before_loading", value: false, label: "Require payment before loading into a container",
       description: "When on, a parcel can only be loaded if its booking has an invoice amount and it is paid in full. People with \"Load without full payment\" can override it with a reason.", updated_at: now() },
@@ -236,12 +238,13 @@ function warehouseCode(name: string, typed: string | null, ignore: string | null
 
 // ---------------------------------------------------------------- numbering (mirrors the database: series, typed numbers, uniqueness)
 const NUMBER_RE = /^[A-Z0-9][A-Z0-9._/-]{0,39}$/;
-function takeNumber(kind: "invoice" | "booking"): string {
+function takeNumber(kind: string): string {
   const d = db();
   const s = d.number_series.find((x) => x.kind === kind)!;
+  const used = (d as unknown as Record<string, Row[]>)[s.lookup_table as string] ?? [];
   for (;;) {
     const candidate = `${s.prefix}${s.next_number++}`;
-    if (!d.bookings.some((b) => (kind === "invoice" ? b.invoice_no : b.code) === candidate)) return candidate;
+    if (!used.some((r) => r[s.lookup_column as string] === candidate)) return candidate;
   }
 }
 const duplicate = (column: "code" | "invoice_no") => ({ message: `duplicate key value violates unique constraint "bookings_${column}_key"`, code: "23505" });
@@ -251,6 +254,9 @@ function checkNumbers(row: Row, old: Row | null): { message: string; code?: stri
   if (typeof row.code === "string") row.code = row.code.trim().toUpperCase();
   if (typeof row.invoice_no === "string") row.invoice_no = row.invoice_no.trim().toUpperCase() || null;
   if (old && old.invoice_no && !row.invoice_no) return { message: "An invoice number cannot be removed" };
+  const prefixOf = (kind: string) => String(d.number_series.find((x) => x.kind === kind)?.prefix ?? "");
+  if (row.code && row.code !== old?.code && prefixOf("booking") && !String(row.code).startsWith(prefixOf("booking"))) return { message: `The booking number must start with ${prefixOf("booking")} (the prefix is set in Settings)` };
+  if (row.invoice_no && row.invoice_no !== old?.invoice_no && prefixOf("invoice") && !String(row.invoice_no).startsWith(prefixOf("invoice"))) return { message: `The invoice number must start with ${prefixOf("invoice")} (the prefix is set in Settings)` };
   if (row.code && row.code !== old?.code) {
     if (!NUMBER_RE.test(row.code)) return { message: "Use letters, numbers, dashes or slashes for the booking number, for example BK-1050" };
     if (old && d.parcels.some((p) => p.booking_id === old.id)) return { message: "The booking number cannot change once parcels exist, because their labels carry it" };
@@ -449,8 +455,8 @@ function withDefaults(table: string, it: Row): Row {
       }
       break;
     case "containers":
-      Object.assign(row, { code: `CN-${d.seq.container++}`, status: "loading", departed_at: null, arrived_at: null, created_at: now(), ...it });
-      if (typeof it.code === "string") row.code = it.code.trim().toUpperCase();
+      Object.assign(row, { code: typeof it.code === "string" && it.code.trim() ? it.code.trim().toUpperCase() : takeNumber("container"), status: "loading", departed_at: null, arrived_at: null, created_at: now(), ...it });
+      if (typeof it.code === "string" && it.code.trim()) row.code = it.code.trim().toUpperCase();
       break;
     case "id_documents": {
       let eid: string | null = null;
@@ -630,8 +636,7 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
     const ps = d.parcels.filter((p) => p_parcel_ids.includes(p.id));
     if (ps.length !== p_parcel_ids.length || ps.some((p) => p.booking_id !== p_booking_id || p.status !== "in_warehouse"))
       return fail("Only parcels of this booking that are in the warehouse can be returned");
-    d.seq.ret = d.seq.ret ?? 1001;
-    const row = { id: uid(), code: `RT-${d.seq.ret++}`, booking_id: p_booking_id, status: "open", note: null, form_date: now().slice(0, 10), created_by_name: "You (sample data)",
+    const row = { id: uid(), code: takeNumber("return"), booking_id: p_booking_id, status: "open", note: null, form_date: now().slice(0, 10), created_by_name: "You (sample data)",
       created_at: now(), completed_at: null, completed_by_name: null, received_by_name: null };
     d.returns.push(row);
     ps.forEach((p) => { p.return_id = row.id; setParcelStatus(p, "ready_for_return"); });

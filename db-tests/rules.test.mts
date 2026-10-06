@@ -242,3 +242,45 @@ test("a custom invoice number can be used only once", { skip }, async () => {
     assert.match(message ?? "", /duplicate key|unique|already/i);
   });
 });
+
+test("every automatic number comes from Settings > Numbering, and a new series appears there by itself", { skip }, async () => {
+  await inTransaction(async (db) => {
+    // booking, invoice, return and container are all in the list, each with a label
+    const kinds = (await db.owner("select kind from number_series")).map((r) => r.kind);
+    for (const kind of ["booking", "invoice", "return", "container"]) assert.ok(kinds.includes(kind), `${kind} is in the list`);
+
+    // a container and a return take their number from the series, with the prefix chosen there
+    await db.owner("update number_series set prefix = 'ZZ-', next_number = 7000 where kind = 'container'");
+    await db.owner("update number_series set prefix = 'RR-', next_number = 8000 where kind = 'return'");
+    assert.equal((await db.owner("insert into containers (destination) values ('Test') returning code"))[0].code, "ZZ-7000");
+    // a number somebody typed is kept, and the automatic one skips it
+    assert.equal((await db.owner("insert into containers (destination, code) values ('Test', 'ZZ-7001') returning code"))[0].code, "ZZ-7001");
+    assert.equal((await db.owner("insert into containers (destination) values ('Test') returning code"))[0].code, "ZZ-7002");
+    const booking = await db.booking();
+    assert.equal((await db.owner("insert into returns (booking_id) values ($1) returning code", [booking]))[0].code, "RR-8000");
+
+    // a series registered in future migrations is picked up with no other change
+    await db.owner("select register_number_series('demo', 'Demo numbers', 'dm-', 5, null, null, 50)");
+    const demo = (await db.owner("select label, prefix, next_number from number_series where kind = 'demo'"))[0];
+    assert.equal(demo.prefix, "DM-");
+    assert.equal((await db.owner("select take_next_number('demo') n"))[0].n, "DM-5");
+
+    // only people who may manage settings can change a prefix
+    const nobody = await db.person(["bookings.view", "numbers.edit"]);
+    assert.match((await db.error(() => db.as(nobody, "select set_number_series('container', 'XX-', 1)"))) ?? "", /permission/i);
+  });
+});
+
+test("a typed booking or invoice number must start with the prefix from Settings", { skip }, async () => {
+  await inTransaction(async (db) => {
+    const prefix = (await db.owner("select prefix from number_series where kind = 'booking'"))[0].prefix as string;
+    const person = await db.person(["bookings.view", "bookings.edit", "bookings.create", "numbers.edit"]);
+    const booking = await db.booking();
+    const wrong = await db.error(() => db.as(person, "update bookings set code = 'XX-9999' where id = $1", [booking]));
+    assert.match(wrong ?? "", new RegExp(`must start with ${prefix}`));
+    assert.equal(await db.error(() => db.as(person, "update bookings set code = $2 where id = $1", [booking, `${prefix}9999`])), null);
+    const invoicePrefix = (await db.owner("select prefix from number_series where kind = 'invoice'"))[0].prefix as string;
+    assert.match((await db.error(() => db.as(person, "update bookings set invoice_no = 'XX-1' where id = $1", [booking]))) ?? "", /must start with/);
+    assert.equal(await db.error(() => db.as(person, "update bookings set invoice_no = $2 where id = $1", [booking, `${invoicePrefix}9998`])), null);
+  });
+});

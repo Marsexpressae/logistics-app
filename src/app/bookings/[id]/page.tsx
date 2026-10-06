@@ -17,7 +17,7 @@ import TrackingLink from "@/components/bookings/TrackingLink";
 import ItemsCard from "@/components/bookings/ItemsCard";
 import PaymentsCard from "@/components/bookings/PaymentsCard";
 import ScheduleHistory from "@/components/bookings/ScheduleHistory";
-import { Card, ErrorMessage, StatusBadge, Loading } from "@/components/ui/form";
+import { Button, Card, ErrorMessage, StatusBadge, Loading } from "@/components/ui/form";
 import { formatDate } from "@/lib/format";
 import { useQuery } from "@/lib/hooks";
 import { usePermissions } from "@/lib/profile-context";
@@ -47,6 +47,8 @@ export default function EditBookingPage() {
     supabase.from("payments").select("*").eq("booking_id", id).order("created_at")
   );
   const seesMoney = can("accounts.view") || can("pickups.collect") || can("payments.manage");
+  const [editNumbers, setEditNumbers] = useState(false);
+  const canSetNumbers = can("numbers.edit");
   const [changes, setChanges] = useState(0); // bumps after a reschedule/cancel so the history refreshes
 
   const b = booking.data;
@@ -90,15 +92,47 @@ export default function EditBookingPage() {
         />
       </div>
 
+      {/* The customer comes first, shown once. The form below only holds the pickup. */}
+      <div className="mb-4 max-w-3xl space-y-4">
+        <WarningBanner bookingId={id} />
+        {canSetNumbers && (
+          <Card title="Numbers">
+            <dl className="grid gap-3 text-sm sm:grid-cols-2">
+              <div>
+                <dt className="text-xs font-medium uppercase text-slate-500">Booking number</dt>
+                <dd className="font-mono text-base text-slate-900">{b.code}</dd>
+              </div>
+              {b.invoice_no && (
+                <div>
+                  <dt className="text-xs font-medium uppercase text-slate-500">Invoice number</dt>
+                  <dd className="font-mono text-base text-slate-900">{b.invoice_no}</dd>
+                </div>
+              )}
+            </dl>
+            {canEdit && !editNumbers && (
+              <Button
+                variant="secondary"
+                className="mt-3"
+                onClick={() => {
+                  setEditNumbers(true);
+                  setTimeout(() => document.getElementById("numbers-editor")?.scrollIntoView({ behavior: "smooth", block: "center" }), 50);
+                }}
+              >
+                Change numbers
+              </Button>
+            )}
+          </Card>
+        )}
+        <CustomerCard bookingId={id} />
+      </div>
+
       {/* Without bookings.edit the whole form is read-only (the database blocks the write anyway). */}
       <fieldset disabled={!canEdit} className="min-w-0 border-0 p-0">
-        <BookingForm key={b.updated_at} booking={b} submitLabel="Save changes" onSaved={() => router.push("/bookings")} />
+        <BookingForm key={b.updated_at} booking={b} numbersOpen={editNumbers} submitLabel="Save changes" onSaved={() => router.push("/bookings")} />
       </fieldset>
 
       {/* The same package list and payments the driver sees on the pickup page. */}
       <div className="mt-6 max-w-3xl space-y-4">
-        <WarningBanner bookingId={id} />
-        <CustomerCard bookingId={id} />
         <IdCard bookingId={id} />
         <NotesCard bookingId={id} />
         <TrackingLink booking={b} />
