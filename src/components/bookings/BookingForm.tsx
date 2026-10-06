@@ -385,6 +385,7 @@ export default function BookingForm({ booking, submitLabel, onSaved }: BookingFo
             <input
               name="estimated_bill"
               type="number"
+              inputMode="decimal"
               min="0"
               step="0.01"
               placeholder="Rough idea, optional"
@@ -397,6 +398,7 @@ export default function BookingForm({ booking, submitLabel, onSaved }: BookingFo
               <input
                 name="invoice_amount"
                 type="number"
+                inputMode="decimal"
                 min="0"
                 step="0.01"
                 placeholder="Final bill after invoice"

@@ -45,7 +45,7 @@ function ContainersContent() {
       {canOperate && <Card className="mb-6">
         <form onSubmit={create} className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
           <input name="code" placeholder="Number, e.g. 38 (optional)" aria-label="Container number" className={`${inputClass} font-mono sm:max-w-[13rem]`} />
-          <input name="destination" placeholder="Destination (optional)" className={`${inputClass} sm:max-w-xs`} />
+          <input name="destination" placeholder="Destination (optional)" aria-label="Destination (optional)" className={`${inputClass} sm:max-w-xs`} />
           <Button type="submit" className="w-full sm:w-auto">New container</Button>
         </form>
         <ErrorMessage message={error} />

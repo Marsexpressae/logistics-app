@@ -138,6 +138,7 @@ export default function PaymentsCard({ booking, payments, onChanged }: PaymentsC
                 <div className="grid grid-cols-2 gap-2">
                   <input
                     type="number"
+                    inputMode="decimal"
                     min="0.01"
                     step="0.01"
                     value={draft.amount}
@@ -197,7 +198,7 @@ export default function PaymentsCard({ booking, payments, onChanged }: PaymentsC
       {canRecord && (
         <form onSubmit={add} className="grid grid-cols-2 gap-2">
           <Field label="Amount collected">
-            <input name="amount" type="number" min="0.01" step="0.01" required className={inputClass} />
+            <input name="amount" type="number" inputMode="decimal" min="0.01" step="0.01" required className={inputClass} />
           </Field>
           <Field label="Method">
             <select name="method" defaultValue="cash" className={inputClass}>

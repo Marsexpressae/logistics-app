@@ -13,6 +13,7 @@ import ListSearch from "@/components/ui/ListSearch";
 import SwipeHint from "@/components/ui/SwipeHint";
 import { matchesSearch } from "@/lib/search";
 import { neighbour } from "@/lib/swipe";
+import { nextTabIndex } from "@/lib/tab-keys";
 import { useSwipe } from "@/lib/use-swipe";
 import { useQuery } from "@/lib/hooks";
 import { usePermissions } from "@/lib/profile-context";
@@ -85,6 +86,16 @@ function WarehouseContent() {
     unpacked: unpacked.length,
     packed: packed.length,
     returns: openReturnCount,
+  };
+
+  // Arrow keys, Home and End move between the tabs, and keyboard focus follows.
+  const onTabKey = (e: React.KeyboardEvent, idPrefix: string) => {
+    const next = nextTabIndex(e.key, TABS.findIndex((t) => t.key === tab), TABS.length);
+    if (next === null) return;
+    e.preventDefault();
+    setSlide(null);
+    setTab(TABS[next].key);
+    document.getElementById(`${idPrefix}${TABS[next].key}`)?.focus();
   };
 
   const intake = (awaiting.data ?? []).filter((b) =>
@@ -425,7 +436,7 @@ function WarehouseContent() {
       <SwipeHint id="warehouse">Swipe left or right to change tab: Intake, Unpacked, Packed, Returns.</SwipeHint>
       <div ref={swipeRef} className="min-h-[70vh]">
       {/* Phones: four big tiles in a 2 x 2 grid, no sideways scrolling. */}
-      <div role="tablist" aria-label="Warehouse sections" className="mb-3 grid grid-cols-2 gap-3 md:hidden">
+      <div role="tablist" aria-label="Warehouse sections" onKeyDown={(e) => onTabKey(e, "warehouse-tile-")} className="mb-3 grid grid-cols-2 gap-3 md:hidden">
         {TABS.map((t) => {
           const on = tab === t.key;
           const Icon = t.icon;
@@ -435,6 +446,7 @@ function WarehouseContent() {
               id={`warehouse-tile-${t.key}`}
               role="tab"
               aria-selected={on}
+              tabIndex={on ? 0 : -1}
               onClick={() => {
                 setSlide(null);
                 setTab(t.key);
@@ -450,13 +462,14 @@ function WarehouseContent() {
           );
         })}
       </div>
-      <div role="tablist" className="mb-2 hidden gap-2 overflow-x-auto pb-1 md:flex">
+      <div role="tablist" aria-label="Warehouse sections" onKeyDown={(e) => onTabKey(e, "warehouse-tab-")} className="mb-2 hidden gap-2 overflow-x-auto pb-1 md:flex">
         {TABS.map((t) => (
           <button
             key={t.key}
             id={`warehouse-tab-${t.key}`}
             role="tab"
             aria-selected={tab === t.key}
+            tabIndex={tab === t.key ? 0 : -1}
             onClick={() => {
               setSlide(null);
               setTab(t.key);

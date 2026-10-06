@@ -109,6 +109,7 @@ export default function ItemsCard({ bookingId, status, items, onChanged }: Items
                 <div className="grid grid-cols-[1fr_1fr_auto_auto] items-center gap-2">
                   <input
                     type="number"
+                    inputMode="numeric"
                     min="1"
                     value={draft.quantity}
                     onChange={(e) => setDraft({ ...draft, quantity: e.target.value })}
@@ -117,6 +118,7 @@ export default function ItemsCard({ bookingId, status, items, onChanged }: Items
                   />
                   <input
                     type="number"
+                    inputMode="decimal"
                     min="0"
                     step="0.01"
                     value={draft.weight_kg}
@@ -169,10 +171,10 @@ export default function ItemsCard({ bookingId, status, items, onChanged }: Items
       {canChange ? (
         <form onSubmit={add} className="grid grid-cols-3 gap-2">
           <div className="col-span-3">
-            <input name="description" required placeholder="Item description" className={inputClass} />
+            <input name="description" required placeholder="Item description" aria-label="Item description" className={inputClass} />
           </div>
-          <input name="quantity" type="number" min="1" defaultValue="1" aria-label="Quantity" className={inputClass} />
-          <input name="weight_kg" type="number" min="0" step="0.01" placeholder="kg each" aria-label="Weight in kg, each" className={inputClass} />
+          <input name="quantity" type="number" inputMode="numeric" min="1" defaultValue="1" aria-label="Quantity" className={inputClass} />
+          <input name="weight_kg" type="number" inputMode="decimal" min="0" step="0.01" placeholder="kg each" aria-label="Weight in kg, each" className={inputClass} />
           <Button type="submit" disabled={busy}>
             Add
           </Button>

@@ -80,6 +80,7 @@ export default function NumberingCard() {
                     <input
                       className={inputClass}
                       type="number"
+                      inputMode="numeric"
                       min={1}
                       value={v.next}
                       disabled={!canChange || busy}

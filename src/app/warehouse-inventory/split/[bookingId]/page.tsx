@@ -256,13 +256,15 @@ export default function ReceivePage() {
             <span className="w-20 shrink-0 font-mono text-xs text-slate-600">
               {b!.code}-P{i + 1}
             </span>
-            <input className={inputClass} placeholder="Contents" value={r.description} onChange={(e) => update(i, { description: e.target.value })} />
+            <input className={inputClass} placeholder="Contents" aria-label={`Contents of parcel ${i + 1}`} value={r.description} onChange={(e) => update(i, { description: e.target.value })} />
             <input
               className={`${inputClass} w-28`}
               type="number"
               min="0"
               step="0.01"
               placeholder="kg"
+              inputMode="decimal"
+              aria-label={`Weight in kg of parcel ${i + 1}`}
               value={r.weight_kg}
               onChange={(e) => update(i, { weight_kg: e.target.value })}
             />

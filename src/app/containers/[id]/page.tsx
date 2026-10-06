@@ -193,7 +193,7 @@ export default function ContainerManifestPage() {
         <div className="grid gap-4 md:grid-cols-2">
           <Card title="Scan or type barcode">
             <form onSubmit={onScan} className="flex gap-2">
-              <input ref={scanRef} autoFocus placeholder="BK-1001-P1" className={`${inputClass} font-mono`} />
+              <input ref={scanRef} autoFocus placeholder="BK-1001-P1" aria-label="Parcel barcode to load" className={`${inputClass} font-mono`} />
               <Button type="submit">
                 <ScanLine className="h-4 w-4" /> Load
               </Button>

@@ -66,7 +66,7 @@ function BookingsContent() {
 
       <div className="mb-4 flex flex-wrap gap-2">
         <ListSearch value={search} onChange={setSearch} placeholder="Invoice, booking, name or phone" />
-        <select value={status} onChange={(e) => setStatus(e.target.value)} className={`${inputClass} w-auto`}>
+        <select value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Filter by status" className={`${inputClass} w-auto`}>
           {STATUS_FILTERS.map((s) => (
             <option key={s.value} value={s.value}>
               {s.label}
