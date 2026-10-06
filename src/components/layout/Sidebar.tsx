@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LogOut } from "lucide-react";
+import { LogOut, UserCog } from "lucide-react";
 import BrandMark from "@/components/brand/BrandMark";
 import { homePath, navItems } from "@/config/navigation";
 import InstallButton from "@/components/pwa/InstallButton";
@@ -59,9 +59,13 @@ export default function Sidebar() {
         <p className="truncate text-sm font-medium text-slate-900">{profile.full_name || "Signed in"}</p>
         <p className="text-xs text-slate-500">{profile.roleLabel}</p>
       </div>
+      <Link href="/account" className="flex min-h-11 items-center gap-3 border-t border-slate-200 px-6 text-sm font-medium text-slate-700 hover:text-slate-900">
+        <UserCog className="h-5 w-5" aria-hidden="true" />
+        My account
+      </Link>
       <button
         onClick={() => supabase.auth.signOut()}
-        className="flex items-center gap-3 border-t border-slate-200 px-6 py-4 text-sm font-medium text-slate-600 hover:text-slate-900"
+        className="flex min-h-11 items-center gap-3 border-t border-slate-200 px-6 text-sm font-medium text-slate-600 hover:text-slate-900"
       >
         <LogOut className="h-5 w-5" />
         Sign out

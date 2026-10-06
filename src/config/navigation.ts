@@ -46,6 +46,8 @@ const extraRules: { prefix: string; anyOf: string[] }[] = [
   { prefix: "/warehouse-inventory/returns", anyOf: ["warehouse.manage"] },
   { prefix: "/settings/users", anyOf: ["users.manage"] },
   { prefix: "/settings/roles", anyOf: ["roles.manage"] },
+  // Everyone who is signed in: their own account and password.
+  { prefix: "/account", anyOf: ["*"] },
 ];
 
 const rulesFor = (path: string) =>
@@ -59,7 +61,7 @@ export const hasAccessRule = (path: string) => rulesFor(path).length > 0;
 /** Can someone holding these permissions open this path? The longest matching rule wins. */
 export function canAccess(permissions: string[], path: string): boolean {
   const matches = rulesFor(path);
-  return matches.length > 0 && matches[0].anyOf.some((p) => permissions.includes(p));
+  return matches.length > 0 && matches[0].anyOf.some((p) => p === "*" || permissions.includes(p));
 }
 
 /** Landing page: the first sidebar page this user can open. */

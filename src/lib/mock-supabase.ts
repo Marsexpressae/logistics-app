@@ -1339,6 +1339,10 @@ const auth = {
     emit("SIGNED_IN");
     return { data: {}, error: null };
   },
+  async updateUser({ password }: { password?: string }) {
+    if (password !== undefined && String(password).length < 8) return { data: {}, error: { message: "Password should be at least 8 characters." } };
+    return { data: {}, error: null };
+  },
   async signOut() {
     localStorage.setItem(AUTH_KEY, "1");
     emit("SIGNED_OUT");

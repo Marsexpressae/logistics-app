@@ -33,6 +33,12 @@ test("an address that is not a page has no rule, so it shows Page not found", ()
   assert.equal(hasAccessRule("/settings-secret"), false);
 });
 
+test("the account page is open to everyone who is signed in, whatever their role", () => {
+  assert.equal(canAccess([], "/account"), true);
+  assert.equal(canAccess(["pickups.view_own"], "/account"), true);
+  assert.equal(canAccess([], "/accounts"), false); // not to be confused with the Accounts (money) page
+});
+
 test("a known page still needs its permission", () => {
   assert.equal(canAccess([], "/accounts"), false);
   assert.equal(canAccess(["accounts.view"], "/accounts"), true);

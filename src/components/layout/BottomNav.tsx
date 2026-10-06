@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Download, Ellipsis, LogOut, X } from "lucide-react";
+import { Download, Ellipsis, LogOut, UserCog, X } from "lucide-react";
 import CountBadge from "@/components/ui/CountBadge";
 import { navItems } from "@/config/navigation";
 import { useBadges } from "@/lib/badges";
@@ -186,6 +186,14 @@ export default function BottomNav() {
               )}
             </ul>
 
+            <Link
+              href="/account"
+              onClick={() => setSheetOpen(false)}
+              className="flex min-h-14 w-full items-center gap-4 border-t border-slate-100 px-5 text-base font-medium text-slate-800 active:bg-slate-100"
+            >
+              <UserCog className="h-6 w-6" aria-hidden="true" />
+              My account and password
+            </Link>
             <button
               onClick={() => supabase.auth.signOut()}
               className="flex min-h-14 w-full items-center gap-4 border-t border-slate-100 px-5 text-base font-medium text-slate-600 active:bg-slate-100"
