@@ -63,7 +63,7 @@ export default function NotesCard({ bookingId }: { bookingId: string }) {
     const pattern = names.length ? new RegExp(`(@(?:${[...new Set(names)].map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")}))`, "g") : null;
     return (pattern ? body.split(pattern) : [body]).map((part, i) =>
       part.startsWith("@") && names.includes(part.slice(1)) ? (
-        <strong key={i} className="font-semibold text-blue-700">
+        <strong key={i} className="font-semibold text-brand-700">
           {part}
         </strong>
       ) : (

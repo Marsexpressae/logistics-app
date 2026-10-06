@@ -69,7 +69,7 @@ export function describe(e: AuditEntry): string[] {
 
 const ACTION_STYLE = {
   insert: "bg-green-100 text-green-800",
-  update: "bg-blue-100 text-blue-800",
+  update: "bg-brand-100 text-brand-800",
   delete: "bg-red-100 text-red-700",
 } as const;
 

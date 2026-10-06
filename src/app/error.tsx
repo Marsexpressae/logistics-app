@@ -20,7 +20,7 @@ export default function ErrorPage({ error, retry }: { error: Error & { digest?: 
         This page could not be shown. The problem has been reported. Your data is safe. Please try again, and if it keeps happening, tell your administrator.
       </p>
       <div className="mt-6 flex justify-center gap-3">
-        <button onClick={() => retry()} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
+        <button onClick={() => retry()} className="rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700">
           Try again
         </button>
         <Link href="/" className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">

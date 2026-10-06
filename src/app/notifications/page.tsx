@@ -48,13 +48,13 @@ export default function NotificationsPage() {
             {items.map((n) => {
               const href = hrefFor(n.booking_id);
               const content = (
-                <div className={`flex gap-3 px-4 py-3 ${n.read_at ? "" : "bg-blue-50/50"}`}>
+                <div className={`flex gap-3 px-4 py-3 ${n.read_at ? "" : "bg-brand-50/50"}`}>
                   {n.kind === "cancelled" ? (
                     <Ban className="mt-0.5 h-5 w-5 shrink-0 text-red-600" />
                   ) : n.kind === "note_mention" ? (
-                    <MessageSquare className="mt-0.5 h-5 w-5 shrink-0 text-blue-600" />
+                    <MessageSquare className="mt-0.5 h-5 w-5 shrink-0 text-brand-600" />
                   ) : n.kind === "rescheduled" ? (
-                    <CalendarClock className="mt-0.5 h-5 w-5 shrink-0 text-blue-600" />
+                    <CalendarClock className="mt-0.5 h-5 w-5 shrink-0 text-brand-600" />
                   ) : (
                     <Bell className="mt-0.5 h-5 w-5 shrink-0 text-slate-500" />
                   )}
@@ -66,7 +66,7 @@ export default function NotificationsPage() {
                       {formatDate(n.created_at)}
                     </p>
                   </div>
-                  {!n.read_at && <span className="mt-2 h-2.5 w-2.5 shrink-0 rounded-full bg-blue-600" aria-label="Unread" />}
+                  {!n.read_at && <span className="mt-2 h-2.5 w-2.5 shrink-0 rounded-full bg-brand-600" aria-label="Unread" />}
                 </div>
               );
               return (

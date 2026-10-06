@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Download, Ellipsis, LogOut, X } from "lucide-react";
@@ -26,6 +26,9 @@ export default function BottomNav() {
   const badges = useBadges();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [typing, setTyping] = useState(false);
+  const moreButton = useRef<HTMLButtonElement>(null);
+  const sheet = useRef<HTMLDivElement>(null);
+  const wasOpen = useRef(false);
 
   const items = navItems.filter((i) => canAny(...i.anyOf));
   const tabs = items.slice(0, MAX_TABS);
@@ -51,16 +54,38 @@ export default function BottomNav() {
     };
   }, []);
 
+  // The "More" menu is a dialog: focus moves into it, Tab stays inside it, Escape closes it, and focus goes back to the button.
   useEffect(() => {
-    if (!sheetOpen) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setSheetOpen(false);
+    if (!sheetOpen) {
+      if (wasOpen.current) moreButton.current?.focus();
+      wasOpen.current = false;
+      return;
+    }
+    wasOpen.current = true;
+    const focusable = () => Array.from(sheet.current?.querySelectorAll<HTMLElement>('a[href], button:not([disabled])') ?? []).filter((el) => el.getClientRects().length);
+    requestAnimationFrame(() => focusable().find((el) => el.getAttribute("aria-label") === "Close")?.focus());
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") return setSheetOpen(false);
+      if (e.key !== "Tab") return;
+      const items = focusable();
+      if (!items.length) return;
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [sheetOpen]);
 
   const tabClass = (active: boolean) =>
     `flex min-h-14 w-full touch-manipulation flex-col items-center justify-center gap-0.5 px-1 text-xs font-medium transition-colors active:bg-slate-100 ${
-      active ? "text-blue-700" : "text-slate-500"
+      active ? "text-brand-700" : "text-slate-500"
     }`;
 
   return (
@@ -89,6 +114,7 @@ export default function BottomNav() {
           })}
           <li className="flex-1">
             <button
+              ref={moreButton}
               onClick={() => setSheetOpen(true)}
               aria-haspopup="dialog"
               aria-expanded={sheetOpen}
@@ -108,6 +134,7 @@ export default function BottomNav() {
         <div className="fixed inset-0 z-50 md:hidden print:hidden" role="dialog" aria-modal="true" aria-label="More">
           <button aria-label="Close menu" className="absolute inset-0 bg-black/40" onClick={() => setSheetOpen(false)} />
           <div
+            ref={sheet}
             className="absolute inset-x-0 bottom-0 max-h-[85vh] overflow-y-auto rounded-t-2xl bg-white shadow-xl"
             style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
           >
@@ -134,7 +161,7 @@ export default function BottomNav() {
                     onClick={() => setSheetOpen(false)}
                     aria-current={isActive(href) ? "page" : undefined}
                     className={`flex min-h-14 items-center gap-4 px-5 text-base font-medium active:bg-slate-100 ${
-                      isActive(href) ? "text-blue-700" : "text-slate-800"
+                      isActive(href) ? "text-brand-700" : "text-slate-800"
                     }`}
                   >
                     <Icon className="h-6 w-6" />
@@ -150,7 +177,7 @@ export default function BottomNav() {
                       setSheetOpen(false);
                       install();
                     }}
-                    className="flex min-h-14 w-full items-center gap-4 px-5 text-base font-medium text-blue-700 active:bg-slate-100"
+                    className="flex min-h-14 w-full items-center gap-4 px-5 text-base font-medium text-brand-700 active:bg-slate-100"
                   >
                     <Download className="h-6 w-6" />
                     Install app

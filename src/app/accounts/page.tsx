@@ -52,8 +52,8 @@ function StatCard({ label, value, note, onOpen, active }: { label: string; value
       type="button"
       onClick={onOpen}
       aria-label={`${label}: ${value}. Show the list`}
-      className={`rounded-lg border bg-white p-4 text-left transition-colors hover:border-blue-300 hover:bg-blue-50/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
-        active ? "border-blue-400 ring-1 ring-blue-200" : "border-slate-200"
+      className={`rounded-lg border bg-white p-4 text-left transition-colors hover:border-brand-300 hover:bg-brand-50/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${
+        active ? "border-brand-400 ring-1 ring-brand-200" : "border-slate-200"
       }`}
     >
       <span className="flex items-start justify-between gap-2">
@@ -159,7 +159,7 @@ export default function AccountsPage() {
               <RowCard key={r.r_booking_id} href={`/bookings/${r.r_booking_id}`}>
                 <span className="flex items-start justify-between gap-2">
                   <span>
-                    <span className="block font-mono text-lg font-semibold text-blue-700">{r.r_invoice_no}</span>
+                    <span className="block font-mono text-lg font-semibold text-brand-700">{r.r_invoice_no}</span>
                     <span className="block text-base text-slate-900">{r.r_customer}</span>
                   </span>
                   <span className="flex flex-col items-end gap-1">
@@ -200,7 +200,7 @@ export default function AccountsPage() {
                 {rows.map((r) => (
                   <tr key={r.r_booking_id}>
                     <td className="px-4 py-3">
-                      <Link href={`/bookings/${r.r_booking_id}`} className="inline-flex min-h-11 items-center font-mono font-medium text-blue-700">
+                      <Link href={`/bookings/${r.r_booking_id}`} className="inline-flex min-h-11 items-center font-mono font-medium text-brand-700">
                         {r.r_invoice_no}
                       </Link>
                       <span className="block font-mono text-xs text-slate-500">{r.r_code}</span>

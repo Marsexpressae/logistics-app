@@ -159,7 +159,7 @@ function PickupsContent() {
                   <User className="h-4 w-4" /> {b.driver?.name ?? "Unassigned"}
                 </p>
                 {b.geo_lat !== null && (
-                  <span className="mt-1 inline-flex items-center gap-1.5 text-sm font-medium text-blue-700">
+                  <span className="mt-1 inline-flex items-center gap-1.5 text-sm font-medium text-brand-700">
                     <Navigation className="h-4 w-4" /> Pin saved
                   </span>
                 )}

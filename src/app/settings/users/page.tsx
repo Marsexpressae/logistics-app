@@ -136,7 +136,7 @@ export default function UsersPage() {
           ))}
         </dl>
         {can("roles.manage") && (
-          <Link href="/settings/roles" className="mt-3 inline-block text-sm font-medium text-blue-700">
+          <Link href="/settings/roles" className="mt-3 inline-block text-sm font-medium text-brand-700">
             Edit what each role can do →
           </Link>
         )}
@@ -193,168 +193,193 @@ export default function UsersPage() {
         </div>
       )}
 
-      {users.data && (
-        <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
-          <table className="w-full text-left text-sm">
-            <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase text-slate-500">
-              <tr>
-                <th className="px-4 py-3">Person</th>
-                <th className="px-4 py-3">Role</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3">Last sign-in</th>
-                <th className="px-4 py-3"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {users.data.users.filter((u) => matchesSearch(find, [u.full_name, u.email, roleLabel(u.role), u.driver])).map((u) => {
-                const isMe = u.id === me.id;
-                // Managers cannot modify a super admin.
-                const locked = isMe || (!isSuperAdmin && u.role === "super_admin");
-                const canEditPerson = isSuperAdmin || u.role !== "super_admin"; // managers cannot edit a super admin
-                const isEditing = editing?.id === u.id;
-                return (
-                  <Fragment key={u.id}>
-                  <tr>
-                    <td className="px-4 py-3">
-                      <p className="font-medium">
-                        {u.full_name || "—"} {isMe && <span className="text-xs text-slate-500">(you)</span>}
+      {users.data &&
+        (() => {
+          const people = users.data.users.filter((u) => matchesSearch(find, [u.full_name, u.email, roleLabel(u.role), u.driver]));
+          // What this person may do to each user: managers cannot modify a super admin, and nobody locks themselves out.
+          const flags = (u: UserRow) => {
+            const isMe = u.id === me.id;
+            const locked = isMe || (!isSuperAdmin && u.role === "super_admin");
+            return { isMe, locked, canEditPerson: isSuperAdmin || u.role !== "super_admin", isEditing: editing?.id === u.id };
+          };
+          const status = (u: UserRow) => (
+            <span
+              className={`inline-block rounded-full px-3 py-1 text-sm font-medium ${
+                u.role && u.active ? "bg-green-100 text-green-800" : "bg-slate-100 text-slate-700"
+              }`}
+            >
+              {!u.role ? "No access" : u.active ? "Active" : "Deactivated"}
+            </span>
+          );
+          const roleControl = (u: UserRow, locked: boolean) => (
+            <>
+              <select
+                aria-label={`Role for ${u.email}`}
+                className={`${inputClass} w-auto`}
+                value={roleDraft?.id === u.id ? roleDraft.role : u.role ?? ""}
+                disabled={locked}
+                onChange={(e) => setRoleDraft(e.target.value === (u.role ?? "") ? null : { id: u.id, role: e.target.value })}
+              >
+                {!u.role && <option value="">No access</option>}
+                {u.role && !assignable.some((r) => r.key === u.role) && <option value={u.role}>{roleLabel(u.role)}</option>}
+                {assignable.map((r) => (
+                  <option key={r.key} value={r.key}>
+                    {r.label}
+                  </option>
+                ))}
+              </select>
+              {roleDraft?.id === u.id && (
+                <span className="mt-2 flex gap-2 sm:ml-2 sm:mt-0 sm:inline-flex">
+                  <Button
+                    disabled={busy}
+                    onClick={async () => {
+                      setBusy(true);
+                      if (await patch(u.id, { role: roleDraft.role }, `Role updated for ${u.email}`)) setRoleDraft(null);
+                      setBusy(false);
+                    }}
+                  >
+                    Save
+                  </Button>
+                  <Button variant="secondary" onClick={() => setRoleDraft(null)}>
+                    Cancel
+                  </Button>
+                </span>
+              )}
+            </>
+          );
+          const resetPassword = async (u: UserRow) => {
+            const pw = await askText({
+              title: `New password for ${u.email}`,
+              field: { label: "New password (at least 8 characters)", secret: true, minLength: 8 },
+              confirmLabel: "Change password",
+            });
+            if (pw) patch(u.id, { password: pw }, `Password changed for ${u.email}`);
+          };
+          const toggleActive = (u: UserRow) =>
+            patch(u.id, { active: !(u.active && u.role) }, u.active && u.role ? `${u.email} deactivated` : `${u.email} activated`);
+          const editForm = (u: UserRow) =>
+            editing && (
+              <form onSubmit={saveEdit} className="grid max-w-2xl gap-3 sm:grid-cols-2">
+                <Field label="Full name">
+                  <input required value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })} className={inputClass} />
+                </Field>
+                <Field label="Email (they sign in with this)">
+                  <input required type="email" value={editing.email} onChange={(e) => setEditing({ ...editing, email: e.target.value })} className={inputClass} />
+                </Field>
+                {u.driver && <p className="text-sm text-slate-600 sm:col-span-2">This person is a driver: their name on pickups and booking forms will change too.</p>}
+                <div className="flex flex-col gap-2 sm:col-span-2 sm:flex-row">
+                  <Button type="submit" disabled={busy}>
+                    {busy ? "Saving…" : "Save"}
+                  </Button>
+                  <Button type="button" variant="secondary" onClick={() => setEditing(null)}>
+                    Cancel
+                  </Button>
+                </div>
+              </form>
+            );
+
+          return (
+            <>
+              {/* Phones: one card per person, with big buttons. Wide screens: the table below. */}
+              <ul className="space-y-3 md:hidden">
+                {people.map((u) => {
+                  const { isMe, locked, canEditPerson, isEditing } = flags(u);
+                  return (
+                    <li key={u.id} className="rounded-lg border border-slate-300 bg-white p-4">
+                      <p className="text-lg font-semibold">
+                        {u.full_name || "—"} {isMe && <span className="text-sm font-normal text-slate-600">(you)</span>}
                       </p>
-                      <p className="text-slate-500">{u.email}</p>
-                      {u.driver && <p className="text-xs text-slate-500">Driver: {u.driver}</p>}
-                    </td>
-                    <td className="px-4 py-3">
-                      <select
-                        aria-label={`Role for ${u.email}`}
-                        className={`${inputClass} w-auto`}
-                        value={roleDraft?.id === u.id ? roleDraft.role : u.role ?? ""}
-                        disabled={locked}
-                        onChange={(e) => setRoleDraft(e.target.value === (u.role ?? "") ? null : { id: u.id, role: e.target.value })}
-                      >
-                        {!u.role && <option value="">No access</option>}
-                        {u.role && !assignable.some((r) => r.key === u.role) && (
-                          <option value={u.role}>{roleLabel(u.role)}</option>
+                      <p className="break-all text-base text-slate-700">{u.email}</p>
+                      {u.driver && <p className="text-sm text-slate-600">Driver: {u.driver}</p>}
+                      <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+                        {status(u)}
+                        <span className="text-sm text-slate-600">Last sign-in: {u.last_sign_in_at ? formatDate(u.last_sign_in_at) : "never"}</span>
+                      </p>
+                      <div className="mt-3">{roleControl(u, locked)}</div>
+                      <div className="mt-3 flex flex-col gap-2">
+                        {canEditPerson && (
+                          <Button variant="secondary" className="w-full" onClick={() => setEditing(isEditing ? null : { id: u.id, name: u.full_name, email: u.email })}>
+                            {isEditing ? "Close" : "Edit name and email"}
+                          </Button>
                         )}
-                        {assignable.map((r) => (
-                          <option key={r.key} value={r.key}>
-                            {r.label}
-                          </option>
-                        ))}
-                      </select>
-                      {roleDraft?.id === u.id && (
-                        <span className="ml-2 inline-flex gap-2">
-                          <Button
-                            disabled={busy}
-                            onClick={async () => {
-                              setBusy(true);
-                              if (await patch(u.id, { role: roleDraft.role }, `Role updated for ${u.email}`)) setRoleDraft(null);
-                              setBusy(false);
-                            }}
-                          >
-                            Save
+                        {(!locked || isMe) && (
+                          <Button variant="secondary" className="w-full" onClick={() => resetPassword(u)}>
+                            Reset password
                           </Button>
-                          <Button variant="secondary" onClick={() => setRoleDraft(null)}>
-                            Cancel
+                        )}
+                        {!locked && (
+                          <Button variant="secondary" className={`w-full ${u.active && u.role ? "text-red-700" : ""}`} onClick={() => toggleActive(u)}>
+                            {u.active && u.role ? "Deactivate" : "Activate"}
                           </Button>
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                          u.role && u.active ? "bg-green-100 text-green-800" : "bg-slate-100 text-slate-600"
-                        }`}
-                      >
-                        {!u.role ? "No access" : u.active ? "Active" : "Deactivated"}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-slate-500">
-                      {u.last_sign_in_at ? formatDate(u.last_sign_in_at) : "Never"}
-                    </td>
-                    <td className="space-x-3 whitespace-nowrap px-4 py-3 text-right">
-                      {canEditPerson && (
-                        <button
-                          className="text-blue-700"
-                          onClick={() => setEditing(isEditing ? null : { id: u.id, name: u.full_name, email: u.email })}
-                        >
-                          {isEditing ? "Close" : "Edit"}
-                        </button>
-                      )}
-                      {(!locked || isMe) && (
-                        <button
-                          className="text-blue-700"
-                          onClick={async () => {
-                            const pw = await askText({
-                              title: `New password for ${u.email}`,
-                              field: { label: "New password (at least 8 characters)", secret: true, minLength: 8 },
-                              confirmLabel: "Change password",
-                            });
-                            if (pw) patch(u.id, { password: pw }, `Password changed for ${u.email}`);
-                          }}
-                        >
-                          Reset password
-                        </button>
-                      )}
-                      {!locked && (
-                        <button
-                          className={u.active && u.role ? "text-red-600" : "text-blue-700"}
-                          onClick={() =>
-                            patch(
-                              u.id,
-                              { active: !(u.active && u.role) },
-                              u.active && u.role ? `${u.email} deactivated` : `${u.email} activated`
-                            )
-                          }
-                        >
-                          {u.active && u.role ? "Deactivate" : "Activate"}
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                  {isEditing && editing && (
-                    <tr className="bg-slate-50">
-                      <td colSpan={5} className="px-4 py-4">
-                        <form onSubmit={saveEdit} className="grid max-w-2xl gap-3 sm:grid-cols-2">
-                          <Field label="Full name">
-                            <input
-                              required
-                              value={editing.name}
-                              onChange={(e) => setEditing({ ...editing, name: e.target.value })}
-                              className={inputClass}
-                            />
-                          </Field>
-                          <Field label="Email (they sign in with this)">
-                            <input
-                              required
-                              type="email"
-                              value={editing.email}
-                              onChange={(e) => setEditing({ ...editing, email: e.target.value })}
-                              className={inputClass}
-                            />
-                          </Field>
-                          {u.driver && (
-                            <p className="text-xs text-slate-500 sm:col-span-2">
-                              This person is a driver: their name on pickups and booking forms will change too.
-                            </p>
-                          )}
-                          <div className="flex gap-2 sm:col-span-2">
-                            <Button type="submit" disabled={busy}>
-                              {busy ? "Saving…" : "Save"}
-                            </Button>
-                            <Button type="button" variant="secondary" onClick={() => setEditing(null)}>
-                              Cancel
-                            </Button>
-                          </div>
-                        </form>
-                      </td>
+                        )}
+                      </div>
+                      {isEditing && <div className="mt-3 rounded-md bg-slate-50 p-3">{editForm(u)}</div>}
+                    </li>
+                  );
+                })}
+              </ul>
+
+              <div className="hidden overflow-x-auto rounded-lg border border-slate-200 bg-white md:block">
+                <table className="w-full text-left text-sm">
+                  <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase text-slate-500">
+                    <tr>
+                      <th className="px-4 py-3">Person</th>
+                      <th className="px-4 py-3">Role</th>
+                      <th className="px-4 py-3">Status</th>
+                      <th className="px-4 py-3">Last sign-in</th>
+                      <th className="px-4 py-3"></th>
                     </tr>
-                  )}
-                  </Fragment>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {people.map((u) => {
+                      const { isMe, locked, canEditPerson, isEditing } = flags(u);
+                      return (
+                        <Fragment key={u.id}>
+                          <tr>
+                            <td className="px-4 py-3">
+                              <p className="font-medium">
+                                {u.full_name || "—"} {isMe && <span className="text-xs text-slate-600">(you)</span>}
+                              </p>
+                              <p className="text-slate-600">{u.email}</p>
+                              {u.driver && <p className="text-xs text-slate-600">Driver: {u.driver}</p>}
+                            </td>
+                            <td className="px-4 py-3">{roleControl(u, locked)}</td>
+                            <td className="px-4 py-3">{status(u)}</td>
+                            <td className="px-4 py-3 text-slate-600">{u.last_sign_in_at ? formatDate(u.last_sign_in_at) : "Never"}</td>
+                            <td className="space-x-1 whitespace-nowrap px-4 py-3 text-right">
+                              {canEditPerson && (
+                                <button className="min-h-11 px-2 text-brand-700" onClick={() => setEditing(isEditing ? null : { id: u.id, name: u.full_name, email: u.email })}>
+                                  {isEditing ? "Close" : "Edit"}
+                                </button>
+                              )}
+                              {(!locked || isMe) && (
+                                <button className="min-h-11 px-2 text-brand-700" onClick={() => resetPassword(u)}>
+                                  Reset password
+                                </button>
+                              )}
+                              {!locked && (
+                                <button className={`min-h-11 px-2 ${u.active && u.role ? "text-red-700" : "text-brand-700"}`} onClick={() => toggleActive(u)}>
+                                  {u.active && u.role ? "Deactivate" : "Activate"}
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                          {isEditing && (
+                            <tr className="bg-slate-50">
+                              <td colSpan={5} className="px-4 py-4">
+                                {editForm(u)}
+                              </td>
+                            </tr>
+                          )}
+                        </Fragment>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          );
+        })()}
     </>
   );
 }

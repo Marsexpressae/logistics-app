@@ -71,7 +71,7 @@ function SearchResults({ initial }: { initial: string }) {
               const body = (
                 <>
                   <span>
-                    <span className="font-mono font-medium text-blue-700">{b.invoice_no ?? b.code}</span>
+                    <span className="font-mono font-medium text-brand-700">{b.invoice_no ?? b.code}</span>
                     {b.invoice_no && <span className="ml-2 font-mono text-xs text-slate-500">{b.code}</span>}
                     <span className="block text-slate-700">
                       {b.sender_name} → {b.receiver_name ?? <span className="text-slate-500">receiver not set</span>}
@@ -118,7 +118,7 @@ function SearchResults({ initial }: { initial: string }) {
                       {p.position ? ` · ${p.position}` : ""}
                     </span>
                     {href ? (
-                      <Link href={href} className="font-mono text-xs text-blue-700">
+                      <Link href={href} className="font-mono text-xs text-brand-700">
                         {p.invoice_no ?? p.booking_code} · {p.sender_name}
                       </Link>
                     ) : (
@@ -143,7 +143,7 @@ function SearchResults({ initial }: { initial: string }) {
               <li key={c.id}>
                 <Link href={`/customers/${c.id}`} className="flex items-center justify-between gap-2 py-3">
                   <span>
-                    <span className="font-medium text-blue-700">{c.full_name}</span>
+                    <span className="font-medium text-brand-700">{c.full_name}</span>
                     <span className="block text-xs text-slate-600">{[formatPhone(c.phone), c.address].filter(Boolean).join(" · ")}</span>
                   </span>
                   <span className="text-xs text-slate-500">{c.invoices} {c.invoices === 1 ? "invoice" : "invoices"}</span>
@@ -161,7 +161,7 @@ function SearchResults({ initial }: { initial: string }) {
               <li key={c.id}>
                 <Link href={`/containers/${c.id}`} className="flex items-center justify-between gap-2 py-3">
                   <span>
-                    <span className="font-mono font-medium text-blue-700">{c.code}</span>
+                    <span className="font-mono font-medium text-brand-700">{c.code}</span>
                     <span className="ml-2 text-slate-600">{c.destination ?? "No destination"}</span>
                   </span>
                   <StatusBadge status={c.status} />

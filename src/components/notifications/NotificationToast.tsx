@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Bell, X } from "lucide-react";
 import { usePermissions } from "@/lib/profile-context";
@@ -10,12 +10,15 @@ import { useNotifications } from "@/lib/notifications";
 export default function NotificationToast() {
   const { toast, dismissToast, markRead } = useNotifications();
   const { can } = usePermissions();
+  // While the pop-up is hovered or has keyboard focus, it stays: nobody should lose the "View" button mid-tap.
+  const [heldId, setHeldId] = useState<string | null>(null);
+  const held = !!toast && heldId === toast.id;
 
   useEffect(() => {
-    if (!toast) return;
-    const timer = setTimeout(dismissToast, 9000);
+    if (!toast || held) return;
+    const timer = setTimeout(dismissToast, 12000);
     return () => clearTimeout(timer);
-  }, [toast, dismissToast]);
+  }, [toast, held, dismissToast]);
 
   if (!toast) return null;
 
@@ -26,11 +29,16 @@ export default function NotificationToast() {
     <div
       role="status"
       aria-live="polite"
+      onMouseEnter={() => setHeldId(toast.id)}
+      onMouseLeave={() => setHeldId(null)}
+      onFocus={() => setHeldId(toast.id)}
+      onBlur={() => setHeldId(null)}
+      onKeyDown={(e) => e.key === "Escape" && dismissToast()}
       className="fixed inset-x-3 top-3 z-[60] mx-auto max-w-md rounded-lg border border-slate-200 bg-white p-3 shadow-lg print:hidden md:left-auto md:right-4 md:mx-0 md:w-96"
       style={{ marginTop: "env(safe-area-inset-top)" }}
     >
       <div className="flex items-start gap-3">
-        <Bell className="mt-0.5 h-5 w-5 shrink-0 text-blue-600" />
+        <Bell className="mt-0.5 h-5 w-5 shrink-0 text-brand-600" />
         <div className="min-w-0 flex-1">
           <p className="font-semibold text-slate-900">{toast.title}</p>
           <p className="text-sm text-slate-600">{toast.body}</p>
@@ -41,7 +49,7 @@ export default function NotificationToast() {
               markRead(toast.id);
               dismissToast();
             }}
-            className="mt-2 inline-block text-sm font-medium text-blue-700"
+            className="mt-2 inline-block text-sm font-medium text-brand-700"
           >
             View
           </Link>

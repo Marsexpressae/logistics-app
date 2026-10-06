@@ -60,7 +60,7 @@ export default function CustomerCard({ bookingId }: { bookingId: string }) {
     <li key={role} className="flex items-start justify-between gap-3 py-3">
       <span className="min-w-0">
         <span className="block text-xs font-medium uppercase text-slate-500">{ROLE_LABEL[role]}</span>
-        <Link href={`/customers/${c.id}`} className="flex min-h-11 items-center text-base font-semibold text-blue-700">
+        <Link href={`/customers/${c.id}`} className="flex min-h-11 items-center text-base font-semibold text-brand-700">
           {c.full_name}
         </Link>
         <span className="block text-sm text-slate-600">{formatPhone(c.phone)}</span>

@@ -85,7 +85,7 @@ export default function PickupDetailPage() {
           </span>
         </p>
         <a
-          className="mt-2 inline-flex min-h-11 items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white"
+          className="mt-2 inline-flex min-h-11 items-center gap-2 rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white"
           href={mapsUrl(b)}
           target="_blank"
           rel="noreferrer"

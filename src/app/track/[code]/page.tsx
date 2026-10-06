@@ -15,7 +15,7 @@ export default function TrackingPage() {
       <div className="flex items-center gap-2 pt-2">
         <BrandMark size={32} />
         <div>
-          <p className="text-sm font-semibold leading-tight text-blue-700">{site.name}</p>
+          <p className="text-sm font-semibold leading-tight text-brand-700">{site.name}</p>
           <h1 className="text-xl font-semibold leading-tight">Cargo tracking</h1>
         </div>
       </div>

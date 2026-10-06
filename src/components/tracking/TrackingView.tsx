@@ -19,7 +19,7 @@ export default function TrackingView({ code, searchHref }: { code: string; searc
       <Card>
         <p className="text-sm">
           No booking found for <span className="font-mono font-medium">{code}</span>.{" "}
-          <Link href={searchHref} className="text-blue-700">
+          <Link href={searchHref} className="text-brand-700">
             Try another code
           </Link>
         </p>

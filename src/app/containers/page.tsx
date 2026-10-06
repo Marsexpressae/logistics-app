@@ -75,7 +75,7 @@ function ContainersContent() {
               <RowCard key={c.id} href={`/containers/${c.id}`}>
                 <span className="flex items-start justify-between gap-2">
                   <span>
-                    <span className="block font-mono text-lg font-semibold text-blue-700">{c.code}</span>
+                    <span className="block font-mono text-lg font-semibold text-brand-700">{c.code}</span>
                     <span className="block text-base text-slate-900">{c.destination ?? "No destination"}</span>
                   </span>
                   <StatusBadge large status={c.status} />
@@ -102,7 +102,7 @@ function ContainersContent() {
               {shown.map((c) => (
                 <tr key={c.id}>
                   <td className="px-4 py-3">
-                    <Link href={`/containers/${c.id}`} className="inline-flex min-h-11 items-center font-mono font-medium text-blue-700">
+                    <Link href={`/containers/${c.id}`} className="inline-flex min-h-11 items-center font-mono font-medium text-brand-700">
                       {c.code}
                     </Link>
                   </td>

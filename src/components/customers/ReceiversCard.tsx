@@ -62,7 +62,7 @@ export default function ReceiversCard({ customerId }: { customerId: string }) {
           {list.data.map((r) => (
             <li key={r.id} className="flex items-start justify-between gap-3 py-3">
               <span className="min-w-0">
-                <Link href={`/customers/${r.receiver_id}`} className="font-medium text-blue-700">
+                <Link href={`/customers/${r.receiver_id}`} className="font-medium text-brand-700">
                   {r.name}
                 </Link>
                 {r.phone && <span className="ml-2 text-slate-600">{formatPhone(r.phone)}</span>}

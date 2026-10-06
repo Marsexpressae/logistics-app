@@ -98,7 +98,7 @@ export default function NumberingCard() {
       )}
       {!canChange && <p className="mt-2 text-xs text-slate-500">Only people with &quot;Change app settings&quot; can change this.</p>}
       {changed.length > 0 && (
-        <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm">
+        <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-brand-200 bg-brand-50 px-4 py-3 text-sm">
           <span>
             {changed.length} unsaved {changed.length === 1 ? "change" : "changes"}
           </span>

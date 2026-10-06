@@ -99,7 +99,7 @@ export default function CustomersPage() {
             <ul className="space-y-3 md:hidden">
               {customers.map((c) => (
                 <RowCard key={c.id} href={`/customers/${c.id}`}>
-                  <span className="block text-lg font-semibold text-blue-700">{c.full_name}</span>
+                  <span className="block text-lg font-semibold text-brand-700">{c.full_name}</span>
                   <span className="block text-base text-slate-900">{formatPhone(c.phone) || "No phone"}</span>
                   {c.address && <span className="block text-base text-slate-700">{c.address}</span>}
                   <span className="mt-1 block text-sm text-slate-600">
@@ -124,7 +124,7 @@ export default function CustomersPage() {
                   {customers.map((c) => (
                     <tr key={c.id} className="hover:bg-slate-50">
                       <td className="px-4 py-3">
-                        <Link href={`/customers/${c.id}`} className="inline-flex min-h-11 items-center font-medium text-blue-700">
+                        <Link href={`/customers/${c.id}`} className="inline-flex min-h-11 items-center font-medium text-brand-700">
                           {c.full_name}
                         </Link>
                       </td>
@@ -161,7 +161,7 @@ export default function CustomersPage() {
                   {g.customers.map((c) => (
                     <li key={c.id} className="flex flex-wrap items-center justify-between gap-2 py-3">
                       <span>
-                        <Link href={`/customers/${c.id}`} className="inline-flex min-h-11 items-center font-medium text-blue-700">
+                        <Link href={`/customers/${c.id}`} className="inline-flex min-h-11 items-center font-medium text-brand-700">
                           {c.full_name}
                         </Link>
                         <span className="block text-xs text-slate-500">

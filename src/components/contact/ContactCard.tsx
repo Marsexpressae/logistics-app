@@ -121,7 +121,7 @@ export default function ContactCard({ bookingId, party, name, phone, whatsapp, o
           </button>
         )}
         {canEdit && (
-          <button onClick={startEditing} className="inline-flex min-h-11 items-center gap-1 px-2 text-sm font-medium text-blue-700" aria-label={`Edit ${party === "sender" ? "customer" : party} numbers`}>
+          <button onClick={startEditing} className="inline-flex min-h-11 items-center gap-1 px-2 text-sm font-medium text-brand-700" aria-label={`Edit ${party === "sender" ? "customer" : party} numbers`}>
             <Pencil className="h-3.5 w-3.5" /> Edit
           </button>
         )}

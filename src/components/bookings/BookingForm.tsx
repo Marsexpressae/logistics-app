@@ -181,7 +181,7 @@ export default function BookingForm({ booking, submitLabel, onSaved }: BookingFo
                   <span>
                     Customer: <strong>{picked.full_name}</strong> ({picked.invoices} {picked.invoices === 1 ? "invoice" : "invoices"})
                   </span>
-                  <button type="button" onClick={() => setPicked(null)} className="font-medium text-blue-700">
+                  <button type="button" onClick={() => setPicked(null)} className="font-medium text-brand-700">
                     Not this customer
                   </button>
                 </p>
@@ -223,7 +223,7 @@ export default function BookingForm({ booking, submitLabel, onSaved }: BookingFo
           {linkedCustomer.data && (
             <p className="text-xs text-slate-500 sm:col-span-2">
               To change the customer&apos;s name or numbers, edit them on{" "}
-              <Link href={`/customers/${linkedCustomer.data.customer_id}`} className="inline-flex min-h-11 items-center font-medium text-blue-700">
+              <Link href={`/customers/${linkedCustomer.data.customer_id}`} className="inline-flex min-h-11 items-center font-medium text-brand-700">
                 the customer&apos;s page
               </Link>
               . Until the pickup is collected, this booking follows the changes.
@@ -292,7 +292,7 @@ export default function BookingForm({ booking, submitLabel, onSaved }: BookingFo
                 href={mapsUrl({ geo_lat: geo.lat, geo_lng: geo.lng, pickup_address: "" })}
                 target="_blank"
                 rel="noreferrer"
-                className="mt-1 inline-block text-xs text-blue-700"
+                className="mt-1 inline-block text-xs text-brand-700"
               >
                 Check pin on map ({formatGeo(geo.lat, geo.lng)})
               </a>
@@ -336,7 +336,7 @@ export default function BookingForm({ booking, submitLabel, onSaved }: BookingFo
                     setReceiverPick(r);
                     setReceiverName((x) => ({ value: r.name, n: x.n + 1 }));
                   }}
-                  className={`min-h-11 rounded-md border px-3 py-2 text-left text-sm ${receiverPick?.id === r.id ? "border-blue-600 bg-blue-50" : "border-slate-300 bg-white"}`}
+                  className={`min-h-11 rounded-md border px-3 py-2 text-left text-sm ${receiverPick?.id === r.id ? "border-brand-600 bg-brand-50" : "border-slate-300 bg-white"}`}
                 >
                   <span className="font-medium">{r.name}</span>
                   {r.address && <span className="block max-w-56 truncate text-xs text-slate-500">{r.address}</span>}

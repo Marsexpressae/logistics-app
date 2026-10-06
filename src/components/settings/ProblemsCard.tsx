@@ -54,7 +54,7 @@ export default function ProblemsCard() {
                 </p>
                 {p.stack && (
                   <details className="mt-1">
-                    <summary className="cursor-pointer text-xs text-blue-700">Details for the developer</summary>
+                    <summary className="cursor-pointer text-xs text-brand-700">Details for the developer</summary>
                     <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap rounded bg-slate-50 p-2 text-xs text-slate-600">{p.stack}</pre>
                   </details>
                 )}

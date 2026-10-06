@@ -34,7 +34,7 @@ export default function SwipeHint({ id, children }: { id: string; children: stri
 
   if (!visible) return null;
   return (
-    <p className="mb-3 flex items-center gap-2 rounded-md bg-blue-50 px-3 py-2 text-xs text-blue-800 md:hidden">
+    <p className="mb-3 flex items-center gap-2 rounded-md bg-brand-50 px-3 py-2 text-xs text-brand-800 md:hidden">
       <MoveHorizontal className="h-4 w-4 shrink-0" />
       <span className="flex-1">{children}</span>
       <button

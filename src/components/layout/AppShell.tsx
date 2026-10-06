@@ -61,7 +61,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
       <Centered>
         <p className="text-base font-medium text-slate-900">Your account does not have access yet.</p>
         <p>Ask an administrator to set up your role.</p>
-        <button className="font-medium text-blue-700" onClick={() => supabase.auth.signOut()}>
+        <button className="font-medium text-brand-700" onClick={() => supabase.auth.signOut()}>
           Sign out
         </button>
       </Centered>
@@ -114,7 +114,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
             </>
           )}
         </header>
-        <a href="#main" className="sr-only z-50 rounded-md bg-white px-4 py-2 text-sm font-medium text-blue-700 shadow focus:not-sr-only focus:absolute focus:left-2 focus:top-2">
+        <a href="#main" className="sr-only z-50 rounded-md bg-white px-4 py-2 text-sm font-medium text-brand-700 shadow focus:not-sr-only focus:absolute focus:left-2 focus:top-2">
           Skip to content
         </a>
         <ErrorReporter />

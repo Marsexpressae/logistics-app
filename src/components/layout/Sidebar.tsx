@@ -30,7 +30,7 @@ export default function Sidebar() {
       <Link
         href={homePath(permissions)}
         aria-label={`${site.name} home`}
-        className="flex h-16 items-center gap-2 border-b border-slate-200 px-6 transition-colors hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500"
+        className="flex h-16 items-center gap-2 border-b border-slate-200 px-6 transition-colors hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-500"
       >
         <BrandMark size={32} />
         <span className="text-lg font-semibold text-slate-900">{site.name}</span>
@@ -43,7 +43,7 @@ export default function Sidebar() {
             href={href}
             className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
               isActive(href)
-                ? "bg-blue-50 text-blue-700"
+                ? "bg-brand-50 text-brand-700"
                 : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
             }`}
           >

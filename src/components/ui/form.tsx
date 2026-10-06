@@ -3,7 +3,7 @@ import { Ban, CheckCircle2, CircleDollarSign, Clock, Container, FileQuestion, Pa
 import { STATUS } from "@/lib/status";
 
 export const inputClass =
-  "min-h-11 w-full rounded-md border border-slate-500 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-500 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-600 sm:min-h-10";
+  "min-h-11 w-full rounded-md border border-slate-500 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-500 focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600 sm:min-h-10";
 
 export function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -21,7 +21,7 @@ type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 };
 
 const variants = {
-  primary: "bg-blue-600 text-white hover:bg-blue-700",
+  primary: "bg-brand-600 text-white hover:bg-brand-700",
   secondary: "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50",
   danger: "bg-red-600 text-white hover:bg-red-700",
 };

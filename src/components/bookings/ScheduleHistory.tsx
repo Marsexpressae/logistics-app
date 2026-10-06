@@ -22,7 +22,7 @@ export default function ScheduleHistory({ bookingId, reloadKey = 0 }: { bookingI
         {events.data.map((e) => (
           <li key={e.id} className="flex gap-3 py-3">
             {e.kind === "rescheduled" ? (
-              <CalendarClock className="mt-0.5 h-5 w-5 shrink-0 text-blue-600" />
+              <CalendarClock className="mt-0.5 h-5 w-5 shrink-0 text-brand-600" />
             ) : e.kind === "loaded_without_payment" || e.kind === "departed_with_missing" || e.kind === "returned" || e.kind === "return_deleted" || e.kind === "moved" ? (
               <Container className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
             ) : (

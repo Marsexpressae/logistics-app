@@ -2,6 +2,7 @@
 
 import { Fragment, useState } from "react";
 import { Lock } from "lucide-react";
+import Chip from "@/components/ui/Chip";
 import PageHeader from "@/components/ui/PageHeader";
 import { Button, ErrorMessage, Loading } from "@/components/ui/form";
 import { useQuery } from "@/lib/hooks";
@@ -34,6 +35,7 @@ export default function RolesPage() {
   // Ticks are only collected here; nothing is saved until the Save button is pressed.
   const [pending, setPending] = useState<Map<string, boolean>>(new Map());
   const [saving, setSaving] = useState(false);
+  const [roleKey, setRoleKey] = useState<string | null>(null); // phones: the role being edited
 
   function toggle(role: string, permission: string, on: boolean) {
     const key = cell(role, permission);
@@ -77,7 +79,65 @@ export default function RolesPage() {
       {matrix.loading || !m ? (
         <Loading />
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+        <>
+        {/* Phones: pick a role, then switch its permissions on or off. Wide screens: the grid below. */}
+        <div className="md:hidden">
+          <div role="group" aria-label="Role" className="mb-3 flex flex-wrap gap-2">
+            {m.roles.map((r) => (
+              <Chip key={r.key} active={(roleKey ?? m.roles[0].key) === r.key} onClick={() => setRoleKey(r.key)}>
+                {r.label}
+              </Chip>
+            ))}
+          </div>
+          {(() => {
+            const role = m.roles.find((r) => r.key === (roleKey ?? m.roles[0].key)) ?? m.roles[0];
+            const locked = role.key === "super_admin"; // the super admin always keeps everything
+            return (
+              <>
+                <p className="mb-3 text-base text-slate-700">
+                  {role.description}
+                  {locked && (
+                    <span className="mt-1 flex items-center gap-1 text-sm text-slate-600">
+                      <Lock className="h-4 w-4" aria-hidden="true" /> Locked on purpose, so you can never lock yourself out.
+                    </span>
+                  )}
+                </p>
+                {groups.map((group) => (
+                  <section key={group} className="mb-4">
+                    <h2 className="mb-1 text-sm font-semibold uppercase text-slate-600">{group}</h2>
+                    <ul className="divide-y divide-slate-100 rounded-lg border border-slate-300 bg-white">
+                      {m.permissions
+                        .filter((p) => p.group_name === group)
+                        .map((p) => {
+                          const key = cell(role.key, p.key);
+                          return (
+                            <li key={p.key}>
+                              <label className="flex min-h-16 items-center justify-between gap-3 px-4 py-3">
+                                <span className="min-w-0">
+                                  <span className="block text-base font-medium">{p.label}</span>
+                                  <span className="block text-sm text-slate-600">{p.description}</span>
+                                </span>
+                                <input
+                                  type="checkbox"
+                                  className="h-7 w-7 shrink-0 accent-brand-600"
+                                  checked={locked || (pending.get(key) ?? m.granted.has(key))}
+                                  disabled={locked || saving}
+                                  aria-label={`${role.label}: ${p.label}`}
+                                  onChange={(e) => toggle(role.key, p.key, e.target.checked)}
+                                />
+                              </label>
+                            </li>
+                          );
+                        })}
+                    </ul>
+                  </section>
+                ))}
+              </>
+            );
+          })()}
+        </div>
+
+        <div className="hidden overflow-x-auto rounded-lg border border-slate-200 bg-white md:block">
           <table className="w-full min-w-[40rem] text-left text-sm">
             <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase text-slate-500">
               <tr>
@@ -113,7 +173,7 @@ export default function RolesPage() {
                             <td key={r.key} className="px-3 py-2.5 text-center">
                               <input
                                 type="checkbox"
-                                className="h-4 w-4 accent-blue-600"
+                                className="h-4 w-4 accent-brand-600"
                                 checked={locked || (pending.get(key) ?? m.granted.has(key))}
                                 disabled={locked || saving}
                                 aria-label={`${r.label}: ${p.label}`}
@@ -129,10 +189,11 @@ export default function RolesPage() {
             </tbody>
           </table>
         </div>
+        </>
       )}
 
       {pending.size > 0 && (
-        <div className="sticky bottom-16 mt-3 flex items-center justify-between gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm md:bottom-4">
+        <div className="sticky bottom-16 mt-3 flex items-center justify-between gap-3 rounded-lg border border-brand-200 bg-brand-50 px-4 py-3 text-sm md:bottom-4">
           <span>
             {pending.size} unsaved {pending.size === 1 ? "change" : "changes"}
           </span>

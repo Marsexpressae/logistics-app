@@ -158,7 +158,7 @@ export default function CustomerPage() {
             )}
             {maps && (
               <div className="sm:col-span-2">
-                <a href={maps} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-blue-700">
+                <a href={maps} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-brand-700">
                   <MapPin className="h-4 w-4" /> Open in Google Maps
                 </a>
               </div>
@@ -228,7 +228,7 @@ export default function CustomerPage() {
               <li key={`${b!.id}-${role}`} className="flex items-center justify-between gap-3 py-3">
                 <span>
                   {can("bookings.view") ? (
-                    <Link href={`/bookings/${b!.id}`} className="inline-flex min-h-11 items-center font-mono font-medium text-blue-700">
+                    <Link href={`/bookings/${b!.id}`} className="inline-flex min-h-11 items-center font-mono font-medium text-brand-700">
                       {b!.invoice_no ?? b!.code}
                     </Link>
                   ) : (
@@ -285,7 +285,7 @@ export default function CustomerPage() {
                   {t.r_invoice && (
                     <span className="font-mono text-xs text-slate-500">
                       {t.r_booking_id && can("bookings.view") ? (
-                        <Link href={`/bookings/${t.r_booking_id}`} className="inline-flex min-h-11 items-center px-1 text-blue-700">
+                        <Link href={`/bookings/${t.r_booking_id}`} className="inline-flex min-h-11 items-center px-1 text-brand-700">
                           {t.r_invoice}
                         </Link>
                       ) : (

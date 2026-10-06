@@ -35,7 +35,7 @@ export default function PhoneAlertsCard() {
     <Card className="mb-4 max-w-3xl">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-start gap-3">
-          <BellRing className="mt-0.5 h-5 w-5 text-blue-600" />
+          <BellRing className="mt-0.5 h-5 w-5 text-brand-600" />
           <div>
             <p className="font-medium text-slate-900">Phone alerts</p>
             <p className="text-sm text-slate-600">

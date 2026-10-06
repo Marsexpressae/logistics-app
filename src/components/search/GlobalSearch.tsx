@@ -123,7 +123,7 @@ export default function GlobalSearch({ autoFocus = false, onDone, className = ""
   const activeKey = active >= 0 ? items[active]?.key : undefined;
   const row = (key: string, href: string | null, children: ReactNode) => {
     const content = (
-      <span className={`flex items-start justify-between gap-3 px-3 py-2 ${activeKey === key ? "bg-blue-50" : "hover:bg-slate-50"}`}>{children}</span>
+      <span className={`flex items-start justify-between gap-3 px-3 py-2 ${activeKey === key ? "bg-brand-50" : "hover:bg-slate-50"}`}>{children}</span>
     );
     return href ? (
       <li key={key} id={`gs-${key}`} role="option" aria-selected={activeKey === key}>
@@ -158,7 +158,7 @@ export default function GlobalSearch({ autoFocus = false, onDone, className = ""
         }}
         onFocus={() => setOpen(true)}
         onKeyDown={onKeyDown}
-        className="w-full rounded-full border border-slate-500 bg-slate-50 py-2 pl-9 pr-3 text-sm text-slate-900 placeholder:text-slate-500 focus:border-blue-600 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+        className="w-full rounded-full border border-slate-500 bg-slate-50 py-2 pl-9 pr-3 text-sm text-slate-900 placeholder:text-slate-500 focus:border-brand-600 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-600"
       />
 
       {open && ready && (
@@ -182,7 +182,7 @@ export default function GlobalSearch({ autoFocus = false, onDone, className = ""
                         <span className="min-w-0">
                           <span className="flex items-center gap-1.5 text-sm">
                             <UserRound className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                            <span className="font-medium text-blue-700">{c.full_name}</span>
+                            <span className="font-medium text-brand-700">{c.full_name}</span>
                           </span>
                           <span className="block truncate text-xs text-slate-600">
                             {[formatPhone(c.phone), c.address].filter(Boolean).join(" · ")}
@@ -205,7 +205,7 @@ export default function GlobalSearch({ autoFocus = false, onDone, className = ""
                           <span className="min-w-0">
                             <span className="flex flex-wrap items-center gap-x-1.5 text-sm">
                               <FileText className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                              <span className="whitespace-nowrap font-mono font-medium text-blue-700">{b.invoice_no ?? b.code}</span>
+                              <span className="whitespace-nowrap font-mono font-medium text-brand-700">{b.invoice_no ?? b.code}</span>
                               {b.invoice_no && <span className="whitespace-nowrap font-mono text-xs text-slate-500">{b.code}</span>}
                             </span>
                             <span className="block truncate text-xs text-slate-600">
@@ -256,7 +256,7 @@ export default function GlobalSearch({ autoFocus = false, onDone, className = ""
                         <>
                           <span className="flex items-center gap-1.5 text-sm">
                             <ContainerIcon className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                            <span className="font-mono font-medium text-blue-700">{c.code}</span>
+                            <span className="font-mono font-medium text-brand-700">{c.code}</span>
                             <span className="text-xs text-slate-600">{c.destination ?? ""}</span>
                           </span>
                           <StatusBadge status={c.status} />
@@ -266,7 +266,7 @@ export default function GlobalSearch({ autoFocus = false, onDone, className = ""
                   </ul>
                 </>
               )}
-              <Link href={allHref} onClick={close} className="block border-t border-slate-100 px-3 py-2.5 text-sm font-medium text-blue-700 hover:bg-slate-50">
+              <Link href={allHref} onClick={close} className="block border-t border-slate-100 px-3 py-2.5 text-sm font-medium text-brand-700 hover:bg-slate-50">
                 See all results for &quot;{q}&quot; →
               </Link>
             </>

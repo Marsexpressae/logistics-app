@@ -77,7 +77,7 @@ export default function SettingsPage() {
                   id={s.key}
                   type="checkbox"
                   role="switch"
-                  className="mt-1 h-5 w-5 shrink-0 accent-blue-600"
+                  className="mt-1 h-5 w-5 shrink-0 accent-brand-600"
                   checked={current(s)}
                   disabled={!canChange || busy}
                   onChange={(e) => toggle(s, e.target.checked)}
@@ -88,7 +88,7 @@ export default function SettingsPage() {
         )}
         {!canChange && <p className="mt-2 text-xs text-slate-500">Only people with &quot;Change app settings&quot; can change these.</p>}
         {changed > 0 && (
-          <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm">
+          <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-brand-200 bg-brand-50 px-4 py-3 text-sm">
             <span>
               {changed} unsaved {changed === 1 ? "change" : "changes"}
             </span>

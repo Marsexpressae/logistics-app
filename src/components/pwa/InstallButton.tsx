@@ -11,7 +11,7 @@ export default function InstallButton() {
   return (
     <button
       onClick={install}
-      className="flex w-full items-center gap-3 border-t border-slate-200 px-6 py-3 text-sm font-medium text-blue-700 hover:bg-blue-50"
+      className="flex w-full items-center gap-3 border-t border-slate-200 px-6 py-3 text-sm font-medium text-brand-700 hover:bg-brand-50"
     >
       <Download className="h-5 w-5" />
       Install app

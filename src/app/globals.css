@@ -5,6 +5,24 @@
   --font-mono: var(--font-geist-mono);
 }
 
+/*
+ * The brand colour, in one place. Screens use bg-brand-600, text-brand-700, border-brand-600 and so on,
+ * so changing the app's main colour means changing these ten lines (today it is blue).
+ * Status colours (booked, in warehouse, paid...) are separate on purpose: see src/lib/status.ts.
+ */
+@theme inline {
+  --color-brand-50: var(--color-blue-50);
+  --color-brand-100: var(--color-blue-100);
+  --color-brand-200: var(--color-blue-200);
+  --color-brand-300: var(--color-blue-300);
+  --color-brand-400: var(--color-blue-400);
+  --color-brand-500: var(--color-blue-500);
+  --color-brand-600: var(--color-blue-600);
+  --color-brand-700: var(--color-blue-700);
+  --color-brand-800: var(--color-blue-800);
+  --color-brand-900: var(--color-blue-900);
+}
+
 /* The content slides in a little from the side after a swipe between tabs. */
 @keyframes swipe-in-next {
   from { opacity: 0; transform: translateX(28px); }
@@ -22,6 +40,6 @@
 
 /* Keyboard focus is always visible, on every link, button and control. */
 :where(a, button, summary, select, input, textarea, [tabindex]):focus-visible {
-  outline: 2px solid #1d4ed8;
+  outline: 2px solid var(--color-brand-700);
   outline-offset: 2px;
 }

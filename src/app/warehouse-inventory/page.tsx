@@ -189,7 +189,7 @@ function WarehouseContent() {
               key={w.code}
               onClick={() => setFilter(w.code)}
               className={`min-h-11 rounded-full px-4 py-2 text-sm ${
-                filter === w.code ? "bg-blue-600 text-white" : "border border-slate-300 bg-white text-slate-700"
+                filter === w.code ? "bg-brand-600 text-white" : "border border-slate-300 bg-white text-slate-700"
               }`}
             >
               {w.name}
@@ -268,7 +268,7 @@ function WarehouseContent() {
                       className="flex min-h-20 min-w-0 flex-1 items-center justify-between gap-2 py-3 pr-3 text-left"
                     >
                       <span className="min-w-0">
-                        <span className="block font-mono text-lg font-semibold text-blue-700">{g.invoice}</span>
+                        <span className="block font-mono text-lg font-semibold text-brand-700">{g.invoice}</span>
                         <span className="block text-base text-slate-800">{g.customer}</span>
                         <span className="block text-base font-medium text-slate-700">
                           {g.parcels.length} {g.parcels.length === 1 ? "package" : "packages"} · {kg(g.parcels.reduce((s, p) => s + Number(p.weight_kg), 0))}
@@ -313,7 +313,7 @@ function WarehouseContent() {
                       {canOperate && (
                         <Link
                           href={`/warehouse-inventory/split/${g.bookingId}`}
-                          className="flex min-h-14 items-center justify-center rounded-md border-2 border-blue-600 text-base font-semibold text-blue-700"
+                          className="flex min-h-14 items-center justify-center rounded-md border-2 border-brand-600 text-base font-semibold text-brand-700"
                         >
                           Labels
                         </Link>
@@ -368,7 +368,7 @@ function WarehouseContent() {
                           type="button"
                           onClick={() => toggleOpen(g.bookingId)}
                           aria-expanded={isOpen}
-                          className="inline-flex min-h-11 items-center gap-1 font-mono font-semibold text-blue-700"
+                          className="inline-flex min-h-11 items-center gap-1 font-mono font-semibold text-brand-700"
                         >
                           {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                           {g.invoice}
@@ -388,7 +388,7 @@ function WarehouseContent() {
                       </td>
                       <td className="px-4 py-3">
                         {canOperate && (
-                          <Link href={`/warehouse-inventory/split/${g.bookingId}`} className="inline-flex min-h-11 items-center rounded-md border border-blue-600 px-4 font-medium text-blue-700">
+                          <Link href={`/warehouse-inventory/split/${g.bookingId}`} className="inline-flex min-h-11 items-center rounded-md border border-brand-600 px-4 font-medium text-brand-700">
                             Labels
                           </Link>
                         )}
@@ -475,7 +475,7 @@ function WarehouseContent() {
               setTab(t.key);
             }}
             className={`shrink-0 rounded-full px-4 py-1.5 text-sm font-medium ${
-              tab === t.key ? "bg-blue-600 text-white" : "border border-slate-300 bg-white text-slate-700"
+              tab === t.key ? "bg-brand-600 text-white" : "border border-slate-300 bg-white text-slate-700"
             }`}
           >
             {t.label}
@@ -508,7 +508,7 @@ function WarehouseContent() {
                       <span className="block text-sm text-slate-600">→ {b.receiver_name ?? "receiver not set"}</span>
                     </span>
                     {canOperate && (
-                      <span className="flex shrink-0 items-center gap-1 rounded-md bg-blue-600 px-3 py-2 text-base font-semibold text-white">
+                      <span className="flex shrink-0 items-center gap-1 rounded-md bg-brand-600 px-3 py-2 text-base font-semibold text-white">
                         Receive <ChevronRight className="h-5 w-5" />
                       </span>
                     )}
@@ -556,7 +556,7 @@ function WarehouseContent() {
                       className="flex min-h-16 w-full items-center justify-between gap-3 rounded-lg px-1 text-left active:bg-slate-50"
                     >
                       <span className="min-w-0">
-                        <span className="block font-mono text-lg font-semibold text-blue-700">{g.invoice}</span>
+                        <span className="block font-mono text-lg font-semibold text-brand-700">{g.invoice}</span>
                         <span className="block text-base text-slate-800">{g.customer}</span>
                         <span className="block text-base text-slate-700">
                           <span className="font-mono">{g.code}</span> · {g.returns.length} {g.returns.length === 1 ? "return" : "returns"}, {packages}{" "}
@@ -587,7 +587,7 @@ function WarehouseContent() {
                                   <span className="flex shrink-0 items-center justify-between gap-2">
                                     <StatusBadge large status={x.status} />
                                     {canOperate && (
-                                      <span className="flex items-center gap-1 rounded-md border border-blue-600 px-3 py-2 text-base font-semibold text-blue-700">
+                                      <span className="flex items-center gap-1 rounded-md border border-brand-600 px-3 py-2 text-base font-semibold text-brand-700">
                                         {x.status === "open" ? "Form" : "View"} <ChevronRight className="h-5 w-5" />
                                       </span>
                                     )}
