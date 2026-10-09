@@ -1,8 +1,9 @@
 "use client";
 
 import { Fragment, useState } from "react";
-import { ChevronDown, ChevronRight, Lock } from "lucide-react";
+import { Lock } from "lucide-react";
 import Chip from "@/components/ui/Chip";
+import Disclosure, { DisclosureButton } from "@/components/ui/Disclosure";
 import PageHeader from "@/components/ui/PageHeader";
 import { Button, ErrorMessage, Loading } from "@/components/ui/form";
 import { useQuery } from "@/lib/hooks";
@@ -125,24 +126,17 @@ export default function RolesPage() {
                   )}
                 </p>
                 {groups.map((group) => (
-                  <section key={group} className="mb-3">
-                    <h2 className="text-sm font-semibold uppercase text-slate-600">
-                      <button
-                        type="button"
-                        aria-expanded={openGroups.has(group)}
-                        onClick={() => toggleGroup(group)}
-                        className="flex min-h-12 w-full items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 text-left"
-                      >
-                        {openGroups.has(group) ? <ChevronDown className="h-5 w-5 shrink-0" aria-hidden="true" /> : <ChevronRight className="h-5 w-5 shrink-0" aria-hidden="true" />}
-                        <span className="flex-1">{group}</span>
-                        <span className="text-xs font-normal normal-case text-slate-600">
-                          {m.permissions.filter((p) => p.group_name === group && (role.key === "super_admin" || (pending.get(cell(role.key, p.key)) ?? m.granted.has(cell(role.key, p.key))))).length} of {m.permissions.filter((p) => p.group_name === group).length} on
-                        </span>
-                        {unsavedBadge(group)}
-                      </button>
-                    </h2>
-                    {openGroups.has(group) && (
-                    <ul className="mt-1 divide-y divide-slate-100 rounded-lg border border-slate-300 bg-white">
+                  <Disclosure
+                    key={group}
+                    variant="bar"
+                    className="mb-3"
+                    title={group}
+                    meta={`${m.permissions.filter((p) => p.group_name === group && (role.key === "super_admin" || (pending.get(cell(role.key, p.key)) ?? m.granted.has(cell(role.key, p.key))))).length} of ${m.permissions.filter((p) => p.group_name === group).length} on`}
+                    badge={unsavedBadge(group)}
+                    open={openGroups.has(group)}
+                    onToggle={() => toggleGroup(group)}
+                  >
+                    <ul className="divide-y divide-slate-100 rounded-lg border border-slate-300 bg-white">
                       {m.permissions
                         .filter((p) => p.group_name === group)
                         .map((p) => {
@@ -167,8 +161,7 @@ export default function RolesPage() {
                           );
                         })}
                     </ul>
-                    )}
-                  </section>
+                  </Disclosure>
                 ))}
               </>
             );
@@ -193,17 +186,11 @@ export default function RolesPage() {
                 <Fragment key={group}>
                   <tr className="bg-slate-50">
                     <td colSpan={m.roles.length + 1} className="px-2 py-1 text-xs font-semibold uppercase text-slate-500">
-                      <button
-                        type="button"
-                        aria-expanded={openGroups.has(group)}
-                        onClick={() => toggleGroup(group)}
-                        className="flex min-h-11 w-full items-center gap-2 px-2 text-left uppercase"
-                      >
-                        {openGroups.has(group) ? <ChevronDown className="h-4 w-4" aria-hidden="true" /> : <ChevronRight className="h-4 w-4" aria-hidden="true" />}
+                      <DisclosureButton open={openGroups.has(group)} onToggle={() => toggleGroup(group)} className="px-2 uppercase">
                         {group}
                         <span className="font-normal normal-case text-slate-500">({m.permissions.filter((p) => p.group_name === group).length})</span>
                         {unsavedBadge(group)}
-                      </button>
+                      </DisclosureButton>
                     </td>
                   </tr>
                   {m.permissions
