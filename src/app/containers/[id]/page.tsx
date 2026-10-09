@@ -252,9 +252,10 @@ export default function ContainerManifestPage() {
                     .filter((p) => matchesSearch(find, [p.barcode, p.description, p.booking?.invoice_no, p.booking?.code, p.booking?.sender_name, p.warehouse?.name, p.warehouse?.code, p.position]))
                     .map((p) => (
                     <li key={p.id}>
-                      <label className="flex cursor-pointer items-center gap-3 py-2">
+                      <label className="flex min-h-11 cursor-pointer items-center gap-3 py-1">
                         <input
                           type="checkbox"
+                          className="h-6 w-6 shrink-0 accent-brand-600"
                           checked={selected.includes(p.barcode)}
                           onChange={(e) =>
                             setSelected(e.target.checked ? [...selected, p.barcode] : selected.filter((s) => s !== p.barcode))

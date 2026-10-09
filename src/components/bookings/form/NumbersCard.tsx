@@ -10,7 +10,7 @@ function NumberPart({ prefix, current, value, onChange, placeholder }: { prefix:
   if (legacy) return <input value={current ?? ""} readOnly className={`${inputClass} cursor-not-allowed bg-slate-100 font-mono text-slate-600`} />;
   return (
     <div className="flex">
-      <span className="flex min-h-11 items-center rounded-l-md border border-r-0 border-slate-300 bg-slate-100 px-3 font-mono text-sm text-slate-700 sm:min-h-10">{prefix || "…"}</span>
+      <span className="flex min-h-11 items-center rounded-l-md border border-r-0 border-slate-300 bg-slate-100 px-3 font-mono text-sm text-slate-700 sm:min-h-10 coarse:min-h-11">{prefix || "…"}</span>
       <input
         value={value}
         onChange={(e) => onChange(e.target.value.replace(/\D/g, ""))}

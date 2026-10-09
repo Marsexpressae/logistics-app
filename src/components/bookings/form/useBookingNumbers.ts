@@ -10,9 +10,13 @@ type Kind = "booking" | "invoice";
 /**
  * The booking and invoice number boxes. The prefix (BK-, INV-) is chosen in Settings only, so people type just the digits
  * after it, and the hint shows the next free automatic number (worked out by the database, which skips numbers already used).
+ * `enabled` is true only while the numbers card is on screen, so a closed card costs no requests.
  */
 export function useBookingNumbers(booking: Booking | undefined, enabled: boolean) {
-  const series = useQuery<{ kind: Kind; prefix: string }[]>(() => supabase.from("number_series").select("kind, prefix"));
+  const series = useQuery<{ kind: Kind; prefix: string }[]>(
+    () => (enabled ? (supabase.from("number_series").select("kind, prefix") as never) : Promise.resolve({ data: null, error: null })),
+    [enabled]
+  );
   const preview = (kind: Kind, wanted: boolean) => () =>
     wanted ? (supabase.rpc("next_number_preview", { p_kind: kind }) as never) : Promise.resolve({ data: null, error: null });
   const nextBooking = useQuery<string | null>(preview("booking", enabled), [enabled]);

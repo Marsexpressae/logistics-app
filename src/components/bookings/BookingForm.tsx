@@ -30,7 +30,8 @@ type BookingFormProps = {
 export default function BookingForm({ booking, submitLabel, onSaved, numbersOpen }: BookingFormProps) {
   const { can } = usePermissions();
   const canSetNumbers = can("numbers.edit");
-  const numbers = useBookingNumbers(booking, canSetNumbers);
+  const showNumbers = canSetNumbers && (!booking || !!numbersOpen);
+  const numbers = useBookingNumbers(booking, showNumbers);
   const canPickCustomer = !booking && can("customers.view");
 
   // A returning customer picked from the list: their details fill the form, and the booking is linked to them when saved.
@@ -141,7 +142,7 @@ export default function BookingForm({ booking, submitLabel, onSaved, numbersOpen
 
   return (
     <form onSubmit={onSubmit} className="max-w-3xl space-y-4">
-      {canSetNumbers && (!booking || numbersOpen) && <NumbersCard booking={booking} numbers={numbers} />}
+      {showNumbers && <NumbersCard booking={booking} numbers={numbers} />}
 
       {/* 1. Who is sending, and everything about collecting from them */}
       <Card title={onlyPickup ? "Pickup" : "Customer & pickup"}>

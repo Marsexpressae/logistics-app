@@ -3,7 +3,7 @@ import { Ban, CheckCircle2, CircleDollarSign, Clock, Container, FileQuestion, Pa
 import { STATUS } from "@/lib/status";
 
 export const inputClass =
-  "min-h-11 w-full rounded-md border border-slate-500 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-500 focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600 sm:min-h-10";
+  "min-h-11 w-full rounded-md border border-slate-500 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-500 focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600 sm:min-h-10 coarse:min-h-11";
 
 export function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -30,7 +30,7 @@ export function Button({ variant = "primary", size, className = "", ...props }: 
   return (
     <button
       {...props}
-      className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-10 ${variants[variant]} ${size === "large" ? "min-h-14! w-full text-lg font-semibold" : ""} ${className}`}
+      className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-10 coarse:min-h-11 ${variants[variant]} ${size === "large" ? "min-h-14! w-full text-lg font-semibold" : ""} ${className}`}
     />
   );
 }

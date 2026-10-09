@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* A touch screen (phone, tablet, touch laptop) keeps 44px controls at any width. Only a mouse gets the tighter 40px. */
+@custom-variant coarse (@media (pointer: coarse));
+
 @theme inline {
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);

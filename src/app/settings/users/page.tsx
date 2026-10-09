@@ -137,7 +137,7 @@ export default function UsersPage() {
           ))}
         </dl>
         {can("roles.manage") && (
-          <Link href="/settings/roles" className="mt-3 inline-block text-sm font-medium text-brand-700">
+          <Link href="/settings/roles" className="mt-3 inline-flex min-h-11 items-center text-sm font-medium text-brand-700">
             Edit what each role can do →
           </Link>
         )}
