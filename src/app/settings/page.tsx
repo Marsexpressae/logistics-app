@@ -71,20 +71,23 @@ export default function SettingsPage() {
         ) : (
           <ul className="divide-y divide-slate-100">
             {settings.data.map((s) => (
-              <li key={s.key} className="flex items-start justify-between gap-4 py-3">
-                <label htmlFor={s.key} className="text-sm">
-                  <span className="block font-medium text-slate-900">{s.label}</span>
-                  {s.description && <span className="mt-0.5 block text-slate-500">{s.description}</span>}
+              <li key={s.key}>
+                {/* The whole row is the tap target, not just the small switch */}
+                <label htmlFor={s.key} className="flex min-h-14 cursor-pointer items-start justify-between gap-4 py-3 text-sm">
+                  <span>
+                    <span className="block font-medium text-slate-900">{s.label}</span>
+                    {s.description && <span className="mt-0.5 block text-slate-600">{s.description}</span>}
+                  </span>
+                  <input
+                    id={s.key}
+                    type="checkbox"
+                    role="switch"
+                    className="mt-0.5 h-6 w-6 shrink-0 accent-brand-600"
+                    checked={current(s)}
+                    disabled={!canChange || busy}
+                    onChange={(e) => toggle(s, e.target.checked)}
+                  />
                 </label>
-                <input
-                  id={s.key}
-                  type="checkbox"
-                  role="switch"
-                  className="mt-1 h-5 w-5 shrink-0 accent-brand-600"
-                  checked={current(s)}
-                  disabled={!canChange || busy}
-                  onChange={(e) => toggle(s, e.target.checked)}
-                />
               </li>
             ))}
           </ul>

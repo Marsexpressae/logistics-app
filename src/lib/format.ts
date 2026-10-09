@@ -30,6 +30,9 @@ export const todayISO = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
 
+/** What to send to the database for a picked day: nothing when it is today (the database uses "now"), otherwise the day. */
+export const dateArg = (day: string) => (day && day !== todayISO() ? day : null);
+
 /**
  * The moment to save for a day somebody picked: now when it is today, otherwise noon on that day.
  * Used when entering old records, so the invoice, payment and history show the real day.

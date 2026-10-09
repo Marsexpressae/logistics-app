@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import { Check, Pencil, Trash2, X } from "lucide-react";
 import { Button, Card, ErrorMessage, Field, StatusBadge, inputClass } from "@/components/ui/form";
 import { dateStamp, formatDate, todayISO, invoiceStatus, methodLabel, money, round2, totalPaid } from "@/lib/format";
+import DateField from "@/components/ui/DateField";
 import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
 import type { Booking, Payment } from "@/lib/types";
@@ -153,10 +154,7 @@ export default function PaymentsCard({ booking, payments, onChanged }: PaymentsC
                     <option value="bank_transfer">Bank transfer</option>
                   </select>
                 </div>
-                <label className="block text-sm">
-                  <span className="mb-1 block text-xs text-slate-500">Payment date</span>
-                  <input type="date" max={todayISO()} value={draft.date} onChange={(e) => setDraft({ ...draft, date: e.target.value })} className={`${inputClass} w-auto`} />
-                </label>
+                <DateField label="Payment date" value={draft.date} onChange={(date) => setDraft({ ...draft, date })} />
                 <input
                   value={draft.note}
                   onChange={(e) => setDraft({ ...draft, note: e.target.value })}
@@ -213,9 +211,7 @@ export default function PaymentsCard({ booking, payments, onChanged }: PaymentsC
             </select>
           </Field>
           <div className="col-span-2">
-            <Field label="Payment date">
-              <input name="paid_on" type="date" max={todayISO()} defaultValue={todayISO()} className={`${inputClass} w-auto`} />
-            </Field>
+            <DateField label="Payment date" name="paid_on" />
           </div>
           <div className="col-span-2">
             <Button type="submit" className="w-full" disabled={busy}>

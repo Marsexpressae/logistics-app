@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
+import { todayISO } from "./format";
 import type { Profile } from "./types";
 
 type QueryResult<T> = PromiseLike<{ data: T | null; error: { message: string } | null }>;
@@ -29,6 +30,16 @@ export function useQuery<T>(fetcher: () => QueryResult<T>, deps: unknown[] = [])
   }, [tick, ...deps]);
 
   return { data, error, loading, reload: () => setTick((t) => t + 1) };
+}
+
+/**
+ * A day picked for new work (loading, collecting ...), starting at today. It goes back to today when `resetKey` changes
+ * (for example when another container or booking opens in the same page), so an old date never carries over by accident.
+ */
+export function useDay(resetKey: string) {
+  const [state, setState] = useState({ key: resetKey, day: todayISO() });
+  const day = state.key === resetKey ? state.day : todayISO();
+  return [day, (d: string) => setState({ key: resetKey, day: d })] as const;
 }
 
 /** undefined = still loading, null = signed out. */

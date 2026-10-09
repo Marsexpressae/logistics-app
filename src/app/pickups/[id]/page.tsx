@@ -1,9 +1,10 @@
 "use client";
 
+import BookingLink from "@/components/bookings/BookingLink";
 import { useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { CalendarDays, CheckCircle2, MapPin, Navigation, Printer } from "lucide-react";
+import { CalendarDays, CheckCircle2, FileText, MapPin, Navigation, Printer } from "lucide-react";
 import BookingChangePanel from "@/components/bookings/BookingChangePanel";
 import DeleteBooking from "@/components/bookings/DeleteBooking";
 import WarningBanner from "@/components/customers/WarningBanner";
@@ -15,11 +16,12 @@ import ItemsCard from "@/components/bookings/ItemsCard";
 import PaymentsCard from "@/components/bookings/PaymentsCard";
 import ContactCard from "@/components/contact/ContactCard";
 import ScheduleHistory from "@/components/bookings/ScheduleHistory";
-import { Button, Card, ErrorMessage, StatusBadge, inputClass, Loading } from "@/components/ui/form";
-import { useQuery } from "@/lib/hooks";
+import { Button, Card, ErrorMessage, StatusBadge, Loading } from "@/components/ui/form";
+import { useDay, useQuery } from "@/lib/hooks";
 import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
-import { dateStamp, formatDay, todayISO } from "@/lib/format";
+import { dateStamp, formatDay } from "@/lib/format";
+import DateField from "@/components/ui/DateField";
 import { mapsUrl } from "@/lib/geo";
 import type { Booking, BookingItem } from "@/lib/types";
 import BackLink from "@/components/ui/BackLink";
@@ -43,7 +45,7 @@ export default function PickupDetailPage() {
     return { data: (count ?? 0) > 0, error };
   }, [id]);
   const [error, setError] = useState<string | null>(null);
-  const [collectedOn, setCollectedOn] = useState(todayISO());
+  const [collectedOn, setCollectedOn] = useDay(id);
   const [changes, setChanges] = useState(0); // bumps after a reschedule/cancel so the history refreshes
 
   const b = booking.data;
@@ -72,7 +74,7 @@ export default function PickupDetailPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="font-mono text-xl font-semibold">{b.invoice_no ?? b.code}</h1>
-            {b.invoice_no && <p className="font-mono text-xs text-slate-500">Booking {b.code}</p>}
+            {b.invoice_no && <p className="text-xs text-slate-500">Booking <BookingLink id={b.id} className="text-xs">{b.code}</BookingLink></p>}
           </div>
           <StatusBadge status={b.status} />
         </div>
@@ -135,10 +137,7 @@ export default function PickupDetailPage() {
       )}
 
       {b.status === "booked" && (
-        <label className="block text-sm">
-          <span className="mb-1 block text-xs text-slate-500">Collected on</span>
-          <input type="date" max={todayISO()} value={collectedOn} onChange={(e) => setCollectedOn(e.target.value)} className={`${inputClass} w-auto`} />
-        </label>
+        <DateField label="Collected on" value={collectedOn} onChange={setCollectedOn} pastNote="The invoice and receipt will show that day." />
       )}
 
       <div className="grid gap-2 pb-6 sm:grid-cols-2">
@@ -152,6 +151,12 @@ export default function PickupDetailPage() {
           className="inline-flex items-center justify-center gap-2 rounded-md border border-slate-300 bg-white py-3 text-sm font-medium text-slate-700"
         >
           <Printer className="h-4 w-4" /> Receipt
+        </Link>}
+        {canPrint && <Link
+          href={`/pickups/${id}/invoice`}
+          className="inline-flex items-center justify-center gap-2 rounded-md border border-slate-300 bg-white py-3 text-sm font-medium text-slate-700"
+        >
+          <FileText className="h-4 w-4" /> Invoice
         </Link>}
       </div>
 

@@ -9,8 +9,9 @@ import NotesCard from "@/components/bookings/NotesCard";
 import ParcelLabel from "@/components/ui/ParcelLabel";
 import ParcelPosition from "@/components/warehouse/ParcelPosition";
 import { Button, Card, ErrorMessage, Field, inputClass, Loading } from "@/components/ui/form";
-import { kg, round2, todayISO } from "@/lib/format";
-import { useQuery } from "@/lib/hooks";
+import { dateArg, kg, round2 } from "@/lib/format";
+import DateField from "@/components/ui/DateField";
+import { useDay, useQuery } from "@/lib/hooks";
 import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
 import type { Booking, BookingItem, Parcel, Warehouse } from "@/lib/types";
@@ -40,7 +41,7 @@ export default function ReceivePage() {
   );
 
   const [warehouseId, setWarehouseId] = useState("");
-  const [receivedOn, setReceivedOn] = useState(todayISO());
+  const [receivedOn, setReceivedOn] = useDay(bookingId);
   const [repack, setRepack] = useState(false); // the rare case: pack the cargo differently from how it was collected
   const [custom, setCustom] = useState<Row[] | null>(null); // edited rows; null = use what was collected
   const [error, setError] = useState<string | null>(null);
@@ -71,7 +72,7 @@ export default function ReceivePage() {
       p_booking_id: bookingId,
       p_warehouse_id: warehouse,
       p_parcels: list.map((r) => ({ description: r.description.trim(), weight_kg: Number(r.weight_kg || 0) })),
-      p_date: receivedOn && receivedOn !== todayISO() ? receivedOn : null,
+      p_date: dateArg(receivedOn),
     });
     setBusy(false);
     if (error) return setError(error.message);
@@ -111,10 +112,7 @@ export default function ReceivePage() {
                 </select>
               </Field>
             </div>
-            <label className="mb-3 block text-sm">
-              <span className="mb-1 block text-xs text-slate-500">Received on</span>
-              <input type="date" max={todayISO()} value={receivedOn} onChange={(e) => setReceivedOn(e.target.value)} className={`${inputClass} w-auto`} />
-            </label>
+            <DateField className="mb-3" label="Received on" value={receivedOn} onChange={setReceivedOn} pastNote="The parcels are recorded as received on that day." />
 
             {hasItems && !repack && (
               <>

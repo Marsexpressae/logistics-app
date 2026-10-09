@@ -1,0 +1,33 @@
+// The shared date helpers, and a guard so every real-day box keeps using the one DateField.
+import test from "node:test";
+import assert from "node:assert/strict";
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { join } from "node:path";
+import { dateArg, dateStamp, todayISO } from "../src/lib/format.ts";
+
+test("today means 'now' to the database, any other day is sent as that day", () => {
+  assert.equal(dateArg(todayISO()), null);
+  assert.equal(dateArg(""), null);
+  assert.equal(dateArg("2025-12-27"), "2025-12-27");
+});
+
+test("a picked day is saved as noon on that day, and today as the current moment", () => {
+  const old = new Date(dateStamp("2025-12-27"));
+  assert.equal(old.getHours(), 12);
+  assert.equal(old.getDate(), 27);
+  assert.ok(Math.abs(new Date(dateStamp(todayISO())).getTime() - Date.now()) < 5000);
+});
+
+// A real-day box (collected, paid, received, loaded ...) must be the shared DateField. Only these files may use a raw date input:
+// DateField itself, the pickup date on the booking form, the reschedule panel, the return form and the delivery date row.
+const ALLOWED = ["DateField.tsx", "BookingForm.tsx", "BookingChangePanel.tsx", join("returns", "[id]", "page.tsx"), join("containers", "[id]", "page.tsx")];
+function files(dir: string): string[] {
+  return readdirSync(dir).flatMap((f) => {
+    const p = join(dir, f);
+    return statSync(p).isDirectory() ? files(p) : p.endsWith(".tsx") ? [p] : [];
+  });
+}
+test("raw date inputs only appear where they are meant to", () => {
+  const offenders = files("src").filter((f) => readFileSync(f, "utf8").includes('type="date"') && !ALLOWED.some((a) => f.endsWith(a)));
+  assert.deepEqual(offenders, []);
+});

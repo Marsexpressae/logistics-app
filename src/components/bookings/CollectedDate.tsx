@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { Button, Card, ErrorMessage, inputClass } from "@/components/ui/form";
-import { dateStamp, formatDay, todayISO } from "@/lib/format";
+import { Button, Card, ErrorMessage } from "@/components/ui/form";
+import { dateStamp, formatDay } from "@/lib/format";
+import DateField from "@/components/ui/DateField";
 import { supabase } from "@/lib/supabase";
 
 /**
@@ -31,10 +32,7 @@ export default function CollectedDate({ bookingId, collectedAt, canEdit, onChang
       <ErrorMessage message={error} />
       {editing ? (
         <div className="flex flex-wrap items-end gap-3">
-          <label className="text-sm">
-            <span className="mb-1 block text-xs text-slate-500">Collected on</span>
-            <input type="date" max={todayISO()} value={day} onChange={(e) => setDay(e.target.value)} className={`${inputClass} w-auto`} />
-          </label>
+          <DateField label="Collected on" value={day} onChange={setDay} />
           <Button onClick={save} disabled={busy || !day}>
             {busy ? "Saving…" : "Save date"}
           </Button>

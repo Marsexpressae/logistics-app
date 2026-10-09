@@ -2,7 +2,7 @@
 export const STATUS: Record<string, { label: string; className: string }> = {
   booked: { label: "Booked", className: "bg-slate-100 text-slate-700" },
   collected: { label: "Collected", className: "bg-amber-100 text-amber-800" },
-  repacked: { label: "Repacked", className: "bg-slate-100 text-slate-500" },
+  repacked: { label: "Repacked", className: "bg-slate-100 text-slate-600" },
   at_warehouse: { label: "At warehouse", className: "bg-blue-100 text-blue-800" },
   cancelled: { label: "Cancelled", className: "bg-red-100 text-red-700" },
   in_warehouse: { label: "In warehouse", className: "bg-blue-100 text-blue-800" },

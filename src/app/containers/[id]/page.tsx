@@ -1,5 +1,6 @@
 "use client";
 
+import BookingLink from "@/components/bookings/BookingLink";
 import { useRef, useState, type FormEvent } from "react";
 import { useParams } from "next/navigation";
 import { CheckCheck, MapPinCheck, PackagePlus, Pencil, Rocket, ScanLine, X } from "lucide-react";
@@ -8,8 +9,9 @@ import ListSearch from "@/components/ui/ListSearch";
 import { matchesSearch } from "@/lib/search";
 import CameraScanner from "@/components/scan/CameraScanner";
 import { Button, Card, ErrorMessage, StatusBadge, inputClass, Loading } from "@/components/ui/form";
-import { formatDay, todayISO } from "@/lib/format";
-import { useQuery } from "@/lib/hooks";
+import { dateArg, formatDay, todayISO } from "@/lib/format";
+import DateField from "@/components/ui/DateField";
+import { useDay, useQuery } from "@/lib/hooks";
 import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
 import type { Container, Parcel } from "@/lib/types";
@@ -37,13 +39,12 @@ export default function ContainerManifestPage() {
   const [selected, setSelected] = useState<string[]>([]);
   const [find, setFind] = useState("");
   // Real dates: left as today, nothing special happens. Pick an earlier day when entering an old shipment.
-  const [departDate, setDepartDate] = useState(todayISO());
-  const [loadDate, setLoadDate] = useState(todayISO());
-  const [arriveDate, setArriveDate] = useState(todayISO());
+  const [departDate, setDepartDate] = useDay(id);
+  const [loadDate, setLoadDate] = useDay(id);
+  const [arriveDate, setArriveDate] = useDay(id);
   const [delivering, setDelivering] = useState<{ id: string; partner: string; tracking: string; date: string } | null>(null);
   const partners = useQuery<{ delivery_partner: string | null }[]>(() => supabase.from("parcels").select("delivery_partner").limit(500));
   const partnerNames = [...new Set((partners.data ?? []).map((p) => p.delivery_partner).filter((n): n is string => !!n))].sort();
-  const dateArg = (d: string) => (d && d !== todayISO() ? d : null);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const scanRef = useRef<HTMLInputElement>(null);
   const [camera, setCamera] = useState(false);
@@ -217,10 +218,7 @@ export default function ContainerManifestPage() {
       {open && (
         <div className="grid gap-4 md:grid-cols-2">
           <Card title="Scan or type barcode">
-            <label className="mb-3 block text-sm">
-              <span className="mb-1 block text-xs text-slate-500">Loading date (for parcels loaded now)</span>
-              <input type="date" max={todayISO()} value={loadDate} onChange={(e) => setLoadDate(e.target.value)} className={`${inputClass} w-auto`} />
-            </label>
+            <DateField className="mb-3" label="Loading date (for parcels loaded now)" value={loadDate} onChange={setLoadDate} pastNote="Parcels you load now are dated then." />
             <Button size="large" className="mb-3" onClick={() => setCamera(true)}>
               <ScanLine className="h-6 w-6" aria-hidden="true" /> Scan with the camera
             </Button>
@@ -286,7 +284,7 @@ export default function ContainerManifestPage() {
             {check.data.map((r) => (
               <li key={r.booking_id} className="flex flex-wrap items-center justify-between gap-2 py-2">
                 <span>
-                  <span className="font-mono font-medium">{r.invoice_no ?? r.booking_code}</span>{" "}
+                  <BookingLink id={r.booking_id}>{r.invoice_no ?? r.booking_code}</BookingLink>{" "}
                   <span className={r.missing.length ? "font-medium text-amber-700" : "text-green-700"}>
                     {r.loaded} of {r.expected} parcels loaded
                   </span>
@@ -375,10 +373,7 @@ export default function ContainerManifestPage() {
         </datalist>
         {open && (
           <div className="mt-4 flex flex-wrap items-end gap-3">
-            <label className="text-sm">
-              <span className="mb-1 block text-xs text-slate-500">Departed on</span>
-              <input type="date" max={todayISO()} value={departDate} onChange={(e) => setDepartDate(e.target.value)} className={`${inputClass} w-auto`} />
-            </label>
+            <DateField label="Departed on" value={departDate} onChange={setDepartDate} pastNote="The container is marked departed on that day." />
             <Button onClick={depart} disabled={!loaded.data?.length}>
               <Rocket className="h-4 w-4" /> Mark container departed
             </Button>
@@ -386,10 +381,7 @@ export default function ContainerManifestPage() {
         )}
         {canOperate && c.status === "departed" && (
           <div className="mt-4 flex flex-wrap items-end gap-3">
-            <label className="text-sm">
-              <span className="mb-1 block text-xs text-slate-500">Arrived on</span>
-              <input type="date" max={todayISO()} value={arriveDate} onChange={(e) => setArriveDate(e.target.value)} className={`${inputClass} w-auto`} />
-            </label>
+            <DateField label="Arrived on" value={arriveDate} onChange={setArriveDate} pastNote="The container is marked arrived on that day." />
             <Button onClick={arrive}>
               <MapPinCheck className="h-4 w-4" /> Mark container arrived
             </Button>

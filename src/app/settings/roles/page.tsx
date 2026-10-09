@@ -197,7 +197,7 @@ export default function RolesPage() {
                         type="button"
                         aria-expanded={openGroups.has(group)}
                         onClick={() => toggleGroup(group)}
-                        className="flex min-h-10 w-full items-center gap-2 px-2 text-left uppercase"
+                        className="flex min-h-11 w-full items-center gap-2 px-2 text-left uppercase"
                       >
                         {openGroups.has(group) ? <ChevronDown className="h-4 w-4" aria-hidden="true" /> : <ChevronRight className="h-4 w-4" aria-hidden="true" />}
                         {group}
@@ -218,15 +218,17 @@ export default function RolesPage() {
                           const key = cell(r.key, p.key);
                           const locked = r.key === "super_admin"; // the super admin always keeps everything
                           return (
-                            <td key={r.key} className="px-3 py-2.5 text-center">
-                              <input
-                                type="checkbox"
-                                className="h-4 w-4 accent-brand-600"
-                                checked={locked || (pending.get(key) ?? m.granted.has(key))}
-                                disabled={locked || saving}
-                                aria-label={`${r.label}: ${p.label}`}
-                                onChange={(e) => toggle(r.key, p.key, e.target.checked)}
-                              />
+                            <td key={r.key} className="p-0 text-center">
+                              <label className="flex h-11 min-w-11 cursor-pointer items-center justify-center">
+                                <input
+                                  type="checkbox"
+                                  className="h-5 w-5 accent-brand-600"
+                                  checked={locked || (pending.get(key) ?? m.granted.has(key))}
+                                  disabled={locked || saving}
+                                  aria-label={`${r.label}: ${p.label}`}
+                                  onChange={(e) => toggle(r.key, p.key, e.target.checked)}
+                                />
+                              </label>
                             </td>
                           );
                         })}

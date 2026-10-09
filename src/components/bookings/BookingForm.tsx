@@ -266,13 +266,13 @@ export default function BookingForm({ booking, submitLabel, onSaved, numbersOpen
             <PhoneInput value={senderPhone} onChange={setSenderPhone} required disabled={locked} />
           </Field>
           <div className="sm:col-span-2">
-            <label className="flex items-center gap-2 text-sm text-slate-700">
+            <label className="flex min-h-11 items-center gap-3 text-sm text-slate-700">
               <input
                 type="checkbox"
                 checked={sameWhatsapp}
                 onChange={(e) => setSameWhatsapp(e.target.checked)}
                 disabled={locked}
-                className="h-4 w-4"
+                className="h-5 w-5 accent-brand-600"
               />
               WhatsApp is the same number
             </label>
