@@ -93,3 +93,12 @@ test("a container can be renamed, loaded parcels stay, and a used or badly writt
   assert.equal((await c.from("containers").update({ code: "REN-2" }).eq("id", a.id)).error.code, "23505");
   assert.match((await c.from("containers").update({ code: "bad number!" }).eq("id", b.id)).error.message, /container number/);
 });
+
+test("the next-number hint is the first free number of the series, skipping numbers already used", async () => {
+  await c.rpc("set_number_series", { p_kind: "booking", p_prefix: "bk-", p_next: 7100 });
+  assert.equal((await c.rpc("next_number_preview", { p_kind: "booking" })).data, "BK-7100");
+  await newBooking({ code: "BK-7100" });
+  await newBooking({ code: "BK-7101" });
+  assert.equal((await c.rpc("next_number_preview", { p_kind: "booking" })).data, "BK-7102");
+  assert.match((await c.rpc("next_number_preview", { p_kind: "nope" })).error.message, /Unknown number series/);
+});

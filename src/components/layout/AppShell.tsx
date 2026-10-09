@@ -16,6 +16,7 @@ import CountBadge from "@/components/ui/CountBadge";
 import { canAccess, hasAccessRule, homePath } from "@/config/navigation";
 import { site } from "@/config/site";
 import { BadgeProvider, useBadgeCounts } from "@/lib/badges";
+import { MenuSwitchProvider, useMenuSwitchState } from "@/lib/nav-settings";
 import { NotificationProvider, useNotificationsState } from "@/lib/notifications";
 import { useProfile, useSession } from "@/lib/hooks";
 import { ProfileContext } from "@/lib/profile-context";
@@ -41,6 +42,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
   const [phoneSearch, setPhoneSearch] = useState(false);
   const wantsSearch = !!profile && permissions.some((p) => ["bookings.view", "warehouse.view", "containers.view", "pickups.view_all", "pickups.view_own"].includes(p));
   const badges = useBadgeCounts(permissions, !!profile);
+  const menuSwitches = useMenuSwitchState(!!profile);
   const wantsNotifications = !!profile && permissions.includes("notifications.view");
   const notifications = useNotificationsState(session?.user.id, wantsNotifications);
 
@@ -72,6 +74,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
   return (
     <ProfileContext.Provider value={{ profile, roleLabel, permissions }}>
       <NotificationProvider value={notifications}>
+      <MenuSwitchProvider value={menuSwitches}>
       <BadgeProvider value={{ ...badges, "/notifications": notifications.unread }}>
       <div className="flex h-full flex-1 flex-col md:flex-row">
         {/* Phone top bar: just the brand. Navigation lives in the bottom bar, within thumb reach. */}
@@ -145,6 +148,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
         <BottomNav />
       </div>
       </BadgeProvider>
+      </MenuSwitchProvider>
       </NotificationProvider>
     </ProfileContext.Provider>
   );

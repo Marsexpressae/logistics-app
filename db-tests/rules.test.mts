@@ -5,7 +5,7 @@
 // without it the tests are skipped. Run with:  npm run test:db
 import test from "node:test";
 import assert from "node:assert/strict";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import pg from "pg";
 
 if (!process.env.SUPABASE_DB_URL && existsSync(".env.local")) process.loadEnvFile(".env.local");
@@ -314,5 +314,18 @@ test("old records: every step can carry its real day, never a future day", { ski
     const days = Object.fromEntries((await db.owner("select status, created_at::date::text d from parcel_events where parcel_id = $1", [parcel.id])).map((r) => [r.status, r.d]));
     assert.equal(days.in_warehouse, "2025-12-28");
     assert.equal(days.loaded, "2025-12-30");
+  });
+});
+
+test("the next-number hint skips numbers already used, and only people who may type numbers can ask", { skip }, async () => {
+  await inTransaction(async (db) => {
+    await db.owner(readFileSync("supabase/migrations/0051_next_number_preview.sql", "utf8"));
+    const editor = await db.person(["numbers.edit"]);
+    const nobody = await db.person(["bookings.view"]);
+    await db.owner("update number_series set prefix = 'PV-', next_number = 500 where kind = 'booking'");
+    assert.equal((await db.as(editor, "select next_number_preview('booking') n"))[0].n, "PV-500");
+    await db.booking(); // takes the next automatic number, PV-500
+    assert.equal((await db.as(editor, "select next_number_preview('booking') n"))[0].n, "PV-501");
+    assert.match((await db.error(() => db.as(nobody, "select next_number_preview('booking')"))) ?? "", /permission/i);
   });
 });

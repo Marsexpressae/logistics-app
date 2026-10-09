@@ -895,6 +895,15 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
     return { data: null, error: null };
   },
 
+  next_number_preview({ p_kind }) {
+    const s = db().number_series.find((x) => x.kind === p_kind);
+    if (!s) return fail("Unknown number series");
+    const used = (db() as unknown as Record<string, Row[]>)[s.lookup_table as string] ?? [];
+    let n = Number(s.next_number);
+    while (used.some((r) => r[s.lookup_column as string] === `${s.prefix}${n}`)) n += 1;
+    return { data: `${s.prefix}${n}`, error: null };
+  },
+
   set_number_series({ p_kind, p_prefix, p_next }) {
     const s = db().number_series.find((x) => x.kind === p_kind);
     const prefix = String(p_prefix ?? "").trim().toUpperCase();

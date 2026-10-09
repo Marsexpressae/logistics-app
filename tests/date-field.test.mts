@@ -19,8 +19,8 @@ test("a picked day is saved as noon on that day, and today as the current moment
 });
 
 // A real-day box (collected, paid, received, loaded ...) must be the shared DateField. Only these files may use a raw date input:
-// DateField itself, the pickup date on the booking form, the reschedule panel, the return form and the delivery date row.
-const ALLOWED = ["DateField.tsx", "BookingForm.tsx", "BookingChangePanel.tsx", join("returns", "[id]", "page.tsx"), join("containers", "[id]", "page.tsx")];
+// DateField itself, the pickup date on the booking form (PickupSection), the reschedule panel, the return form and the delivery date row.
+const ALLOWED = ["DateField.tsx", "PickupSection.tsx", "BookingChangePanel.tsx", join("returns", "[id]", "page.tsx"), join("containers", "[id]", "page.tsx")];
 function files(dir: string): string[] {
   return readdirSync(dir).flatMap((f) => {
     const p = join(dir, f);
@@ -30,4 +30,11 @@ function files(dir: string): string[] {
 test("raw date inputs only appear where they are meant to", () => {
   const offenders = files("src").filter((f) => readFileSync(f, "utf8").includes('type="date"') && !ALLOWED.some((a) => f.endsWith(a)));
   assert.deepEqual(offenders, []);
+});
+
+// The menu switches are loaded once by AppShell. The two navs only read them, so the menu never costs extra requests.
+test("the Sidebar and the BottomNav do not fetch the menu switches themselves", () => {
+  for (const f of ["src/components/layout/Sidebar.tsx", "src/components/layout/BottomNav.tsx"]) {
+    assert.equal(readFileSync(f, "utf8").includes("app_settings"), false, f);
+  }
 });
