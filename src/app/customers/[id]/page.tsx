@@ -12,6 +12,7 @@ import PageHeader from "@/components/ui/PageHeader";
 import { Button, Card, ErrorMessage, StatusBadge, inputClass, Loading } from "@/components/ui/form";
 import { customerMapsUrl, ROLE_LABEL, type ContactRole, type Customer, type IdDocument, type TimelineRow } from "@/lib/customers";
 import { formatDate, formatDay } from "@/lib/format";
+import { bookingStage } from "@/lib/booking-stage";
 import { useQuery } from "@/lib/hooks";
 import { formatPhone } from "@/lib/phone";
 import { usePermissions } from "@/lib/profile-context";
@@ -22,7 +23,7 @@ import { textLink } from "@/components/ui/links";
 
 type LinkedBooking = {
   role: ContactRole;
-  booking: { id: string; code: string; invoice_no: string | null; status: string; pickup_date: string } | null;
+  booking: { id: string; code: string; invoice_no: string | null; status: string; pickup_date: string; parcels?: { status: string }[] } | null;
 };
 
 const KIND_LABEL: Record<TimelineRow["r_kind"], string> = {
@@ -46,7 +47,7 @@ export default function CustomerPage() {
 
   const customer = useQuery<Customer | null>(() => supabase.from("customers").select("*").eq("id", id).maybeSingle() as never, [id]);
   const linked = useQuery<LinkedBooking[]>(
-    () => supabase.from("booking_contacts").select("role, booking:bookings(id, code, invoice_no, status, pickup_date)").eq("customer_id", id) as never,
+    () => supabase.from("booking_contacts").select("role, booking:bookings(id, code, invoice_no, status, pickup_date, parcels(status))").eq("customer_id", id) as never,
     [id]
   );
   const timeline = useQuery<TimelineRow[]>(() => supabase.rpc("customer_timeline", { p_customer_id: id, p_limit: 100, p_offset: 0 }) as never, [id]);
@@ -239,7 +240,7 @@ export default function CustomerPage() {
                     {ROLE_LABEL[role]} · {formatDay(b!.pickup_date)}
                   </span>
                 </span>
-                <StatusBadge status={b!.status} />
+                <StatusBadge status={bookingStage(b!.status, b!.parcels)} />
               </li>
             ))}
           </ul>

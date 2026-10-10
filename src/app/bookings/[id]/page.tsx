@@ -20,6 +20,7 @@ import PaymentsCard from "@/components/bookings/PaymentsCard";
 import ScheduleHistory from "@/components/bookings/ScheduleHistory";
 import { Button, Card, ErrorMessage, StatusBadge, Loading } from "@/components/ui/form";
 import { formatDate } from "@/lib/format";
+import { bookingStage } from "@/lib/booking-stage";
 import { useQuery } from "@/lib/hooks";
 import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
@@ -30,7 +31,7 @@ import { textLink } from "@/components/ui/links";
 export default function EditBookingPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const booking = useQuery<Booking>(() => supabase.from("bookings").select("*").eq("id", id).single());
+  const booking = useQuery<Booking>(() => supabase.from("bookings").select("*, parcels(status)").eq("id", id).single());
   const { can } = usePermissions();
   const canPrint = usePermissions().can("documents.print");
   const canEdit = can("bookings.edit");
@@ -65,7 +66,7 @@ export default function EditBookingPage() {
           description={`${b.invoice_no ? `Invoice ${b.invoice_no}. ` : "No invoice yet (issued when collected). "}${canEdit ? "Update details, reassign the driver, reschedule or cancel." : "You can view this booking but not change it."}`}
         />
         <div className="flex items-center gap-3">
-          <StatusBadge status={b.status} />
+          <StatusBadge status={bookingStage(b.status, b.parcels)} />
           {canPrint && (
             <Link href={`/pickups/${id}/receipt`} className={textLink}>
               <Printer className="h-4 w-4" /> Receipt

@@ -17,6 +17,7 @@ import { useQuery } from "@/lib/hooks";
 import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
 import { formatDate, formatDay, money, totalPaid } from "@/lib/format";
+import { bookingStage } from "@/lib/booking-stage";
 import type { Booking } from "@/lib/types";
 
 const STATUS_FILTERS = [
@@ -24,6 +25,11 @@ const STATUS_FILTERS = [
   { value: "booked", label: "Booked" },
   { value: "collected", label: "Collected" },
   { value: "at_warehouse", label: "At warehouse" },
+  { value: "loaded", label: "Loaded in container" },
+  { value: "in_transit", label: "In transit" },
+  { value: "arrived", label: "Arrived at destination" },
+  { value: "delivered", label: "Delivered" },
+  { value: "returned", label: "Returned" },
   { value: "cancelled", label: "Cancelled" },
 ];
 
@@ -31,7 +37,7 @@ function BookingsContent() {
   const { data, error, loading } = useQuery<Booking[]>(() =>
     supabase
       .from("bookings")
-      .select("*, driver:drivers(name), payments(amount)")
+      .select("*, driver:drivers(name), payments(amount), parcels(status)")
       .order("pickup_date", { ascending: false })
       .order("created_at", { ascending: false })
   );
@@ -44,7 +50,7 @@ function BookingsContent() {
 
   const rows = (data ?? []).filter(
     (b) =>
-      (status === "all" || b.status === status) &&
+      (status === "all" || bookingStage(b.status, b.parcels) === status) &&
       matchesSearch(
         search,
         [b.code, b.invoice_no, b.sender_name, b.receiver_name, b.pickup_area, b.pickup_address, b.receiver_address, b.notes, b.driver?.name],
@@ -98,7 +104,7 @@ function BookingsContent() {
                     <span className="block font-mono text-lg font-semibold text-brand-700">{b.invoice_no ?? b.code}</span>
                     {b.invoice_no && <span className="block font-mono text-sm text-slate-600">{b.code}</span>}
                   </span>
-                  <StatusBadge large status={b.status} />
+                  <StatusBadge large status={bookingStage(b.status, b.parcels)} />
                 </span>
                 <span className="mt-1 block text-base text-slate-900">
                   {b.sender_name} → {b.receiver_name ?? <span className="text-slate-600">receiver not set</span>}
@@ -149,7 +155,7 @@ function BookingsContent() {
                     <td className="px-4 py-3">{b.pickup_area}</td>
                     <td className="px-4 py-3">{b.driver?.name ?? "—"}</td>
                     <td className="px-4 py-3">
-                      <StatusBadge status={b.status} />
+                      <StatusBadge status={bookingStage(b.status, b.parcels)} />
                       {b.status === "cancelled" && b.cancellation_reason && (
                         <p className="mt-1 max-w-48 text-xs text-slate-500" title={b.cancellation_reason}>
                           {b.cancellation_reason.length > 40 ? `${b.cancellation_reason.slice(0, 40)}…` : b.cancellation_reason}

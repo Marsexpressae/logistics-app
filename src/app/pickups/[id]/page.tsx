@@ -21,6 +21,7 @@ import { useDay, useQuery } from "@/lib/hooks";
 import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
 import { dateStamp, formatDay } from "@/lib/format";
+import { bookingStage } from "@/lib/booking-stage";
 import DateField from "@/components/ui/DateField";
 import { mapsUrl } from "@/lib/geo";
 import type { Booking, BookingItem } from "@/lib/types";
@@ -30,7 +31,7 @@ export default function PickupDetailPage() {
   const { id } = useParams<{ id: string }>();
   const canPrint = usePermissions().can("documents.print");
   const booking = useQuery<Booking>(() =>
-    supabase.from("bookings").select("*, payments(*)").eq("id", id).single()
+    supabase.from("bookings").select("*, payments(*), parcels(status)").eq("id", id).single()
   );
   const items = useQuery<BookingItem[]>(() =>
     supabase.from("booking_items").select("*").eq("booking_id", id).order("id")
@@ -76,7 +77,7 @@ export default function PickupDetailPage() {
             <h1 className="font-mono text-xl font-semibold">{b.invoice_no ?? b.code}</h1>
             {b.invoice_no && <p className="text-xs text-slate-500">Booking <BookingLink id={b.id} className="text-xs">{b.code}</BookingLink></p>}
           </div>
-          <StatusBadge status={b.status} />
+          <StatusBadge status={bookingStage(b.status, b.parcels)} />
         </div>
         <p className="mt-2 font-medium">{b.sender_name}</p>
         <p className="mt-1 flex items-center gap-1.5 text-sm text-slate-700">

@@ -57,6 +57,7 @@ export type Booking = {
   updated_at: string; // version stamp used to detect edit conflicts
   driver?: { name: string } | null;
   payments?: Payment[];
+  parcels?: { status: string }[]; // only loaded where the screen shows the stage (see bookingStage)
 };
 
 export type Parcel = {
