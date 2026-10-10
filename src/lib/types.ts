@@ -57,7 +57,7 @@ export type Booking = {
   updated_at: string; // version stamp used to detect edit conflicts
   driver?: { name: string } | null;
   payments?: Payment[];
-  parcels?: { status: string }[]; // only loaded where the screen shows the stage (see bookingStage)
+  stage?: string; // what to show: the stored status, or how far its parcels have got (computed by the database; ask for it with select("*, stage"))
 };
 
 export type Parcel = {

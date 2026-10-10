@@ -329,3 +329,48 @@ test("the next-number hint skips numbers already used, and only people who may t
     assert.match((await db.error(() => db.as(nobody, "select next_number_preview('booking')"))) ?? "", /permission/i);
   });
 });
+
+test("the booking stage follows the parcels, for search and tracking too, even without permission to see parcels", { skip }, async () => {
+  await inTransaction(async (db) => {
+    await db.owner(readFileSync("supabase/migrations/0052_booking_stage.sql", "utf8"));
+    const stageOf = async (code: string) => (await db.owner("select stage(b) s from bookings b where b.code = $1", [code]))[0]?.s;
+
+    // a booking in the warehouse whose current parcels are all returned (repacked history is ignored)
+    const booking = await db.booking({ invoice_no: "T-STAGE-1" });
+    await db.owner("update bookings set status = 'at_warehouse' where id = $1", [booking]);
+    const code = (await db.owner("select code from bookings where id = $1", [booking]))[0].code as string;
+    const wh = (await db.owner("select id from warehouses order by code limit 1"))[0].id;
+    const add = async (barcode: string, status: string, seq: number, round = 1) =>
+      db.owner("insert into parcels (booking_id, seq, barcode, status, warehouse_id, round, weight_kg) values ($1, $2, $3, $4, $5, $6, 1)", [booking, seq, barcode, status, wh, round]);
+    await add(`${code}-P1`, "repacked", 1);
+    await add(`${code}-R2-P1`, "returned", 2, 2);
+    await add(`${code}-R2-P2`, "returned", 3, 2);
+    assert.equal(await stageOf(code), "returned");
+
+    // a partial return stays at the warehouse; once the rest has left, the least advanced parcel decides
+    await db.owner("update parcels set status = 'in_warehouse' where barcode = $1", [`${code}-R2-P2`]);
+    assert.equal(await stageOf(code), "at_warehouse");
+    await db.owner("update parcels set status = 'in_transit' where barcode = $1", [`${code}-R2-P2`]);
+    assert.equal(await stageOf(code), "in_transit");
+    await db.owner("update parcels set status = 'delivered' where barcode = $1", [`${code}-R2-P2`]);
+    assert.equal(await stageOf(code), "delivered"); // the returned parcel does not hold it back
+
+    // before the warehouse, the stored stage is shown
+    await db.owner("update bookings set status = 'collected' where id = $1", [booking]);
+    assert.equal(await stageOf(code), "collected");
+    await db.owner("update bookings set status = 'at_warehouse' where id = $1", [booking]);
+    await db.owner("update parcels set status = 'returned' where booking_id = $1 and status = 'delivered'", [booking]);
+
+    // somebody who may see bookings but NOT parcels still gets the right stage: in the column, in search, in the public tracking
+    const accounts = await db.person(["bookings.view", "accounts.view"]);
+    assert.equal((await db.as(accounts, "select count(*)::int n from parcels"))[0].n, 0, "this person cannot see parcels");
+    assert.equal((await db.as(accounts, "select stage(b) s from bookings b where b.id = $1", [booking]))[0].s, "returned");
+    const found = (await db.as(accounts, "select global_search($1) r", [code]))[0].r as { bookings: { code: string; status: string }[] };
+    assert.equal(found.bookings.find((b) => b.code === code)?.status, "returned");
+    assert.equal((await db.owner("select track_booking($1) t", [code]))[0].t.status, "returned");
+
+    // the rule itself is not callable from the app, and signed-out visitors cannot ask for a stage
+    assert.match((await db.error(() => db.as(accounts, "select booking_stage_of('at_warehouse', $1)", [booking]))) ?? "", /permission denied/i);
+    assert.match((await db.error(() => db.anonymous("select stage(b) from bookings b limit 1"))) ?? "", /permission denied|does not exist/i);
+  });
+});

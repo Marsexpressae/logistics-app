@@ -3,6 +3,7 @@
 // without a backend. Data lives in localStorage. Used automatically when no Supabase keys are set.
 
 import { matchesSearch } from "./search.ts";
+import { bookingStage } from "./booking-stage.ts";
 
 type Row = Record<string, any>;
 type Db = {
@@ -298,12 +299,17 @@ function splitTopLevel(s: string): string[] {
   return parts;
 }
 
+// The stage a booking shows, like the database function stage(bookings): from its parcels, not only its stored status.
+function stageOf(b: Row): string {
+  return bookingStage(b.status, db().parcels.filter((p) => p.booking_id === b.id) as { status: string }[]);
+}
+
 function project(table: string, row: Row, select: string): Row {
   const out: Row = {};
   for (const part of splitTopLevel(select)) {
     if (part === "*") { Object.assign(out, row); continue; }
     const m = part.match(/^(?:(\w+):)?(\w+)\((.*)\)$/);
-    if (!m) { out[part] = row[part]; continue; }
+    if (!m) { out[part] = part === "stage" && table === "bookings" ? stageOf(row) : row[part]; continue; }
     const [, alias, target, cols] = m;
     const rel = RELATIONS[`${table}.${target}`];
     if (!rel) continue;
@@ -1176,7 +1182,7 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
     return {
       data: {
         bookings: hits.slice(0, lim).map((b) => ({ id: b.id, code: b.code, invoice_no: b.invoice_no ?? null, sender_name: b.sender_name, receiver_name: b.receiver_name ?? null,
-          sender_phone: b.sender_phone ?? null, status: b.status, pickup_date: b.pickup_date, pickup_area: b.pickup_area, pay_status: pay(b) })),
+          sender_phone: b.sender_phone ?? null, status: stageOf(b), pickup_date: b.pickup_date, pickup_area: b.pickup_area, pay_status: pay(b) })),
         parcels: parcelHits.slice(0, lim).map(({ p, b, w }) => ({ id: p.id, barcode: p.barcode, description: p.description ?? null, weight_kg: p.weight_kg, status: p.status,
           position: p.position ?? null, booking_id: p.booking_id, invoice_no: b?.invoice_no ?? null, booking_code: b?.code, sender_name: b?.sender_name, place: w?.name ?? null })),
         containers: containerHits.slice(0, lim).map((c) => ({ id: c.id, code: c.code, destination: c.destination ?? null, status: c.status })),
@@ -1365,7 +1371,7 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
           .sort((x, y) => x.created_at.localeCompare(y.created_at))
           .map((e) => ({ status: e.status, at: e.created_at })),
       }));
-    return { data: { code: b.code, invoice_no: b.invoice_no ?? null, status: b.status, booked_at: b.created_at, parcels }, error: null };
+    return { data: { code: b.code, invoice_no: b.invoice_no ?? null, status: stageOf(b), booked_at: b.created_at, parcels }, error: null };
   },
 };
 
