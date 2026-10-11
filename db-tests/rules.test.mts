@@ -374,3 +374,51 @@ test("the booking stage follows the parcels, for search and tracking too, even w
     assert.match((await db.error(() => db.anonymous("select stage(b) from bookings b limit 1"))) ?? "", /permission denied|does not exist/i);
   });
 });
+
+test("Customers and Accounts lists can be sorted in the database, safely, and a custom invoice number cannot break Accounts", { skip }, async () => {
+  await inTransaction(async (db) => {
+    await db.owner(readFileSync("supabase/migrations/0053_sortable_lists.sql", "utf8"));
+    const viewer = await db.person(["customers.view", "accounts.view", "bookings.view"]);
+    const make = async (name: string, phone: string, invoice: string, amount: number, daysAgo: number) => {
+      const id = await db.booking({ sender_name: name, sender_phone: phone, invoice_no: invoice });
+      await db.owner("update bookings set invoice_amount = $2, created_at = now() - ($3 || ' days')::interval where id = $1", [id, amount, String(daysAgo)]);
+      return id;
+    };
+    await make("SortTest Zed", "+971501000003", "INV-9001", 100, 1);
+    const zed2 = await make("SortTest Zed", "+971501000003", "INV-9002", 300, 2);
+    await make("SortTest Amy", "+971501000001", "INV-9010", 200, 3);
+    await make("SortTest Mid", "+971501000002", "T-OLD-5", 50, 4); // a custom number with no INV- prefix
+
+    // ---- customers
+    const names = async (sort: string | null, dir: string | null) =>
+      ((await db.as(viewer, "select search_customers('SortTest', 50, $1, $2) r", [sort, dir]))[0].r.customers as { full_name: string }[]).map((c) => c.full_name.replace("SortTest ", ""));
+    assert.deepEqual(await names(null, null), ["Amy", "Mid", "Zed"]); // the normal order is by name
+    assert.deepEqual(await names("name", "desc"), ["Zed", "Mid", "Amy"]);
+    assert.deepEqual(await names("phone", "desc"), ["Zed", "Mid", "Amy"]);
+    assert.deepEqual(await names("invoices", "desc"), ["Zed", "Amy", "Mid"]); // Zed has 2; the tie is broken by name
+    assert.deepEqual(await names("last_invoice", "desc"), ["Zed", "Amy", "Mid"]); // newest invoice first
+    assert.deepEqual(await names("last_invoice", "asc"), ["Mid", "Amy", "Zed"]);
+    assert.deepEqual(await names("name; drop table customers", "asc"), ["Amy", "Mid", "Zed"]); // anything not on the list is ignored
+    const zedRow = ((await db.as(viewer, "select list_customers(200, 0, 'name', 'asc') r"))[0].r.customers as { full_name: string; invoices: number; last_invoice: string | null }[]).find((c) => c.full_name === "SortTest Zed");
+    assert.equal(Number(zedRow?.invoices), 2);
+    assert.equal(zedRow?.last_invoice, "INV-9001"); // the latest invoice, as before
+
+    // ---- accounts
+    const pay = async (status: string, sort: string | null, dir: string | null) =>
+      (await db.as(viewer, "select r_invoice_no n from accounts_invoices($1, 'SortTest', 25, 0, $2, $3)", [status, sort, dir])).map((r) => r.n as string);
+    assert.deepEqual(await pay("all", null, null), ["INV-9010", "INV-9002", "INV-9001", "T-OLD-5"]); // normal: newest invoice first, no crash on T-OLD-5
+    assert.deepEqual(await pay("all", "invoice", "asc"), ["T-OLD-5", "INV-9001", "INV-9002", "INV-9010"]);
+    assert.deepEqual(await pay("all", "amount", "desc"), ["INV-9002", "INV-9010", "INV-9001", "T-OLD-5"]);
+    assert.deepEqual((await pay("all", "customer", "asc")).slice(0, 2), ["INV-9010", "T-OLD-5"]); // Amy, Mid, then Zed
+    assert.deepEqual(await pay("all", "x; drop table bookings", "asc"), ["INV-9010", "INV-9002", "INV-9001", "T-OLD-5"]);
+
+    await db.owner("insert into payments (booking_id, amount, method) values ($1, 300, 'cash')", [zed2]); // INV-9002 is now paid in full
+    const byStatus = await pay("all", "status", "asc"); // needing attention first, paid last
+    assert.equal(byStatus[byStatus.length - 1], "INV-9002");
+    assert.equal((await pay("all", "balance", "asc"))[0], "INV-9002"); // balance 0 first
+    assert.equal((await pay("outstanding", "amount", "desc"))[0], "INV-9010"); // the filter still applies with a sort
+
+    const noAccounts = await db.person(["customers.view"]);
+    assert.match((await db.error(() => db.as(noAccounts, "select accounts_invoices('all', null, 25, 0, 'amount', 'asc')"))) ?? "", /permission/i);
+  });
+});

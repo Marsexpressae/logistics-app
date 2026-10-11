@@ -14,6 +14,9 @@ import { matchesSearch } from "@/lib/search";
 import RowLimitNotice from "@/components/ui/RowLimitNotice";
 import { ErrorMessage, StatusBadge, inputClass, Loading, Notice } from "@/components/ui/form";
 import { useQuery } from "@/lib/hooks";
+import { SortSelect, SortableTh } from "@/components/ui/Sortable";
+import { STAGE_ORDER, orderOf, type SortColumn } from "@/lib/sort";
+import { useSort } from "@/lib/use-sort";
 import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
 import { formatDate, formatDay, money, totalPaid } from "@/lib/format";
@@ -32,6 +35,20 @@ const STATUS_FILTERS = [
   { value: "cancelled", label: "Cancelled" },
 ];
 
+// What each column sorts by. Status sorts by progress (booked ... delivered), and Payment by the amount still to pay.
+const balanceOf = (b: Booking) => (b.invoice_amount !== null ? Number(b.invoice_amount) - totalPaid(b.payments) : null);
+const COLUMNS: Record<string, SortColumn<Booking>> = {
+  code: { key: "code", label: "Code", value: (b) => b.code },
+  customer: { key: "customer", label: "Customer → Receiver", value: (b) => b.sender_name },
+  pickup: { key: "pickup", label: "Pickup", kind: "date", value: (b) => b.pickup_date },
+  area: { key: "area", label: "Area", value: (b) => b.pickup_area },
+  driver: { key: "driver", label: "Driver", value: (b) => b.driver?.name },
+  status: { key: "status", label: "Status", kind: "number", firstDir: "asc", words: ["Earliest stage first", "Latest stage first"], hint: "Sorts by progress, from booked to delivered", value: (b) => orderOf(STAGE_ORDER, b.stage ?? b.status) },
+  payment: { key: "payment", label: "Payment", kind: "number", words: ["Least to pay first", "Most to pay first"], hint: "Sorts by the amount still to pay", value: balanceOf },
+  created: { key: "created", label: "Created", kind: "date", value: (b) => b.created_at },
+};
+const COLUMN_LIST = Object.values(COLUMNS);
+
 function BookingsContent() {
   const { data, error, loading } = useQuery<Booking[]>(() =>
     supabase
@@ -47,7 +64,8 @@ function BookingsContent() {
   const created = params.get("created");
   const [status, setStatus] = useState(STATUS_FILTERS.some((f) => f.value === initial) ? initial : "all");
 
-  const rows = (data ?? []).filter(
+  const sort = useSort(COLUMN_LIST);
+  const filtered = (data ?? []).filter(
     (b) =>
       (status === "all" || (b.stage ?? b.status) === status) &&
       matchesSearch(
@@ -56,6 +74,7 @@ function BookingsContent() {
         [b.sender_phone, b.sender_whatsapp, b.receiver_phone, b.receiver_whatsapp]
       )
   );
+  const rows = sort.sorted(filtered);
   const win = useWindow(rows);
 
   return (
@@ -81,6 +100,7 @@ function BookingsContent() {
             </option>
           ))}
         </select>
+        <SortSelect sort={sort} />
       </div>
 
       {created && <Notice className="mb-3">Booking {created} created.</Notice>}
@@ -126,14 +146,9 @@ function BookingsContent() {
           <table className="w-full text-left text-sm">
             <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase text-slate-500">
               <tr>
-                <th className="px-4 py-3">Code</th>
-                <th className="px-4 py-3">Customer → Receiver</th>
-                <th className="px-4 py-3">Pickup</th>
-                <th className="px-4 py-3">Area</th>
-                <th className="px-4 py-3">Driver</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3">Payment</th>
-                <th className="px-4 py-3">Created</th>
+                {COLUMN_LIST.map((c) => (
+                  <SortableTh key={c.key} column={c} sort={sort} />
+                ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">

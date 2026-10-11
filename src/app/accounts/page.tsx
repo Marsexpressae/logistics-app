@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { ChevronRight, Search } from "lucide-react";
 import Chip from "@/components/ui/Chip";
@@ -12,6 +12,9 @@ import { useQuery } from "@/lib/hooks";
 import { supabase } from "@/lib/supabase";
 import { money } from "@/lib/format";
 import { useOrganization } from "@/lib/organization";
+import { SortSelect, SortableTh } from "@/components/ui/Sortable";
+import type { SortColumn } from "@/lib/sort";
+import { useSort } from "@/lib/use-sort";
 
 // Totals and the invoice list are computed in the database (see ADR-0007), so they stay correct at any size.
 type Summary = {
@@ -36,6 +39,28 @@ type InvoiceRow = {
 };
 
 const PAGE = 25;
+
+// The invoices are sorted by the database (they come one page at a time), so these only name the columns.
+// The normal order is the newest invoice first, which is what the first click on Invoice gives too.
+const INVOICE_COLUMNS: Record<string, SortColumn<InvoiceRow>> = {
+  invoice: { key: "invoice", label: "Invoice", kind: "number", hint: "Sorts by the invoice number" },
+  customer: { key: "customer", label: "Customer" },
+  amount: { key: "amount", label: "Amount", kind: "number" },
+  paid: { key: "paid", label: "Paid", kind: "number" },
+  balance: { key: "balance", label: "Balance", kind: "number", hint: "Sorts by the amount still to pay" },
+  status: { key: "status", label: "Status", kind: "number", firstDir: "asc", words: ["Needs attention first", "Paid first"], hint: "Unpaid first, then partly paid, paid, and no amount yet" },
+};
+const INVOICE_COLUMN_LIST = Object.values(INVOICE_COLUMNS);
+
+// The small "collected by" table is sorted here in the screen. Its own sort lives in ?csort=&cdir=, next to the invoices'.
+type Collection = Summary["collections"][number];
+const COLLECT_COLUMNS: Record<string, SortColumn<Collection>> = {
+  name: { key: "name", label: "Collected by", value: (c) => c.name },
+  cash: { key: "cash", label: "Cash", kind: "number", value: (c) => Number(c.cash) },
+  bank: { key: "bank", label: "Bank transfer", kind: "number", value: (c) => Number(c.bank) },
+  total: { key: "total", label: "Total", kind: "number", value: (c) => Number(c.cash) + Number(c.bank) },
+};
+const COLLECT_COLUMN_LIST = Object.values(COLLECT_COLUMNS);
 const FILTERS = [
   { value: "all", label: "All" },
   { value: "outstanding", label: "Outstanding" },
@@ -66,12 +91,14 @@ function StatCard({ label, value, note, onOpen, active }: { label: string; value
   );
 }
 
-export default function AccountsPage() {
+function AccountsContent() {
   const { org } = useOrganization();
   const [status, setStatus] = useState("all");
   const [text, setText] = useState("");
   const [search, setSearch] = useState(""); // the text, once typing pauses
   const [page, setPage] = useState(0);
+  const sort = useSort(INVOICE_COLUMN_LIST, { onChange: () => setPage(0) }); // a new sort starts again from page 1
+  const collectSort = useSort(COLLECT_COLUMN_LIST, { prefix: "c" });
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -83,8 +110,8 @@ export default function AccountsPage() {
 
   const summary = useQuery<Summary>(() => supabase.rpc("accounts_summary"));
   const invoices = useQuery<InvoiceRow[]>(
-    () => supabase.rpc("accounts_invoices", { p_status: status, p_search: search || null, p_limit: PAGE, p_offset: page * PAGE }),
-    [status, search, page]
+    () => supabase.rpc("accounts_invoices", { p_status: status, p_search: search || null, p_limit: PAGE, p_offset: page * PAGE, p_sort: sort.activeKey, p_dir: sort.dir }),
+    [status, search, page, sort.activeKey, sort.dir]
   );
 
   // A card sets the filter (or not) and scrolls to what it counts.
@@ -146,6 +173,7 @@ export default function AccountsPage() {
             className={`${inputClass} pl-9`}
           />
         </div>
+        <SortSelect sort={sort} />
       </div>
 
       {invoices.loading && !invoices.data ? (
@@ -188,12 +216,12 @@ export default function AccountsPage() {
             <table className="w-full text-left text-sm">
               <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase text-slate-500">
                 <tr>
-                  <th className="px-4 py-3">Invoice</th>
-                  <th className="px-4 py-3">Customer</th>
-                  <th className="px-4 py-3 text-right">Amount</th>
-                  <th className="px-4 py-3 text-right">Paid</th>
-                  <th className="px-4 py-3 text-right">Balance</th>
-                  <th className="px-4 py-3">Status</th>
+                  <SortableTh column={INVOICE_COLUMNS.invoice} sort={sort} />
+                  <SortableTh column={INVOICE_COLUMNS.customer} sort={sort} />
+                  <SortableTh column={INVOICE_COLUMNS.amount} sort={sort} align="right" />
+                  <SortableTh column={INVOICE_COLUMNS.paid} sort={sort} align="right" />
+                  <SortableTh column={INVOICE_COLUMNS.balance} sort={sort} align="right" />
+                  <SortableTh column={INVOICE_COLUMNS.status} sort={sort} />
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -242,14 +270,14 @@ export default function AccountsPage() {
           <table className="w-full text-left text-sm">
             <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase text-slate-500">
               <tr>
-                <th className="px-4 py-3">Collected by</th>
-                <th className="px-4 py-3 text-right">Cash</th>
-                <th className="px-4 py-3 text-right">Bank transfer</th>
-                <th className="px-4 py-3 text-right">Total</th>
+                <SortableTh column={COLLECT_COLUMNS.name} sort={collectSort} />
+                <SortableTh column={COLLECT_COLUMNS.cash} sort={collectSort} align="right" />
+                <SortableTh column={COLLECT_COLUMNS.bank} sort={collectSort} align="right" />
+                <SortableTh column={COLLECT_COLUMNS.total} sort={collectSort} align="right" />
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {s.collections.map((c) => (
+              {collectSort.sorted(s.collections).map((c) => (
                 <tr key={c.name}>
                   <td className="px-4 py-3">{c.name}</td>
                   <td className="px-4 py-3 text-right">{money(Number(c.cash))}</td>
@@ -268,5 +296,13 @@ export default function AccountsPage() {
         </div>
       )}
     </>
+  );
+}
+
+export default function AccountsPage() {
+  return (
+    <Suspense fallback={null}>
+      <AccountsContent />
+    </Suspense>
   );
 }

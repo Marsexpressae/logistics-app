@@ -11,10 +11,22 @@ import { matchesSearch } from "@/lib/search";
 import EmptyState from "@/components/ui/EmptyState";
 import { Button, Card, ErrorMessage, StatusBadge, inputClass } from "@/components/ui/form";
 import { useQuery } from "@/lib/hooks";
+import { SortSelect, SortableTh } from "@/components/ui/Sortable";
+import { CONTAINER_ORDER, orderOf, type SortColumn } from "@/lib/sort";
+import { useSort } from "@/lib/use-sort";
 import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
 import { formatDate } from "@/lib/format";
 import type { Container } from "@/lib/types";
+
+const parcelCount = (c: Container) => c.parcels?.[0]?.count ?? 0;
+const COLUMN_LIST: SortColumn<Container>[] = [
+  { key: "container", label: "Container", value: (c) => c.code },
+  { key: "destination", label: "Destination", value: (c) => c.destination },
+  { key: "parcels", label: "Parcels", kind: "number", value: parcelCount },
+  { key: "status", label: "Status", kind: "number", firstDir: "asc", words: ["Earliest stage first", "Latest stage first"], hint: "Sorts by progress: loading, departed, arrived", value: (c) => orderOf(CONTAINER_ORDER, c.status) },
+  { key: "departed", label: "Departed", kind: "date", value: (c) => c.departed_at },
+];
 
 function ContainersContent() {
   const router = useRouter();
@@ -28,7 +40,8 @@ function ContainersContent() {
   const initial = useSearchParams().get("status") ?? "all";
   const [status, setStatus] = useState(["loading", "departed", "arrived"].includes(initial) ? initial : "all");
   const [search, setSearch] = useState("");
-  const shown = (containers.data ?? []).filter((c) => (status === "all" || c.status === status) && matchesSearch(search, [c.code, c.destination]));
+  const sort = useSort(COLUMN_LIST);
+  const shown = sort.sorted((containers.data ?? []).filter((c) => (status === "all" || c.status === status) && matchesSearch(search, [c.code, c.destination])));
 
   async function create(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -64,6 +77,7 @@ function ContainersContent() {
             {f.label}
           </Chip>
         ))}
+        <SortSelect sort={sort} />
         <ListSearch value={search} onChange={setSearch} placeholder="Container or destination" className="ml-auto" />
       </div>
 
@@ -93,11 +107,9 @@ function ContainersContent() {
           <table className="w-full text-left text-sm">
             <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase text-slate-500">
               <tr>
-                <th className="px-4 py-3">Container</th>
-                <th className="px-4 py-3">Destination</th>
-                <th className="px-4 py-3">Parcels</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3">Departed</th>
+                {COLUMN_LIST.map((c) => (
+                  <SortableTh key={c.key} column={c} sort={sort} />
+                ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">

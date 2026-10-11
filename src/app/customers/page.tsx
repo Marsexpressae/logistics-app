@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { UserPlus } from "lucide-react";
@@ -17,10 +17,23 @@ import { formatPhone } from "@/lib/phone";
 import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
 import { confirmAction } from "@/lib/ask";
+import { SortSelect, SortableTh } from "@/components/ui/Sortable";
+import type { SortColumn } from "@/lib/sort";
+import { useSort } from "@/lib/use-sort";
 
 const PAGE = 50;
 
-export default function CustomersPage() {
+// The database does the sorting (the list is sent one page at a time), so these only name the columns.
+const COLUMNS: Record<string, SortColumn<CustomerHit>> = {
+  name: { key: "name", label: "Name" },
+  phone: { key: "phone", label: "Phone" },
+  address: { key: "address", label: "Address" },
+  invoices: { key: "invoices", label: "Invoices", kind: "number" },
+  last_invoice: { key: "last_invoice", label: "Last invoice", kind: "date", hint: "Sorts by the date of the latest invoice" },
+};
+const COLUMN_LIST = Object.values(COLUMNS);
+
+function CustomersContent() {
   const router = useRouter();
   const { can } = usePermissions();
   const canEdit = can("customers.edit");
@@ -36,10 +49,14 @@ export default function CustomersPage() {
     return () => clearTimeout(t);
   }, [text]);
 
+  const sort = useSort(COLUMN_LIST);
   const searching = q.replace(/\s/g, "").length >= 2;
   const list = useQuery<{ customers: CustomerHit[]; total: number }>(
-    () => (searching ? supabase.rpc("search_customers", { p_query: q, p_limit: PAGE }) : supabase.rpc("list_customers", { p_limit: PAGE, p_offset: 0 })) as never,
-    [q, searching]
+    () =>
+      (searching
+        ? supabase.rpc("search_customers", { p_query: q, p_limit: PAGE, p_sort: sort.activeKey, p_dir: sort.dir })
+        : supabase.rpc("list_customers", { p_limit: PAGE, p_offset: 0, p_sort: sort.activeKey, p_dir: sort.dir })) as never,
+    [q, searching, sort.activeKey, sort.dir]
   );
 
   const dupes = useQuery<DuplicateGroup[]>(() => supabase.rpc("possible_duplicates") as never, []);
@@ -84,6 +101,7 @@ export default function CustomersPage() {
             {t.label}
           </Chip>
         ))}
+        {tab === "all" && <SortSelect sort={sort} />}
         {tab === "all" && <ListSearch value={text} onChange={setText} placeholder="Name, mobile, Emirates ID or invoice" className="ml-auto" />}
       </div>
 
@@ -113,11 +131,11 @@ export default function CustomersPage() {
               <table className="w-full text-left text-sm">
                 <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase text-slate-500">
                   <tr>
-                    <th className="px-4 py-3">Name</th>
-                    <th className="px-4 py-3">Phone</th>
-                    <th className="px-4 py-3">Address</th>
-                    <th className="px-4 py-3 text-right">Invoices</th>
-                    <th className="px-4 py-3">Last invoice</th>
+                    <SortableTh column={COLUMNS.name} sort={sort} />
+                    <SortableTh column={COLUMNS.phone} sort={sort} />
+                    <SortableTh column={COLUMNS.address} sort={sort} />
+                    <SortableTh column={COLUMNS.invoices} sort={sort} align="right" />
+                    <SortableTh column={COLUMNS.last_invoice} sort={sort} />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -185,5 +203,13 @@ export default function CustomersPage() {
           </div>
         ))}
     </div>
+  );
+}
+
+export default function CustomersPage() {
+  return (
+    <Suspense fallback={null}>
+      <CustomersContent />
+    </Suspense>
   );
 }

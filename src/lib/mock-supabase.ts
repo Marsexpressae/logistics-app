@@ -4,6 +4,7 @@
 
 import { matchesSearch } from "./search.ts";
 import { bookingStage } from "./booking-stage.ts";
+import { sortRows, type SortColumn } from "./sort.ts";
 
 type Row = Record<string, any>;
 type Db = {
@@ -563,6 +564,19 @@ function customerRow(c: Row): Row {
   return { id: c.id, full_name: c.full_name, phone: c.phone, whatsapp: c.whatsapp, address: c.address, geo_lat: c.geo_lat, geo_lng: c.geo_lng, emirates_id: c.emirates_id,
     invoices: bs.length, last_invoice: bs[0] ? (bs[0].invoice_no ?? bs[0].code) : null };
 }
+// Sorting the customer list like the database functions do (a fixed list of columns; anything else means the normal order, by name).
+function sortCustomers(list: Row[], sort: string | null | undefined, dir: string | null | undefined): Row[] {
+  const latest = (c: Row) => linkedBookings(c.id).filter((b) => b.invoice_no).map((b) => String(b.created_at)).sort().pop() ?? null;
+  const columns: Record<string, SortColumn<Row>> = {
+    name: { key: "name", label: "Name", value: (c) => c.full_name },
+    phone: { key: "phone", label: "Phone", value: (c) => c.phone },
+    address: { key: "address", label: "Address", value: (c) => c.address },
+    invoices: { key: "invoices", label: "Invoices", kind: "number", value: (c) => linkedBookings(c.id).length },
+    last_invoice: { key: "last_invoice", label: "Last invoice", kind: "date", value: latest },
+  };
+  const column = (sort && columns[sort]) || columns.name;
+  return sortRows([...list].sort((a, b) => a.full_name.localeCompare(b.full_name)), column, String(dir ?? "asc").toLowerCase() === "desc" ? "desc" : "asc");
+}
 function customerHits(q: string): Row[] {
   return db().customers
     .filter((c) => matchesSearch(q, [c.full_name, c.address, c.emirates_id, ...linkedBookings(c.id).flatMap((b) => [b.invoice_no, b.code])], [c.phone, c.whatsapp]))
@@ -794,11 +808,11 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
     };
   },
 
-  accounts_invoices({ p_status = "all", p_search = null, p_limit = 25, p_offset = 0 }) {
+  accounts_invoices({ p_status = "all", p_search = null, p_limit = 25, p_offset = 0, p_sort = null, p_dir = null }) {
     const d = db();
     const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
     const q = String(p_search ?? "").trim().toLowerCase();
-    const list = d.bookings
+    const unsorted = d.bookings
       .filter((b) => b.invoice_no && (!q || [b.invoice_no, b.code, b.sender_name].some((v) => String(v ?? "").toLowerCase().includes(q))))
       .map((b) => {
         const paid = r2(d.payments.filter((p) => p.booking_id === b.id).reduce((s, p) => s + Number(p.amount), 0));
@@ -810,8 +824,22 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
         p_status === "all" ? true
         : p_status === "outstanding" ? ["unpaid", "partial"].includes(r.status) && r.b.status !== "cancelled"
         : p_status === "not_invoiced" ? r.status === "not_invoiced" && r.b.status !== "cancelled"
-        : r.status === p_status)
-      .sort((x, y) => Number(y.b.invoice_no.slice(4)) - Number(x.b.invoice_no.slice(4)));
+        : r.status === p_status);
+    // Sorting like the database: a fixed list of columns. The normal order is the newest invoice first, read from the number at the END of the invoice number.
+    type R = (typeof unsorted)[number];
+    const tail = (r: R) => { const m = String(r.b.invoice_no).match(/(\d+)\D*$/); return m ? Number(m[1]) : null; };
+    const balance = (r: R) => (r.amount === null ? null : Math.max(r2(r.amount - r.paid), 0));
+    const cols: Record<string, SortColumn<R>> = {
+      invoice: { key: "invoice", label: "Invoice", kind: "number", value: tail },
+      customer: { key: "customer", label: "Customer", value: (r) => r.b.sender_name },
+      amount: { key: "amount", label: "Amount", kind: "number", value: (r) => r.amount },
+      paid: { key: "paid", label: "Paid", kind: "number", value: (r) => r.paid },
+      balance: { key: "balance", label: "Balance", kind: "number", value: balance },
+      status: { key: "status", label: "Status", kind: "number", value: (r) => ["unpaid", "partial", "paid"].indexOf(r.status) === -1 ? 3 : ["unpaid", "partial", "paid"].indexOf(r.status) },
+    };
+    const picked = p_sort && cols[p_sort] ? cols[p_sort] : null;
+    const sorted = sortRows(sortRows(unsorted, cols.invoice, "desc"), picked ?? undefined, picked ? (String(p_dir ?? "asc").toLowerCase() === "desc" ? "desc" : "asc") : "desc");
+    const list = sorted;
     const page = list.slice(Math.max(p_offset, 0), Math.max(p_offset, 0) + Math.max(Math.min(p_limit, 100), 1));
     return {
       data: page.map((r) => ({
@@ -1119,15 +1147,15 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
     return { data: id, error: null };
   },
 
-  search_customers({ p_query, p_limit = 10 }) {
+  search_customers({ p_query, p_limit = 10, p_sort = null, p_dir = null }) {
     const q = String(p_query ?? "").trim();
     if (q.replace(/\s/g, "").length < 2) return { data: { customers: [], total: 0 }, error: null };
-    const hits = customerHits(q);
+    const hits = sortCustomers(customerHits(q), p_sort, p_dir);
     return { data: { customers: hits.slice(0, Math.max(1, Math.min(Number(p_limit) || 10, 50))).map(customerRow), total: hits.length }, error: null };
   },
 
-  list_customers({ p_limit = 50, p_offset = 0 }) {
-    const all = [...db().customers].sort((a, b) => a.full_name.localeCompare(b.full_name));
+  list_customers({ p_limit = 50, p_offset = 0, p_sort = null, p_dir = null }) {
+    const all = sortCustomers(db().customers, p_sort, p_dir);
     return { data: { customers: all.slice(Number(p_offset), Number(p_offset) + Number(p_limit)).map(customerRow), total: all.length }, error: null };
   },
 
