@@ -5,6 +5,7 @@
 import { matchesSearch } from "./search.ts";
 import { bookingStage } from "./booking-stage.ts";
 import { sortRows, type SortColumn } from "./sort.ts";
+import { moneyOf } from "./money.ts";
 
 type Row = Record<string, any>;
 type Db = {
@@ -12,10 +13,11 @@ type Db = {
   [table: string]: any;
   drivers: Row[]; warehouses: Row[]; bookings: Row[]; booking_items: Row[]; payments: Row[];
   containers: Row[]; parcels: Row[]; parcel_events: Row[]; profiles: Row[]; audit_log: Row[]; roles: Row[]; permissions: Row[]; role_permissions: Row[];
+  credit_notes: Row[]; credit_note_lines: Row[]; refunds: Row[];
   booking_events: Row[]; notifications: Row[]; app_settings: Row[]; returns: Row[]; booking_notes: Row[]; client_errors: Row[]; number_series: Row[]; organization: Row[]; customers: Row[]; booking_contacts: Row[]; customer_notes: Row[]; customer_receivers: Row[]; id_documents: Row[];
 };
 
-const STORAGE_KEY = "logistics-mock-db-v34";
+const STORAGE_KEY = "logistics-mock-db-v35";
 const AUTH_KEY = "logistics-mock-signed-out";
 
 const uid = () => crypto.randomUUID();
@@ -70,13 +72,15 @@ const PERMISSIONS: Row[] = [
   ["numbers.edit", "Bookings", "Set invoice and booking numbers", "Type a custom invoice or booking number, or change one, for example to match the accounting system"],
   ["items.edit", "Pickups", "Edit package items (before collection)", "Add, change or remove items and weights until the pickup is collected"],
   ["items.edit_after", "Pickups", "Edit package items (after collection)", "Add, change or remove items and weights after the pickup is collected"],
+  ["refunds.issue", "Accounts", "Issue refunds and credit notes", "Lower an invoice with a credit note and hand money back with a refund"],
+  ["refunds.void", "Accounts", "Void refunds and credit notes", "Cancel a credit note or refund that was made by mistake (the record stays, marked void)"],
 ].map(([key, group_name, label, description], i) => ({ key, group_name, label, description, sort: (i + 1) * 10 }));
 const GRANTS: Record<string, string[]> = {
   super_admin: PERMISSIONS.map((p) => p.key),
   manager: ["containers.override_payment", "containers.override_departure", "dashboard.view", "bookings.view", "bookings.create", "bookings.edit", "bookings.cancel", "pickups.view_all",
     "pickups.collect", "warehouse.view", "warehouse.manage", "containers.view", "containers.manage", "accounts.view",
     "payments.manage", "drivers.manage", "users.manage", "activity.view", "notifications.view", "bookings.reschedule",
-    "items.edit", "items.edit_after", "notes.write", "numbers.edit", "returns.manage", "customers.view", "customers.edit", "customers.manage", "customers.id_photo"],
+    "items.edit", "items.edit_after", "notes.write", "numbers.edit", "returns.manage", "customers.view", "customers.edit", "customers.manage", "customers.id_photo", "refunds.issue"],
   staff: ["dashboard.view", "bookings.view", "bookings.create", "bookings.edit", "bookings.cancel", "pickups.view_all",
     "pickups.collect", "warehouse.view", "containers.view", "accounts.view", "notifications.view", "bookings.reschedule", "items.edit", "items.edit_after", "notes.write", "customers.view", "customers.edit", "customers.id_photo"],
   accounts: ["dashboard.view", "notifications.view", "bookings.view", "customers.view", "accounts.view", "payments.manage"],
@@ -154,6 +158,7 @@ function seed(): Db {
     audit_log: [],
     booking_events: [],
     returns: [],
+    credit_notes: [], credit_note_lines: [], refunds: [],
     booking_notes: [],
     client_errors: [],
     organization: [{ id: uid(), legal_name: "", currency: "AED", country: "United Arab Emirates", updated_at: now() }],
@@ -162,6 +167,8 @@ function seed(): Db {
       { kind: "invoice", label: "Invoice numbers", sort: 20, prefix: "INV-", next_number: 1004, lookup_table: "bookings", lookup_column: "invoice_no" },
       { kind: "return", label: "Return numbers", sort: 30, prefix: "RT-", next_number: 1001, lookup_table: "returns", lookup_column: "code" },
       { kind: "container", label: "Container numbers", sort: 40, prefix: "CN-", next_number: 103, lookup_table: "containers", lookup_column: "code" },
+      { kind: "credit_note", label: "Credit note numbers", sort: 50, prefix: "CR-", next_number: 1001, lookup_table: "credit_notes", lookup_column: "number" },
+      { kind: "refund", label: "Refund numbers", sort: 60, prefix: "RF-", next_number: 1001, lookup_table: "refunds", lookup_column: "number" },
     ],
     app_settings: [{ key: "require_payment_before_loading", value: false, label: "Require payment before loading into a container",
       description: "When on, a parcel can only be loaded if its booking has an invoice amount and it is paid in full. People with \"Load without full payment\" can override it with a reason.", updated_at: now() },
@@ -520,6 +527,17 @@ function withDefaults(table: string, it: Row): Row {
 }
 const stripNull = (o: Row) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== null && v !== undefined));
 
+// ---------------------------------------------------------------- money (mirrors money_of() in migration 0054)
+const dubaiDay = (iso: string) => new Date(Date.parse(iso) + 4 * 3600_000).toISOString().slice(0, 10);
+function moneyFor(d: Db, b: Row) {
+  return moneyOf({
+    invoiceAmount: b.invoice_amount == null ? null : Number(b.invoice_amount),
+    payments: d.payments.filter((p) => p.booking_id === b.id).map((p) => Number(p.amount)),
+    credits: d.credit_notes.filter((c) => c.booking_id === b.id && c.status === "active").map((c) => Number(c.credit_amount)),
+    refunds: d.refunds.filter((r) => r.booking_id === b.id && r.status === "active").map((r) => Number(r.amount)),
+  });
+}
+
 // ---------------------------------------------------------------- RPC (mirrors the SQL functions)
 function setParcelStatus(p: Row, status: string) {
   p.status = status;
@@ -782,7 +800,7 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
   accounts_summary() {
     const d = db();
     const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
-    const rows = d.bookings.map((b) => ({ b, paid: r2(d.payments.filter((p) => p.booking_id === b.id).reduce((s, p) => s + Number(p.amount), 0)) }));
+    const rows = d.bookings.map((b) => ({ b, m: moneyFor(d, b) }));
     const live = rows.filter((r) => r.b.status !== "cancelled");
     const withAmount = live.filter((r) => r.b.invoice_amount != null);
     const noAmount = live.filter((r) => r.b.invoice_no && r.b.invoice_amount == null);
@@ -795,14 +813,20 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
       else row.bank = r2(row.bank + Number(p.amount));
       byWho.set(key, row);
     }
+    const refunds = d.refunds.filter((r) => r.status === "active");
+    const refunded = (method: (m: string) => boolean) => r2(refunds.filter((r) => method(r.method)).reduce((s, r) => s + Number(r.amount), 0));
     return {
       data: {
-        invoiced: r2(withAmount.reduce((s, r) => s + Number(r.b.invoice_amount), 0)),
-        collected: r2(rows.reduce((s, r) => s + r.paid, 0)),
-        outstanding: r2(withAmount.reduce((s, r) => s + Math.max(Number(r.b.invoice_amount) - r.paid, 0), 0)),
+        invoiced: r2(withAmount.reduce((s, r) => s + Number(r.m.invoice_now), 0)),
+        collected: r2(rows.reduce((s, r) => s + r.m.paid, 0)),
+        outstanding: r2(withAmount.reduce((s, r) => s + Number(r.m.balance_due), 0)),
+        refunded: r2(refunds.reduce((s, r) => s + Number(r.amount), 0)),
+        refund_due_count: rows.filter((r) => r.m.refund_due > 0).length,
+        refund_due_amount: r2(rows.reduce((s, r) => s + r.m.refund_due, 0)),
         no_amount_count: noAmount.length,
         estimated_pending: r2(noAmount.reduce((s, r) => s + Number(r.b.estimated_bill ?? 0), 0)),
         collections: [...byWho.values()].sort((a, b) => a.name.localeCompare(b.name)),
+        refunds: { cash: refunded((m) => m === "cash"), bank: refunded((m) => m !== "cash") },
       },
       error: null,
     };
@@ -815,10 +839,8 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
     const unsorted = d.bookings
       .filter((b) => b.invoice_no && (!q || [b.invoice_no, b.code, b.sender_name].some((v) => String(v ?? "").toLowerCase().includes(q))))
       .map((b) => {
-        const paid = r2(d.payments.filter((p) => p.booking_id === b.id).reduce((s, p) => s + Number(p.amount), 0));
-        const amount = b.invoice_amount == null ? null : Number(b.invoice_amount);
-        const status = amount === null ? "not_invoiced" : amount - paid <= 0 ? "paid" : paid > 0 ? "partial" : "unpaid";
-        return { b, paid, amount, status };
+        const m = moneyFor(d, b);
+        return { b, paid: m.paid, amount: m.invoice_now, balance: m.balance_due, status: m.pay_status as string, credited: b.invoice_amount == null ? 0 : r2(Number(b.invoice_amount) - Number(m.invoice_now)) };
       })
       .filter((r) =>
         p_status === "all" ? true
@@ -828,14 +850,14 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
     // Sorting like the database: a fixed list of columns. The normal order is the newest invoice first, read from the number at the END of the invoice number.
     type R = (typeof unsorted)[number];
     const tail = (r: R) => { const m = String(r.b.invoice_no).match(/(\d+)\D*$/); return m ? Number(m[1]) : null; };
-    const balance = (r: R) => (r.amount === null ? null : Math.max(r2(r.amount - r.paid), 0));
+    const rank = ["refund_due", "unpaid", "partial", "paid", "credited"];
     const cols: Record<string, SortColumn<R>> = {
       invoice: { key: "invoice", label: "Invoice", kind: "number", value: tail },
       customer: { key: "customer", label: "Customer", value: (r) => r.b.sender_name },
       amount: { key: "amount", label: "Amount", kind: "number", value: (r) => r.amount },
       paid: { key: "paid", label: "Paid", kind: "number", value: (r) => r.paid },
-      balance: { key: "balance", label: "Balance", kind: "number", value: balance },
-      status: { key: "status", label: "Status", kind: "number", value: (r) => ["unpaid", "partial", "paid"].indexOf(r.status) === -1 ? 3 : ["unpaid", "partial", "paid"].indexOf(r.status) },
+      balance: { key: "balance", label: "Balance", kind: "number", value: (r) => r.balance },
+      status: { key: "status", label: "Status", kind: "number", value: (r) => (rank.indexOf(r.status) === -1 ? rank.length : rank.indexOf(r.status)) },
     };
     const picked = p_sort && cols[p_sort] ? cols[p_sort] : null;
     const sorted = sortRows(sortRows(unsorted, cols.invoice, "desc"), picked ?? undefined, picked ? (String(p_dir ?? "asc").toLowerCase() === "desc" ? "desc" : "asc") : "desc");
@@ -844,10 +866,98 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
     return {
       data: page.map((r) => ({
         r_booking_id: r.b.id, r_invoice_no: r.b.invoice_no, r_code: r.b.code, r_customer: r.b.sender_name, r_amount: r.amount, r_paid: r.paid,
-        r_balance: r.amount === null ? null : Math.max(r2(r.amount - r.paid), 0), r_booking_status: r.b.status, r_pay_status: r.status, r_total: list.length,
+        r_balance: r.balance, r_booking_status: r.b.status, r_pay_status: r.status, r_total: list.length, r_credited: r.credited,
       })),
       error: null,
     };
+  },
+
+  // Refunds and credit notes: the same rules as the database functions in migration 0054.
+  booking_money({ p_booking: id }) {
+    const b = db().bookings.find((x) => x.id === id);
+    return b ? { data: moneyFor(db(), b), error: null } : fail("Booking not found");
+  },
+
+  issue_credit_note({ p_booking_id, p_reason, p_lines, p_date = null, p_return_id = null }) {
+    const d = db();
+    const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
+    const b = d.bookings.find((x) => x.id === p_booking_id);
+    if (!b) return fail("Booking not found");
+    if (b.status === "cancelled") return fail("A cancelled booking cannot be credited");
+    if (!["collected", "at_warehouse"].includes(b.status)) return fail("Credit notes are only for bookings that have been collected");
+    if (b.invoice_amount == null || !b.invoice_no) return fail("This booking has no invoice amount yet");
+    if (!String(p_reason ?? "").trim()) return fail("A reason is required");
+    if (p_lines != null && !Array.isArray(p_lines)) return fail("The kept services must be a list");
+    let newTotal = 0;
+    for (const l of p_lines ?? []) {
+      if (!["transport", "packing", "labour", "other"].includes(l?.category)) return fail("Choose a category for each kept service: transport, packing, labour or other");
+      const amount = r2(Number(l.amount ?? 0));
+      if (!(amount > 0)) return fail("Each kept service needs an amount above zero");
+      newTotal = r2(newTotal + amount);
+    }
+    const oldTotal = Number(moneyFor(d, b).invoice_now);
+    if (newTotal >= oldTotal) return fail(`The new invoice total must be below the current total (${oldTotal})`);
+    const today = dubaiDay(now());
+    const day = p_date ?? today;
+    if (day > today) return fail("The date cannot be in the future");
+    if (b.collected_at && day < dubaiDay(b.collected_at)) return fail(`The date cannot be before the collection day (${dubaiDay(b.collected_at)})`);
+    if (p_return_id && !d.returns.some((r) => r.id === p_return_id && r.booking_id === p_booking_id)) return fail("That return belongs to another booking");
+    const row = { id: uid(), number: takeNumber("credit_note"), booking_id: b.id, invoice_no: b.invoice_no, return_id: p_return_id, note_date: day, reason: String(p_reason).trim(),
+      old_total: oldTotal, new_total: newTotal, credit_amount: r2(oldTotal - newTotal), status: "active", void_reason: null, voided_at: null, voided_by_name: null,
+      created_by_name: "You (sample data)", created_at: now() };
+    d.credit_notes.push(row);
+    for (const l of p_lines ?? []) d.credit_note_lines.push({ id: uid(), credit_note_id: row.id, category: l.category, amount: r2(Number(l.amount)), note: String(l.note ?? "").trim() || null });
+    save();
+    return { data: row.id, error: null };
+  },
+
+  record_refund({ p_booking_id, p_credit_note_id = null, p_amount, p_method, p_date = null, p_note = null }) {
+    const d = db();
+    const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
+    const b = d.bookings.find((x) => x.id === p_booking_id);
+    if (!b) return fail("Booking not found");
+    const amount = r2(Number(p_amount ?? 0));
+    if (!(amount > 0)) return fail("The refund amount must be above zero");
+    if (!["cash", "bank_transfer"].includes(p_method)) return fail("The method must be cash or bank transfer");
+    const today = dubaiDay(now());
+    const day = p_date ?? today;
+    if (day > today) return fail("The date cannot be in the future");
+    if (b.collected_at && day < dubaiDay(b.collected_at)) return fail(`The date cannot be before the collection day (${dubaiDay(b.collected_at)})`);
+    if (p_credit_note_id) {
+      const cn = d.credit_notes.find((x) => x.id === p_credit_note_id);
+      if (!cn || cn.booking_id !== p_booking_id) return fail("That credit note belongs to another booking");
+      if (cn.status !== "active") return fail("That credit note has been voided");
+    }
+    const due = moneyFor(d, b).refund_due;
+    if (due <= 0) return fail("There is no refund due on this booking");
+    if (amount > due) return fail(`That is more than the refund due (${due})`);
+    const row = { id: uid(), number: takeNumber("refund"), booking_id: b.id, credit_note_id: p_credit_note_id, amount, method: p_method, refund_date: day,
+      note: String(p_note ?? "").trim() || null, handed_by_name: "You (sample data)", status: "active", void_reason: null, voided_at: null, voided_by_name: null, created_at: now() };
+    d.refunds.push(row);
+    save();
+    return { data: row.id, error: null };
+  },
+
+  void_refund({ p_id, p_reason }) {
+    const r = db().refunds.find((x) => x.id === p_id);
+    if (!r) return fail("Refund not found");
+    if (!String(p_reason ?? "").trim()) return fail("A reason is required");
+    if (r.status === "void") return fail("This refund is already void");
+    Object.assign(r, { status: "void", void_reason: String(p_reason).trim(), voided_at: now(), voided_by_name: "You (sample data)" });
+    save();
+    return { data: null, error: null };
+  },
+
+  void_credit_note({ p_id, p_reason }) {
+    const d = db();
+    const c = d.credit_notes.find((x) => x.id === p_id);
+    if (!c) return fail("Credit note not found");
+    if (!String(p_reason ?? "").trim()) return fail("A reason is required");
+    if (c.status === "void") return fail("This credit note is already void");
+    if (d.refunds.some((r) => r.credit_note_id === p_id && r.status === "active")) return fail("Void the refund first: an active refund was paid on this credit note");
+    Object.assign(c, { status: "void", void_reason: String(p_reason).trim(), voided_at: now(), voided_by_name: "You (sample data)" });
+    save();
+    return { data: null, error: null };
   },
 
   // Warehouses: the same rules as add_warehouse(), update_warehouse() and delete_warehouse().
@@ -1194,11 +1304,10 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
     const empty = { bookings: [], parcels: [], containers: [], customers: [], bookings_total: 0, parcels_total: 0, containers_total: 0, customers_total: 0 };
     if (q.replace(/\s/g, "").length < 2) return { data: empty, error: null };
     const lim = Math.max(1, Math.min(Number(p_limit) || 6, 50));
-    const paid = (id: string) => d.payments.filter((p) => p.booking_id === id).reduce((s, p) => s + Number(p.amount), 0);
     const hits = d.bookings
       .filter((b) => matchesSearch(q, [b.invoice_no, b.code, b.sender_name, b.receiver_name, b.pickup_area, b.pickup_address, b.receiver_address, b.notes], PHONE_FIELDS(b)))
       .sort((x, y) => String(y.created_at).localeCompare(String(x.created_at)));
-    const pay = (b: Row) => (!b.invoice_no ? null : b.invoice_amount == null ? "not_invoiced" : Number(b.invoice_amount) - paid(b.id) <= 0 ? "paid" : paid(b.id) > 0 ? "partial" : "unpaid");
+    const pay = (b: Row) => (!b.invoice_no ? null : moneyFor(d, b).pay_status);
     const parcelHits = d.parcels
       .filter((p) => p.status !== "repacked")
       .map((p) => ({ p, b: d.bookings.find((x) => x.id === p.booking_id)!, w: d.warehouses.find((x) => x.id === p.warehouse_id) }))
@@ -1371,6 +1480,7 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
     if (!String(p_reason ?? "").trim()) return fail("A cancellation reason is required");
     if (d.parcels.some((p) => p.booking_id === p_booking_id))
       return fail("Booking already has parcels in the warehouse and cannot be cancelled");
+    if (d.payments.some((p) => p.booking_id === p_booking_id)) return fail("Payments exist. Use a credit note and refund instead of cancelling.");
     const b = d.bookings.find((x) => x.id === p_booking_id && ["booked", "collected"].includes(x.status));
     if (!b) return fail("Only booked or collected bookings can be cancelled");
     b.status = "cancelled";

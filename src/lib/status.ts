@@ -14,6 +14,8 @@ export const STATUS: Record<string, { label: string; className: string }> = {
   unpaid: { label: "Unpaid", className: "bg-red-100 text-red-700" },
   partial: { label: "Partially paid", className: "bg-amber-100 text-amber-800" },
   paid: { label: "Paid", className: "bg-green-100 text-green-800" },
+  refund_due: { label: "Refund due", className: "bg-amber-100 text-amber-800" },
+  credited: { label: "Fully credited", className: "bg-slate-100 text-slate-700" },
   open: { label: "Open", className: "bg-orange-100 text-orange-800" },
   completed: { label: "Completed", className: "bg-green-100 text-green-800" },
   delivered: { label: "Delivered", className: "bg-green-100 text-green-800" },

@@ -21,6 +21,55 @@ export type Payment = {
   created_at: string;
 };
 
+export type PayStatus = "not_invoiced" | "refund_due" | "credited" | "paid" | "partial" | "unpaid";
+
+/** The money of a booking: what booking_money() in the database returns. */
+export type Money = {
+  invoice_now: number | null; // the invoice amount minus credits
+  paid: number; // payments received minus refunds handed back
+  balance_due: number | null;
+  refund_due: number; // owed back to the customer
+  pay_status: PayStatus;
+};
+
+export type CreditCategory = "transport" | "packing" | "labour" | "other";
+export type CreditNoteLine = { id: string; credit_note_id: string; category: CreditCategory; amount: number; note: string | null };
+export type CreditNote = {
+  id: string;
+  number: string;
+  booking_id: string;
+  invoice_no: string;
+  return_id: string | null;
+  note_date: string;
+  reason: string;
+  old_total: number;
+  new_total: number;
+  credit_amount: number;
+  status: "active" | "void";
+  void_reason: string | null;
+  voided_at: string | null;
+  voided_by_name: string | null;
+  created_by_name: string | null;
+  created_at: string;
+  lines?: CreditNoteLine[];
+};
+export type Refund = {
+  id: string;
+  number: string;
+  booking_id: string;
+  credit_note_id: string | null;
+  amount: number;
+  method: PaymentMethod;
+  refund_date: string;
+  note: string | null;
+  handed_by_name: string | null;
+  status: "active" | "void";
+  void_reason: string | null;
+  voided_at: string | null;
+  voided_by_name: string | null;
+  created_at: string;
+};
+
 export type BookingItem = {
   id: string;
   booking_id: string;

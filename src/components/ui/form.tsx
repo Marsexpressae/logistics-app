@@ -1,5 +1,5 @@
 import type { ButtonHTMLAttributes, ReactNode } from "react";
-import { Ban, CheckCircle2, CircleDollarSign, Clock, Container, FileQuestion, PackageCheck, Truck, Undo2, Warehouse, type LucideIcon } from "lucide-react";
+import { Ban, CheckCircle2, CircleDollarSign, Clock, Container, FileMinus, FileQuestion, PackageCheck, Truck, Undo2, Warehouse, type LucideIcon } from "lucide-react";
 import { STATUS } from "@/lib/status";
 
 export const inputClass =
@@ -40,7 +40,7 @@ const STATUS_ICON: Record<string, LucideIcon> = {
   booked: Clock, collected: PackageCheck, repacked: PackageCheck, at_warehouse: Warehouse, in_warehouse: Warehouse,
   loaded: Container, in_transit: Truck, ready_for_return: Undo2, returned: CheckCircle2, cancelled: Ban, open: Clock,
   completed: CheckCircle2, delivered: CheckCircle2, loading: Container, departed: Truck, arrived: CheckCircle2,
-  not_invoiced: FileQuestion, unpaid: CircleDollarSign, partial: CircleDollarSign, paid: CheckCircle2,
+  not_invoiced: FileQuestion, unpaid: CircleDollarSign, partial: CircleDollarSign, paid: CheckCircle2, refund_due: Undo2, credited: FileMinus,
 };
 
 export function StatusBadge({ status, large = false }: { status: string; large?: boolean }) {
