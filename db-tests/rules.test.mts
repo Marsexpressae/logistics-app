@@ -602,3 +602,66 @@ test("issue_credit_note: refuses what the rules do not allow", { skip }, async (
     assert.equal((await db.owner("select count(*)::int n from credit_notes where booking_id = any($1::uuid[])", [[ok, notCollected, noAmount, cancelled, other]]))[0].n, 0);
   });
 });
+
+// ---- record_refund
+const refundIt = (db: Db, who: string, booking: string, creditId: string | null, amount: number, method = "cash", date: string | null = null, note: string | null = null) =>
+  db.as(who, "select record_refund($1, $2::uuid, $3::numeric, $4, $5::date, $6) id", [booking, creditId, amount, method, date, note]);
+const ISSUER = ["refunds.issue", "accounts.view", "bookings.view"];
+
+test("record_refund: refunds never exceed refund due, however they are split", { skip }, async () => {
+  await inTransaction(async (db) => {
+    await db.owner(readFileSync(MONEY_MIGRATION, "utf8"));
+    const issuer = await db.person(ISSUER, "issuer");
+    const booking = await moneyBooking(db);
+    await addPayment(db, booking, 1000);
+    const credit = (await issueCredit(db, issuer, booking, "Parcels returned", KEPT))[0].id as string; // 350 is now owed back
+    assert.match((await db.error(() => refundIt(db, issuer, booking, credit, 350.01))) ?? "NOT REFUSED", /more than/);
+    const first = (await refundIt(db, issuer, booking, credit, 200, "bank_transfer", null, "first part"))[0].id as string;
+    assert.match((await db.error(() => refundIt(db, issuer, booking, credit, 200))) ?? "NOT REFUSED", /more than/);
+    await refundIt(db, issuer, booking, credit, 150);
+    assert.deepEqual(await moneyOf(db, booking), { invoice_now: 650, paid: 650, balance_due: 0, refund_due: 0, pay_status: "paid" });
+    const row = (await db.owner("select number, method, status, handed_by_name, note, credit_note_id from refunds where id = $1", [first]))[0];
+    assert.match(row.number, /^RF-\d+$/);
+    assert.deepEqual([row.method, row.status, row.handed_by_name, row.note, row.credit_note_id], ["bank_transfer", "active", "Test issuer", "first part", credit]);
+  });
+});
+
+test("record_refund: no refund when nothing is due, and a plain overpayment can be refunded without a credit note", { skip }, async () => {
+  await inTransaction(async (db) => {
+    await db.owner(readFileSync(MONEY_MIGRATION, "utf8"));
+    const issuer = await db.person(ISSUER, "issuer");
+    const exact = await moneyBooking(db);
+    await addPayment(db, exact, 1000);
+    assert.match((await db.error(() => refundIt(db, issuer, exact, null, 1))) ?? "NOT REFUSED", /no refund due/i);
+    const over = await moneyBooking(db);
+    await addPayment(db, over, 1100);
+    assert.equal((await moneyOf(db, over)).refund_due, 100);
+    await refundIt(db, issuer, over, null, 100);
+    assert.deepEqual(await moneyOf(db, over), { invoice_now: 1000, paid: 1000, balance_due: 0, refund_due: 0, pay_status: "paid" });
+  });
+});
+
+test("record_refund: refuses what the rules do not allow", { skip }, async () => {
+  await inTransaction(async (db) => {
+    await db.owner(readFileSync(MONEY_MIGRATION, "utf8"));
+    const issuer = await db.person(ISSUER, "issuer");
+    const booking = await moneyBooking(db);
+    await addPayment(db, booking, 1000);
+    const credit = (await issueCredit(db, issuer, booking, "x", KEPT))[0].id as string;
+    const refused = async (label: string, run: () => Promise<unknown>, expect: RegExp) => assert.match((await db.error(run)) ?? "NOT REFUSED", expect, label);
+    await refused("zero", () => refundIt(db, issuer, booking, credit, 0), /above zero/);
+    await refused("negative", () => refundIt(db, issuer, booking, credit, -5), /above zero/);
+    await refused("method", () => refundIt(db, issuer, booking, credit, 10, "card"), /method/);
+    await refused("future", async () => refundIt(db, issuer, booking, credit, 10, "cash", await daysFromToday(db, 2)), /future/);
+    await refused("before the collection day", async () => refundIt(db, issuer, booking, credit, 10, "cash", await daysFromToday(db, -9)), /before the collection/);
+    const other = await moneyBooking(db);
+    await addPayment(db, other, 1000);
+    await refused("a credit note of another booking", () => refundIt(db, issuer, other, credit, 10), /belongs to another booking/);
+    await db.owner("update credit_notes set status = 'void' where id = $1", [credit]);
+    await refused("a voided credit note", () => refundIt(db, issuer, booking, credit, 10), /voided/);
+    await db.owner("update credit_notes set status = 'active' where id = $1", [credit]);
+    const noPermission = await db.person(["accounts.view", "bookings.view"], "viewer");
+    await refused("no permission", () => refundIt(db, noPermission, booking, credit, 10), /permission/i);
+    assert.equal((await db.owner("select count(*)::int n from refunds where booking_id = any($1::uuid[])", [[booking, other]]))[0].n, 0);
+  });
+});

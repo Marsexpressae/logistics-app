@@ -206,3 +206,49 @@ begin
 end $$;
 revoke execute on function issue_credit_note(uuid, text, jsonb, date, uuid) from public, anon;
 grant execute on function issue_credit_note(uuid, text, jsonb, date, uuid) to authenticated;
+
+-- ---------- recording a refund ----------
+-- Money handed back. It can never be more than the refund due at that moment (worked out while the booking is locked,
+-- so two people cannot refund the same money at once). It can follow a credit note, or refund a plain overpayment.
+create or replace function record_refund(p_booking_id uuid, p_credit_note_id uuid, p_amount numeric, p_method text, p_date date default null, p_note text default null)
+returns uuid language plpgsql security definer set search_path = public as $$
+declare
+  b bookings;
+  today date := (now() at time zone 'Asia/Dubai')::date;
+  day date;
+  amount numeric := round(coalesce(p_amount, 0), 2);
+  due numeric;
+  cn credit_notes;
+  rf_id uuid;
+  actor uuid := auth.uid();
+begin
+  perform require_perm('refunds.issue');
+  select * into b from bookings where id = p_booking_id for update;
+  if not found then raise exception 'Booking not found'; end if;
+  if amount <= 0 then raise exception 'The refund amount must be above zero'; end if;
+  if p_method is null or p_method not in ('cash', 'bank_transfer') then raise exception 'The method must be cash or bank transfer'; end if;
+
+  day := coalesce(p_date, today);
+  if day > today then raise exception 'The date cannot be in the future'; end if;
+  if b.collected_at is not null and day < (b.collected_at at time zone 'Asia/Dubai')::date then
+    raise exception 'The date cannot be before the collection day (%)', (b.collected_at at time zone 'Asia/Dubai')::date;
+  end if;
+
+  if p_credit_note_id is not null then
+    select * into cn from credit_notes where id = p_credit_note_id;
+    if not found or cn.booking_id <> p_booking_id then raise exception 'That credit note belongs to another booking'; end if;
+    if cn.status <> 'active' then raise exception 'That credit note has been voided'; end if;
+  end if;
+
+  due := (select m.refund_due from money_of(p_booking_id) m);
+  if coalesce(due, 0) <= 0 then raise exception 'There is no refund due on this booking'; end if;
+  if amount > due then raise exception 'That is more than the refund due (%)', due; end if;
+
+  insert into refunds (number, booking_id, credit_note_id, amount, method, refund_date, note, handed_by, handed_by_name)
+  values (take_next_number('refund'), b.id, p_credit_note_id, amount, p_method, day, nullif(btrim(coalesce(p_note, '')), ''),
+          actor, (select full_name from profiles where id = actor))
+  returning id into rf_id;
+  return rf_id;
+end $$;
+revoke execute on function record_refund(uuid, uuid, numeric, text, date, text) from public, anon;
+grant execute on function record_refund(uuid, uuid, numeric, text, date, text) to authenticated;
