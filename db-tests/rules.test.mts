@@ -865,11 +865,9 @@ test("payment before loading: a credit note settles the balance, and a refund re
 });
 
 // ---------------- parcel edits: add, merge and split ----------------
-const PARCEL_EDIT_MIGRATION = "supabase/migrations/0058_edit_parcels.sql";
 
 /** A collected booking received into a warehouse as three parcels (P1, P2, P3), and a person who may edit parcels. */
 async function receivedBooking(db: Db) {
-  await db.owner(readFileSync(PARCEL_EDIT_MIGRATION, "utf8"));
   const worker = await db.person(["warehouse.view", "warehouse.manage"], "parcel-worker");
   const booking = await db.booking({ invoice_no: "T-PE-" + Math.floor(Math.random() * 1e6) });
   await db.owner("update bookings set status = 'collected', collected_at = now() - interval '3 days' where id = $1", [booking]);
