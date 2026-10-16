@@ -137,3 +137,20 @@ test("the Warehouse page offers Merge and Split to people who may edit parcels, 
   const panel = readFileSync("src/components/warehouse/ParcelEditPanel.tsx", "utf8");
   assert.ok(panel.includes('"edit_parcels"') && panel.includes("confirmAction"));
 });
+
+test("after saving, the panel shows the new labels and links to a label print page", async () => {
+  const { readFileSync, existsSync } = await import("node:fs");
+  const panel = readFileSync("src/components/warehouse/ParcelEditPanel.tsx", "utf8");
+  assert.ok(panel.includes("ParcelLabel") && panel.includes("Print labels") && panel.includes("/warehouse-inventory/labels?ids="));
+  const page = "src/app/warehouse-inventory/labels/page.tsx";
+  assert.ok(existsSync(page), "the label print page exists");
+  const code = readFileSync(page, "utf8");
+  assert.ok(code.includes("ParcelLabel") && code.includes("window.print()") && code.includes('can("documents.print")') && code.includes("print:hidden"));
+});
+
+test("the booking history labels parcel edits, never as Cancelled", async () => {
+  const { readFileSync } = await import("node:fs");
+  const code = readFileSync("src/components/bookings/ScheduleHistory.tsx", "utf8");
+  assert.ok(code.includes('"parcels_edited"') && code.includes("Parcels changed"));
+  assert.ok(readFileSync("src/lib/types.ts", "utf8").includes('"parcels_edited"'));
+});

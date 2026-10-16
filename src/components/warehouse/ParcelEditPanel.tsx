@@ -1,12 +1,15 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { Plus, X } from "lucide-react";
+import Link from "next/link";
+import { Plus, Printer, X } from "lucide-react";
 import { Button, Card, ErrorMessage, Field, inputClass } from "@/components/ui/form";
 import { confirmAction } from "@/lib/ask";
 import { kg, round2 } from "@/lib/format";
+import ParcelLabel from "@/components/ui/ParcelLabel";
+import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
-import type { Warehouse } from "@/lib/types";
+import type { Parcel, Warehouse } from "@/lib/types";
 import type { StockParcel } from "@/components/warehouse/types";
 
 export type EditMode = "add" | "merge" | "split";
@@ -17,12 +20,13 @@ type Row = { description: string; weight: string };
  * it retires the chosen parcels and makes the new ones with new labels; parcels that are not touched keep their label.
  * For "add" `parcels` is empty; for "merge" it holds two or more; for "split" exactly one.
  */
-export default function ParcelEditPanel({ mode, booking, parcels, warehouses, onDone }: {
+export default function ParcelEditPanel({ mode, booking, parcels, warehouses, onSaved, onDone }: {
   mode: EditMode;
   booking: { id: string; code: string };
   parcels: StockParcel[];
   warehouses: Warehouse[];
-  onDone: () => void;
+  onSaved: () => void; // the change is saved: the stock behind the panel can be reloaded
+  onDone: () => void; // the panel is closed
 }) {
   const retiredWeight = round2(parcels.reduce((t, p) => t + Number(p.weight_kg), 0));
   const active = warehouses.filter((w) => w.active !== false);
@@ -34,6 +38,8 @@ export default function ParcelEditPanel({ mode, booking, parcels, warehouses, on
   const [warehouseId, setWarehouseId] = useState(active[0]?.id ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [created, setCreated] = useState<Parcel[] | null>(null); // the new parcels, shown with their labels after saving
+  const canPrint = usePermissions().can("documents.print");
 
   const short = (barcode: string) => barcode.slice(booking.code.length + 1);
   const retiredLabels = parcels.map((p) => short(p.barcode)).join(", ");
@@ -61,9 +67,40 @@ export default function ParcelEditPanel({ mode, booking, parcels, warehouses, on
       p_warehouse_id: mode === "add" ? warehouseId : null,
       p_date: null,
     });
+    if (error) {
+      setBusy(false);
+      return setError(error.message);
+    }
+    // the new parcels are the in-warehouse ones of the booking's newest round
+    const { data } = await supabase.from("parcels").select("*, warehouse:warehouses(code)").eq("booking_id", booking.id).eq("status", "in_warehouse");
     setBusy(false);
-    if (error) return setError(error.message);
-    onDone();
+    const all = (data ?? []) as Parcel[];
+    const newest = Math.max(0, ...all.map((p) => p.round ?? 1));
+    setCreated(all.filter((p) => (p.round ?? 1) === newest).sort((a, b) => a.seq - b.seq));
+    onSaved();
+  }
+
+  if (created) {
+    return (
+      <Card title={`Done · ${booking.code}`} className="mb-3">
+        <p role="status" className="mb-3 rounded-md bg-green-50 px-3 py-2 text-sm text-green-800">
+          {created.length === 1 ? "New parcel" : "New parcels"}: {created.map((p) => short(p.barcode)).join(", ")}. The other parcels keep their labels.
+        </p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {created.map((p) => (
+            <ParcelLabel key={p.id} barcode={p.barcode} description={p.description} weightKg={p.weight_kg} warehouse={p.warehouse?.code} />
+          ))}
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {canPrint && (
+            <Link href={`/warehouse-inventory/labels?ids=${created.map((p) => p.id).join(",")}`} className="inline-flex min-h-11 items-center gap-2 rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white">
+              <Printer className="h-4 w-4" /> Print labels
+            </Link>
+          )}
+          <Button type="button" variant="secondary" onClick={onDone}>Done</Button>
+        </div>
+      </Card>
+    );
   }
 
   return (

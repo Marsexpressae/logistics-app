@@ -220,6 +220,7 @@ function WarehouseContent() {
           booking={{ id: edit.bookingId, code: edit.code }}
           parcels={edit.mode === "add" ? [] : editParcels}
           warehouses={warehouses.data ?? []}
+          onSaved={parcels.reload}
           onDone={finishEdit}
         />
       )}
