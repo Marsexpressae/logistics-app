@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { CheckCircle2, Pencil, Printer, Trash2 } from "lucide-react";
+import Link from "next/link";
+import { CheckCircle2, FileMinus, Pencil, Printer, Trash2 } from "lucide-react";
 import { Button, ErrorMessage, StatusBadge, inputClass, Loading } from "@/components/ui/form";
 import { site } from "@/config/site";
 import { useOrganization } from "@/lib/organization";
@@ -26,7 +27,8 @@ export default function ReturnFormPage() {
       .single()
   );
   const router = useRouter();
-  const canManage = usePermissions().can("returns.manage");
+  const { can } = usePermissions();
+  const canManage = can("returns.manage");
   const canPrint = usePermissions().can("documents.print");
   const { org } = useOrganization();
   const [editing, setEditing] = useState(false);
@@ -188,6 +190,17 @@ export default function ReturnFormPage() {
           <p className="mt-4 text-center text-xs text-slate-500">Handed over on {formatDay(r.form_date)}</p>
         )}
       </div>
+
+      {can("refunds.issue") && r.booking_id && r.status !== "cancelled" && (
+        <p className="print:hidden">
+          <Link
+            href={`/bookings/${r.booking_id}?credit=1&return=${r.id}`}
+            className="inline-flex min-h-11 items-center gap-2 rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50"
+          >
+            <FileMinus className="h-4 w-4" /> Credit note and refund for this booking
+          </Link>
+        </p>
+      )}
 
       {editing && (
         <div className="space-y-3 rounded-lg border border-slate-200 bg-white p-4 print:hidden">

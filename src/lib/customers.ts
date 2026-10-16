@@ -29,7 +29,7 @@ export type CustomerHit = {
 
 export type TimelineRow = {
   r_at: string;
-  r_kind: "booking" | "event" | "package" | "payment" | "item" | "invoice" | "note" | "link" | "customer";
+  r_kind: "booking" | "event" | "package" | "payment" | "item" | "invoice" | "note" | "link" | "customer" | "credit_note" | "refund";
   r_title: string;
   r_detail: string | null;
   r_booking_id: string | null;

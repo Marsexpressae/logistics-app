@@ -1289,6 +1289,14 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
       add(b.created_at, "booking", `Booking ${b.code} created`, null, b, null);
       for (const e of d.booking_events.filter((x) => x.booking_id === b.id)) add(e.created_at, "event", String(e.kind).replace(/_/g, " "), e.reason ?? null, b, e.actor_name ?? null);
       for (const p of d.payments.filter((x) => x.booking_id === b.id)) add(p.created_at, "payment", `Payment of ${p.amount} received`, p.method ?? null, b, null);
+      for (const cn of d.credit_notes.filter((x) => x.booking_id === b.id)) {
+        add(cn.created_at, "credit_note", `Credit note ${cn.number} issued`, `Invoice lowered by ${cn.credit_amount}. ${cn.reason}`, b, cn.created_by_name);
+        if (cn.status === "void") add(cn.voided_at, "credit_note", `Credit note ${cn.number} voided`, cn.void_reason ?? "", b, cn.voided_by_name);
+      }
+      for (const rf of d.refunds.filter((x) => x.booking_id === b.id)) {
+        add(rf.created_at, "refund", `Refund ${rf.number} paid`, `${rf.amount} ${String(rf.method).replace(/_/g, " ")}`, b, rf.handed_by_name);
+        if (rf.status === "void") add(rf.voided_at, "refund", `Refund ${rf.number} voided`, rf.void_reason ?? "", b, rf.voided_by_name);
+      }
       for (const n of d.booking_notes.filter((x) => x.booking_id === b.id)) add(n.created_at, "note", "Note on the invoice", n.body, b, n.author_name);
       for (const p of d.parcels.filter((x) => x.booking_id === b.id))
         for (const e of d.parcel_events.filter((x) => x.parcel_id === p.id)) add(e.created_at, "package", `${p.barcode}: ${String(e.status).replace(/_/g, " ")}`, null, b, null);

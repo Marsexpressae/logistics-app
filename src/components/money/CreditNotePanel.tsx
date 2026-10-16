@@ -23,10 +23,10 @@ const CATEGORIES: { value: CreditCategory; label: string }[] = [
  * the new invoice total is the sum of those lines, and the credit is the difference. No money moves here.
  * When the customer has paid more than they now owe, the next step offers the refund.
  */
-export default function CreditNotePanel({ booking, money, returns, onDone }: { booking: Booking; money: Money; returns: { id: string; code: string }[]; onDone: () => void }) {
+export default function CreditNotePanel({ booking, money, returns, returnId: startReturn, onDone }: { booking: Booking; money: Money; returns: { id: string; code: string }[]; returnId?: string; onDone: () => void }) {
   const [reason, setReason] = useState("");
   const [date, setDate] = useState(todayISO());
-  const [returnId, setReturnId] = useState("");
+  const [returnId, setReturnId] = useState(startReturn ?? ""); // a return page can open this with its return already chosen
   const [lines, setLines] = useState<Line[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);

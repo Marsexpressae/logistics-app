@@ -34,7 +34,11 @@ export default function PaymentsCard({ booking, payments, onChanged }: PaymentsC
   const [draft, setDraft] = useState({ amount: "", method: "cash", note: "", date: todayISO() });
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [panel, setPanel] = useState<"credit" | "refund" | null>(null);
+  // The return page links here with ?credit=1&return=<id>, which opens the credit note form with that return chosen.
+  const [panel, setPanel] = useState<"credit" | "refund" | null>(() =>
+    typeof window !== "undefined" && new URLSearchParams(window.location.search).get("credit") === "1" ? "credit" : null
+  );
+  const returnFromLink = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("return") ?? undefined : undefined;
 
   const sorted = [...payments].sort((a, b) => a.created_at.localeCompare(b.created_at));
   const paid = totalPaid(sorted);
@@ -271,9 +275,9 @@ export default function PaymentsCard({ booking, payments, onChanged }: PaymentsC
         </ul>
       )}
 
-      {panel === "credit" && m ? (
-        <div className="mb-3"><CreditNotePanel booking={booking} money={m} returns={returnsQ.data ?? []} onDone={issued} /></div>
-      ) : panel === "refund" && m ? (
+      {panel === "credit" && m && mayCredit ? (
+        <div className="mb-3"><CreditNotePanel booking={booking} money={m} returns={returnsQ.data ?? []} returnId={returnFromLink} onDone={issued} /></div>
+      ) : panel === "refund" && m && mayRefund ? (
         <div className="mb-3"><RefundPanel booking={booking} money={m} onDone={issued} /></div>
       ) : (mayCredit || mayRefund) && (
         <div className="mb-3 flex flex-wrap gap-2">

@@ -819,3 +819,27 @@ test("cancel_booking is blocked once a payment exists", { skip }, async () => {
     assert.equal((await db.owner("select status from bookings where id = $1", [unpaid]))[0].status, "cancelled");
   });
 });
+
+// ---------------- stage 3: the customer timeline lists credit notes and refunds ----------------
+const TIMELINE_MIGRATION = "supabase/migrations/0056_money_in_timeline.sql";
+
+test("customer timeline lists credit notes and refunds, and their voiding", { skip }, async () => {
+  await inTransaction(async (db) => {
+    await db.owner(readFileSync(TIMELINE_MIGRATION, "utf8"));
+    const issuer = await db.person([...ISSUER, "customers.view", "refunds.void"], "issuer");
+    const booking = await moneyBooking(db);
+    await addPayment(db, booking, 1000);
+    const credit = (await issueCredit(db, issuer, booking, "Parcels returned", KEPT))[0].id as string;
+    const refund = (await refundIt(db, issuer, booking, credit, 350))[0].id as string;
+    const customer = (await db.owner("select customer_id from booking_contacts where booking_id = $1 and role = 'customer'", [booking]))[0].customer_id as string;
+    const rows = async () => (await db.as(issuer, "select r_kind, r_title from customer_timeline($1, 100, 0)", [customer])) as { r_kind: string; r_title: string }[];
+    const titles = async (kind: string) => (await rows()).filter((r) => r.r_kind === kind).map((r) => r.r_title);
+    assert.match((await titles("credit_note"))[0], /^Credit note CR-\S+ issued$/);
+    assert.match((await titles("refund"))[0], /^Refund RF-\S+ paid$/);
+    await db.as(issuer, "select void_refund($1, 'Wrong amount')", [refund]);
+    await db.as(issuer, "select void_credit_note($1, 'Issued in error')", [credit]);
+    assert.ok((await titles("refund")).some((t) => /^Refund RF-\S+ voided$/.test(t)));
+    assert.ok((await titles("credit_note")).some((t) => /^Credit note CR-\S+ voided$/.test(t)));
+    assert.ok((await rows()).some((r) => r.r_kind === "booking"), "the existing branches are still there");
+  });
+});

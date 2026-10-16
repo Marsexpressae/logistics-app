@@ -131,3 +131,19 @@ test("the payments card shows both panels only to people who may issue refunds, 
   assert.match(code, /\["collected", "at_warehouse"\]\.includes\(booking\.status\)/);
   assert.ok(code.includes("invoiced"));
 });
+
+test("the customer timeline lists credit notes and refunds (and voiding), and the return page links to the credit note flow", async () => {
+  // BK-1003 was credited and refunded earlier in this file, then both were voided; BK-1002 was credited, refunded and voided too.
+  const b = await booking("BK-1003");
+  const link = (await c.from("booking_contacts").select("*").eq("booking_id", b.id).eq("role", "customer")).data[0];
+  assert.ok(link, "the seed booking has a customer");
+  {
+    const rows = (await c.rpc("customer_timeline", { p_customer_id: link.customer_id, p_limit: 200, p_offset: 0 })).data as R[];
+    assert.ok(rows.some((r) => r.r_kind === "credit_note" && /^Credit note CR-\d+ issued$/.test(r.r_title)));
+    assert.ok(rows.some((r) => r.r_kind === "refund" && /^Refund RF-\d+ paid$/.test(r.r_title)));
+    assert.ok(rows.some((r) => r.r_kind === "credit_note" && /voided$/.test(r.r_title)));
+  }
+  const page = readFileSync("src/app/warehouse-inventory/returns/[id]/page.tsx", "utf8");
+  assert.ok(page.includes("?credit=1&return=") && page.includes('can("refunds.issue")'));
+  assert.ok(readFileSync("src/components/bookings/PaymentsCard.tsx", "utf8").includes('get("credit") === "1"'));
+});

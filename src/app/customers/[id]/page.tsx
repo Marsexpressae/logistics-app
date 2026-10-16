@@ -35,6 +35,8 @@ const KIND_LABEL: Record<TimelineRow["r_kind"], string> = {
   note: "Note",
   link: "Link",
   customer: "Customer",
+  credit_note: "Credit note",
+  refund: "Refund",
 };
 
 export default function CustomerPage() {
