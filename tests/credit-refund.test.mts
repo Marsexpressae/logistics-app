@@ -168,3 +168,10 @@ test("the credit note and refund receipt pages: one query each, print and share 
   const card = readFileSync("src/components/bookings/PaymentsCard.tsx", "utf8");
   assert.ok(card.includes("/credit-notes/") && card.includes("/refunds/") && card.includes('can("documents.print")'));
 });
+
+test("the void button asks for a reason and is shown only with refunds.void, on active records", () => {
+  const btn = readFileSync("src/components/money/VoidButton.tsx", "utf8");
+  assert.ok(btn.includes("askText") && btn.includes("void_credit_note") && btn.includes("void_refund"));
+  const card = readFileSync("src/components/bookings/PaymentsCard.tsx", "utf8");
+  assert.ok(card.includes("VoidButton") && card.includes('can("refunds.void")') && card.includes('e.status === "active"'));
+});

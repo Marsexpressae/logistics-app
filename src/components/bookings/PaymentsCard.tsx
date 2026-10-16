@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Check, FileMinus, Pencil, Trash2, Undo2, X } from "lucide-react";
 import CreditNotePanel from "@/components/money/CreditNotePanel";
 import RefundPanel from "@/components/money/RefundPanel";
+import VoidButton from "@/components/money/VoidButton";
 import { Button, Card, ErrorMessage, Field, StatusBadge, inputClass } from "@/components/ui/form";
 import { dateStamp, formatDate, todayISO, invoiceStatus, methodLabel, money, round2, totalPaid } from "@/lib/format";
 import DateField from "@/components/ui/DateField";
@@ -257,8 +258,8 @@ export default function PaymentsCard({ booking, payments, onChanged }: PaymentsC
       {(notes.length > 0 || refunds.length > 0) && (
         <ul className="mb-3 divide-y divide-slate-100 border-t border-slate-100 text-sm" aria-label="Credit notes and refunds">
           {[
-            ...notes.map((n) => ({ key: n.id, at: n.created_at, title: `Credit note ${n.number}`, detail: n.reason, amount: `−${money(Number(n.credit_amount))}`, hint: "invoice lowered", href: `/bookings/${booking.id}/credit-notes/${n.id}`, status: n.status, why: n.void_reason })),
-            ...refunds.map((r) => ({ key: r.id, at: r.created_at, title: `Refund ${r.number}`, detail: `${methodLabel(r.method)}${r.note ? ` · ${r.note}` : ""}`, amount: `−${money(Number(r.amount))}`, hint: "money handed back", href: `/bookings/${booking.id}/refunds/${r.id}`, status: r.status, why: r.void_reason })),
+            ...notes.map((n) => ({ kind: "credit_note" as const, key: n.id, at: n.created_at, title: `Credit note ${n.number}`, detail: n.reason, amount: `−${money(Number(n.credit_amount))}`, hint: "invoice lowered", href: `/bookings/${booking.id}/credit-notes/${n.id}`, status: n.status, why: n.void_reason })),
+            ...refunds.map((r) => ({ kind: "refund" as const, key: r.id, at: r.created_at, title: `Refund ${r.number}`, detail: `${methodLabel(r.method)}${r.note ? ` · ${r.note}` : ""}`, amount: `−${money(Number(r.amount))}`, hint: "money handed back", href: `/bookings/${booking.id}/refunds/${r.id}`, status: r.status, why: r.void_reason })),
           ]
             .sort((a, b) => a.at.localeCompare(b.at))
             .map((e) => (
@@ -271,6 +272,7 @@ export default function PaymentsCard({ booking, payments, onChanged }: PaymentsC
                   <span className={`font-medium ${e.status === "void" ? "text-slate-500 line-through" : "text-amber-800"}`}>{e.amount}</span>
                   <span className="block text-xs text-slate-500">{e.status === "void" ? `VOID${e.why ? `: ${e.why}` : ""}` : e.hint}</span>
                   {can("documents.print") && <Link href={e.href} className="inline-flex min-h-11 items-center text-xs font-medium text-brand-700 hover:underline">Print or share</Link>}
+                  {can("refunds.void") && e.status === "active" && <span className="block"><VoidButton kind={e.kind} id={e.key} onDone={issued} /></span>}
                 </span>
               </li>
             ))}
