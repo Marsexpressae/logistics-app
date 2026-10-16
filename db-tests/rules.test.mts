@@ -753,3 +753,75 @@ test("credit notes and refunds: chained credits, a full credit then refund, void
     }
   });
 });
+
+// ---------------- stage 2: the money maths in Accounts, search and the cancel rule ----------------
+const ACCOUNTS_MIGRATION = "supabase/migrations/0055_money_in_accounts.sql";
+const invoiceOf = async (db: Db, booking: string) => (await db.owner("select invoice_no from bookings where id = $1", [booking]))[0].invoice_no as string;
+
+test("accounts_summary counts credits and refunds, and shows what is owed back", { skip }, async () => {
+  await inTransaction(async (db) => {
+    await db.owner(readFileSync(ACCOUNTS_MIGRATION, "utf8"));
+    const viewer = await db.person(["accounts.view", "bookings.view", "refunds.issue"], "viewer");
+    const read = async () => {
+      const s = (await db.as(viewer, "select accounts_summary() s"))[0].s;
+      return { invoiced: Number(s.invoiced), collected: Number(s.collected), outstanding: Number(s.outstanding), refunded: Number(s.refunded), due_count: Number(s.refund_due_count), due_amount: Number(s.refund_due_amount), cash: Number(s.refunds.cash), bank: Number(s.refunds.bank) };
+    };
+    const before = await read();
+    const a = await moneyBooking(db);
+    await addPayment(db, a, 1000);
+    const credit = (await issueCredit(db, viewer, a, "Parcels returned", KEPT))[0].id as string;
+    const mid = await read(); // 350 is owed back, not paid yet
+    assert.deepEqual([mid.invoiced - before.invoiced, mid.collected - before.collected, mid.outstanding - before.outstanding, mid.refunded - before.refunded, mid.due_count - before.due_count, mid.due_amount - before.due_amount], [650, 1000, 0, 0, 1, 350]);
+    await refundIt(db, viewer, a, credit, 350, "bank_transfer");
+    const after = await read();
+    assert.deepEqual([after.invoiced - before.invoiced, after.collected - before.collected, after.outstanding - before.outstanding, after.refunded - before.refunded, after.due_count - before.due_count, after.due_amount - before.due_amount, after.bank - before.bank, after.cash - before.cash], [650, 650, 0, 350, 0, 0, 350, 0]);
+  });
+});
+
+test("accounts_invoices shows current values, a credited note, and a Refund due filter; sorting still works", { skip }, async () => {
+  await inTransaction(async (db) => {
+    await db.owner(readFileSync(ACCOUNTS_MIGRATION, "utf8"));
+    const viewer = await db.person(["accounts.view", "bookings.view", "refunds.issue"], "viewer");
+    const a = await moneyBooking(db);
+    await addPayment(db, a, 1000);
+    const credit = (await issueCredit(db, viewer, a, "x", KEPT))[0].id as string;
+    const owed = await invoiceOf(db, a);
+    const find = async (status: string) => (await db.as(viewer, "select * from accounts_invoices($1, $2, 25, 0)", [status, owed])) as Record<string, unknown>[];
+    const due = (await find("refund_due"))[0];
+    assert.deepEqual([due.r_pay_status, Number(due.r_amount), Number(due.r_paid), Number(due.r_balance), Number(due.r_credited)], ["refund_due", 650, 1000, 0, 350]);
+    assert.equal((await find("outstanding")).length, 0); // owed back is not "outstanding"
+    await refundIt(db, viewer, a, credit, 350);
+    assert.equal((await find("refund_due")).length, 0);
+    const paid = (await find("paid"))[0];
+    assert.deepEqual([paid.r_pay_status, Number(paid.r_amount), Number(paid.r_paid), Number(paid.r_balance), Number(paid.r_credited)], ["paid", 650, 650, 0, 350]);
+    for (const sort of ["invoice", "customer", "amount", "paid", "balance", "status"]) {
+      assert.equal((await db.as(viewer, "select count(*)::int n from accounts_invoices('all', null, 5, 0, $1, 'asc')", [sort]))[0].n >= 1, true, sort);
+    }
+  });
+});
+
+test("search shows the same payment state as Accounts", { skip }, async () => {
+  await inTransaction(async (db) => {
+    await db.owner(readFileSync(ACCOUNTS_MIGRATION, "utf8"));
+    const viewer = await db.person(["accounts.view", "bookings.view", "refunds.issue"], "viewer");
+    const a = await moneyBooking(db);
+    await addPayment(db, a, 1000);
+    await issueCredit(db, viewer, a, "x", KEPT);
+    const code = (await db.owner("select code from bookings where id = $1", [a]))[0].code as string;
+    const hit = ((await db.as(viewer, "select global_search($1) r", [code]))[0].r.bookings as { code: string; pay_status: string }[]).find((b) => b.code === code);
+    assert.equal(hit?.pay_status, "refund_due");
+  });
+});
+
+test("cancel_booking is blocked once a payment exists", { skip }, async () => {
+  await inTransaction(async (db) => {
+    await db.owner(readFileSync(ACCOUNTS_MIGRATION, "utf8"));
+    const canceller = await db.person(["bookings.cancel", "bookings.view"], "canceller");
+    const paid = await moneyBooking(db);
+    await addPayment(db, paid, 200);
+    assert.match((await db.error(() => db.as(canceller, "select cancel_booking($1, 'customer changed mind')", [paid]))) ?? "NOT REFUSED", /Payments exist/);
+    const unpaid = await moneyBooking(db);
+    assert.equal(await db.error(() => db.as(canceller, "select cancel_booking($1, 'customer changed mind')", [unpaid])), null);
+    assert.equal((await db.owner("select status from bookings where id = $1", [unpaid]))[0].status, "cancelled");
+  });
+});
