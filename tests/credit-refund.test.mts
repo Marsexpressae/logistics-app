@@ -147,3 +147,10 @@ test("the customer timeline lists credit notes and refunds (and voiding), and th
   assert.ok(page.includes("?credit=1&return=") && page.includes('can("refunds.issue")'));
   assert.ok(readFileSync("src/components/bookings/PaymentsCard.tsx", "utf8").includes('get("credit") === "1"'));
 });
+
+test("the invoice amount is read-only once a credit note or refund exists, and such a booking cannot be deleted", () => {
+  const billing = readFileSync("src/components/bookings/form/BillingCard.tsx", "utf8");
+  assert.ok(billing.includes("readOnly") && billing.includes('"credit_notes"') && billing.includes('"refunds"'));
+  const del = readFileSync("src/components/bookings/DeleteBooking.tsx", "utf8");
+  assert.ok(del.includes('"credit_notes"') && del.includes("credit note"));
+});

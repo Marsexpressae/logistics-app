@@ -9,7 +9,7 @@ import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
 import type { Booking } from "@/lib/types";
 
-type Counts = { items: number; packages: number; shipped: number; payments: number; paid: number; returns: number; notes: number };
+type Counts = { items: number; packages: number; shipped: number; payments: number; paid: number; returns: number; notes: number; credits: number };
 
 /**
  * Delete a booking. A booking, its pickup and its invoice are one job, so this removes all three, with its packages,
@@ -32,12 +32,14 @@ export default function DeleteBooking({ booking }: { booking: Booking }) {
   async function start() {
     setOpen(true);
     setError(null);
-    const [items, parcels, payments, returns, notes] = await Promise.all([
+    const [items, parcels, payments, returns, notes, creditNotes, refunds] = await Promise.all([
       supabase.from("booking_items").select("id").eq("booking_id", booking.id),
       supabase.from("parcels").select("id, status").eq("booking_id", booking.id),
       supabase.from("payments").select("amount").eq("booking_id", booking.id),
       supabase.from("returns").select("id").eq("booking_id", booking.id),
       supabase.from("booking_notes").select("id").eq("booking_id", booking.id),
+      supabase.from("credit_notes").select("id").eq("booking_id", booking.id),
+      supabase.from("refunds").select("id").eq("booking_id", booking.id),
     ]);
     const ps = (parcels.data ?? []) as { status: string }[];
     const pay = (payments.data ?? []) as { amount: number }[];
@@ -49,6 +51,7 @@ export default function DeleteBooking({ booking }: { booking: Booking }) {
       paid: round2(pay.reduce((s, p) => s + Number(p.amount), 0)),
       returns: returns.data?.length ?? 0,
       notes: notes.data?.length ?? 0,
+      credits: (creditNotes.data?.length ?? 0) + (refunds.data?.length ?? 0),
     });
   }
 
@@ -56,7 +59,7 @@ export default function DeleteBooking({ booking }: { booking: Booking }) {
   const needsPaymentsOk = (counts?.payments ?? 0) > 0;
   const mayDeletePayments = can("payments.manage");
   const ready =
-    !!counts && !counts.shipped && reason.trim().length > 0 && typed.trim().toUpperCase() === booking.code && (!needsPaymentsOk || (withPayments && mayDeletePayments));
+    !!counts && !counts.shipped && !counts.credits && reason.trim().length > 0 && typed.trim().toUpperCase() === booking.code && (!needsPaymentsOk || (withPayments && mayDeletePayments));
 
   async function remove() {
     setBusy(true);
@@ -103,6 +106,12 @@ export default function DeleteBooking({ booking }: { booking: Booking }) {
             <p className="rounded-md bg-amber-50 px-3 py-2 text-amber-800">
               {counts.shipped} {counts.shipped === 1 ? "package has" : "packages have"} shipped (in a container, in transit or delivered). That history must stay, so this
               cannot be deleted. Cancel the booking instead, or unload the packages from the container first.
+            </p>
+          )}
+
+          {counts.credits > 0 && (
+            <p className="rounded-md bg-amber-50 px-3 py-2 text-amber-800">
+              This booking has a credit note or a refund. Those records must stay for the books, so it cannot be deleted.
             </p>
           )}
 
