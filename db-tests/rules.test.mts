@@ -863,3 +863,86 @@ test("payment before loading: a credit note settles the balance, and a refund re
     assert.match((await load(barcodes[1])) ?? "", /PAYMENT_REQUIRED/);
   });
 });
+
+// ---------------- parcel edits: add, merge and split ----------------
+const PARCEL_EDIT_MIGRATION = "supabase/migrations/0058_edit_parcels.sql";
+
+/** A collected booking received into a warehouse as three parcels (P1, P2, P3), and a person who may edit parcels. */
+async function receivedBooking(db: Db) {
+  await db.owner(readFileSync(PARCEL_EDIT_MIGRATION, "utf8"));
+  const worker = await db.person(["warehouse.view", "warehouse.manage"], "parcel-worker");
+  const booking = await db.booking({ invoice_no: "T-PE-" + Math.floor(Math.random() * 1e6) });
+  await db.owner("update bookings set status = 'collected' where id = $1", [booking]);
+  const wh = (await db.owner("select id from warehouses where active order by code limit 1"))[0].id as string;
+  await db.as(worker, "select split_booking($1, $2, $3::jsonb)", [booking, wh, JSON.stringify([
+    { description: "Box A", weight_kg: 10 }, { description: "Box B", weight_kg: 12 }, { description: "Box C", weight_kg: 8 },
+  ])]);
+  const code = (await db.owner("select code from bookings where id = $1", [booking]))[0].code as string;
+  const parcelIds = (await db.owner("select id from parcels where booking_id = $1 order by seq", [booking])).map((r) => r.id as string);
+  return { worker, booking, code, wh, parcelIds };
+}
+const editParcels = (db: Db, who: string, booking: string, retire: string[], news: object[], warehouse: string | null = null, date: string | null = null) =>
+  db.as(who, "select edit_parcels($1, $2::uuid[], $3::jsonb, $4::uuid, $5::date) n", [booking, retire, JSON.stringify(news), warehouse, date]);
+const parcelRows = (db: Db, booking: string) => db.owner("select barcode, status, round, seq, description, weight_kg::float w, warehouse_id from parcels where booking_id = $1 order by seq", [booking]);
+const editEvents = (db: Db, booking: string) => db.owner("select reason, actor_name from booking_events where booking_id = $1 and kind = 'parcels_edited' order by ctid", [booking]);
+
+test("edit_parcels: merge retires the chosen parcels and makes one new parcel", { skip }, async () => {
+  await inTransaction(async (db) => {
+    const { worker, booking, code, parcelIds } = await receivedBooking(db);
+    const made = (await editParcels(db, worker, booking, [parcelIds[0], parcelIds[1]], [{ description: "Boxes A and B", weight_kg: 22 }]))[0].n;
+    assert.equal(made, 1);
+    const rows = await parcelRows(db, booking);
+    assert.deepEqual(rows.map((r) => [r.barcode, r.status, r.round]), [
+      [`${code}-P1`, "repacked", 1], [`${code}-P2`, "repacked", 1], [`${code}-P3`, "in_warehouse", 1], [`${code}-R2-P1`, "in_warehouse", 2],
+    ]);
+    const fresh = rows[3];
+    assert.deepEqual([fresh.seq, fresh.description, fresh.w], [4, "Boxes A and B", 22]);
+    assert.equal(fresh.warehouse_id, rows[0].warehouse_id);
+    const events = await editEvents(db, booking);
+    assert.equal(events.length, 1);
+    assert.equal(events[0].reason, "Merged parcels P1 and P2 into new parcel R2-P1");
+    assert.equal(events[0].actor_name, "Test parcel-worker");
+  });
+});
+
+test("edit_parcels: split retires one parcel and makes several", { skip }, async () => {
+  await inTransaction(async (db) => {
+    const { worker, booking, code, parcelIds } = await receivedBooking(db);
+    assert.equal((await editParcels(db, worker, booking, [parcelIds[1]], [{ description: "B1", weight_kg: 6 }, { description: "B2", weight_kg: 6 }]))[0].n, 2);
+    const rows = await parcelRows(db, booking);
+    assert.deepEqual(rows.map((r) => [r.barcode, r.status]), [
+      [`${code}-P1`, "in_warehouse"], [`${code}-P2`, "repacked"], [`${code}-P3`, "in_warehouse"], [`${code}-R2-P1`, "in_warehouse"], [`${code}-R2-P2`, "in_warehouse"],
+    ]);
+    assert.equal((await editEvents(db, booking))[0].reason, "Split parcel P2 into new parcels R2-P1 and R2-P2");
+    // three new parcels: the labels are joined with commas and "and" before the last
+    assert.equal((await editParcels(db, worker, booking, [parcelIds[0]], [{ weight_kg: 3 }, { weight_kg: 3 }, { weight_kg: 4 }]))[0].n, 3);
+    assert.equal((await editEvents(db, booking))[1].reason, "Split parcel P1 into new parcels R3-P1, R3-P2 and R3-P3");
+  });
+});
+
+test("edit_parcels: add makes one parcel and keeps the rest", { skip }, async () => {
+  await inTransaction(async (db) => {
+    const { worker, booking, code, wh } = await receivedBooking(db);
+    assert.equal((await editParcels(db, worker, booking, [], [{ description: "Missed box", weight_kg: 5 }], wh))[0].n, 1);
+    const rows = await parcelRows(db, booking);
+    assert.equal(rows.length, 4);
+    assert.ok(rows.slice(0, 3).every((r) => r.status === "in_warehouse" && r.round === 1));
+    assert.deepEqual([rows[3].barcode, rows[3].status, rows[3].round], [`${code}-R2-P1`, "in_warehouse", 2]);
+    assert.equal((await editEvents(db, booking))[0].reason, "Added parcel R2-P1");
+  });
+});
+
+test("edit_parcels: two edits in a row use rounds 2 and 3 with unique barcodes, and untouched parcels keep their label", { skip }, async () => {
+  await inTransaction(async (db) => {
+    const { worker, booking, code, parcelIds } = await receivedBooking(db);
+    await editParcels(db, worker, booking, [parcelIds[0], parcelIds[1]], [{ weight_kg: 22 }]);
+    const merged = (await db.owner("select id from parcels where booking_id = $1 and round = 2", [booking]))[0].id as string;
+    await editParcels(db, worker, booking, [merged], [{ weight_kg: 11 }, { weight_kg: 11 }]);
+    const rows = await parcelRows(db, booking);
+    const labels = rows.map((r) => r.barcode as string);
+    assert.equal(new Set(labels).size, labels.length, "every barcode is unique");
+    assert.deepEqual(labels.slice(-3), [`${code}-R2-P1`, `${code}-R3-P1`, `${code}-R3-P2`]);
+    const p3 = rows.find((r) => r.barcode === `${code}-P3`);
+    assert.deepEqual([p3?.status, p3?.round], ["in_warehouse", 1]);
+  });
+});
