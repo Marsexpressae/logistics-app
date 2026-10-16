@@ -294,6 +294,9 @@ const RELATIONS: Record<string, { fk: string; kind: "one" | "many"; from?: strin
   "booking_contacts.bookings": { kind: "one", fk: "booking_id" },
   "returns.parcels": { kind: "many", fk: "return_id" },
   "credit_notes.credit_note_lines": { kind: "many", fk: "credit_note_id" },
+  "credit_notes.bookings": { kind: "one", fk: "booking_id" },
+  "refunds.bookings": { kind: "one", fk: "booking_id" },
+  "refunds.credit_notes": { kind: "one", fk: "credit_note_id" },
 };
 
 function splitTopLevel(s: string): string[] {

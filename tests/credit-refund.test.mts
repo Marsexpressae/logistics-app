@@ -154,3 +154,17 @@ test("the invoice amount is read-only once a credit note or refund exists, and s
   const del = readFileSync("src/components/bookings/DeleteBooking.tsx", "utf8");
   assert.ok(del.includes('"credit_notes"') && del.includes("credit note"));
 });
+
+test("the credit note and refund receipt pages: one query each, print and share only with documents.print, VOID when voided", () => {
+  const note = readFileSync("src/app/bookings/[id]/credit-notes/[noteId]/page.tsx", "utf8");
+  const rec = readFileSync("src/app/bookings/[id]/refunds/[refundId]/page.tsx", "utf8");
+  for (const [name, code] of [["credit note", note], ["refund", rec]] as const) {
+    assert.ok(code.includes('can("documents.print")') && code.includes("ShareButton"), `${name}: print and share`);
+    assert.ok(code.includes('status === "void"') && code.includes("VOID"), `${name}: VOID mark`);
+    assert.equal((code.match(/supabase\s*\.from\(/g) ?? []).length, 1, `${name}: one query`);
+  }
+  assert.ok(note.includes("credit_note_lines(*)") && note.includes("booking:bookings("));
+  assert.ok(rec.includes("booking:bookings(") && rec.includes("credit_note:credit_notes("));
+  const card = readFileSync("src/components/bookings/PaymentsCard.tsx", "utf8");
+  assert.ok(card.includes("/credit-notes/") && card.includes("/refunds/") && card.includes('can("documents.print")'));
+});
