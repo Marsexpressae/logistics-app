@@ -7,7 +7,8 @@ import { dateStamp, formatDate, todayISO, invoiceStatus, methodLabel, money, rou
 import DateField from "@/components/ui/DateField";
 import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
-import type { Booking, Payment } from "@/lib/types";
+import type { Booking, CreditNote, Money, Payment, Refund } from "@/lib/types";
+import { useQuery } from "@/lib/hooks";
 import { confirmAction } from "@/lib/ask";
 
 type PaymentsCardProps = {
@@ -35,6 +36,18 @@ export default function PaymentsCard({ booking, payments, onChanged }: PaymentsC
   const sorted = [...payments].sort((a, b) => a.created_at.localeCompare(b.created_at));
   const paid = totalPaid(sorted);
   const invoiced = booking.invoice_amount !== null;
+
+  // Credit notes and refunds, and the money maths. The database works the numbers out (booking_money), so this card, Accounts and search agree.
+  const again = [booking.id, booking.invoice_amount, payments.length, paid];
+  const moneyQ = useQuery<Money>(() => supabase.rpc("booking_money", { p_booking: booking.id }), again);
+  const notesQ = useQuery<CreditNote[]>(() => supabase.from("credit_notes").select("*, credit_note_lines(*)").eq("booking_id", booking.id).order("created_at"), again);
+  const refundsQ = useQuery<Refund[]>(() => supabase.from("refunds").select("*").eq("booking_id", booking.id).order("created_at"), again);
+  const m = moneyQ.data;
+  const notes = notesQ.data ?? [];
+  const refunds = refundsQ.data ?? [];
+  const credited = round2(notes.filter((n) => n.status === "active").reduce((t, n) => t + Number(n.credit_amount), 0));
+  const refunded = round2(refunds.filter((r) => r.status === "active").reduce((t, r) => t + Number(r.amount), 0));
+  const adjusted = credited > 0 || refunded > 0;
 
   async function run(action: PromiseLike<{ error: { message: string } | null }>) {
     setBusy(true);
@@ -107,6 +120,26 @@ export default function PaymentsCard({ booking, payments, onChanged }: PaymentsC
 
   return (
     <Card title="Payment">
+      {adjusted && m && invoiced ? (
+        <dl className="mb-3 space-y-1 text-sm">
+          {([
+            ["Original invoice", money(booking.invoice_amount!)],
+            ...(credited > 0 ? [["Credit notes", `−${money(credited)}`]] : []),
+            ["Invoice total now", money(Number(m.invoice_now))],
+            ["Payments received", money(paid)],
+            ...(refunded > 0 ? [["Refunded", `−${money(refunded)}`]] : []),
+          ] as string[][]).map(([label, value]) => (
+            <div key={label} className="flex justify-between gap-3">
+              <dt className="text-slate-500">{label}</dt>
+              <dd className={label === "Invoice total now" ? "font-semibold" : ""}>{value}</dd>
+            </div>
+          ))}
+          <div className="flex justify-between gap-3 border-t border-slate-100 pt-1 font-semibold">
+            <dt>{Number(m.refund_due) > 0 ? "Refund due" : "Balance due"}</dt>
+            <dd className={Number(m.refund_due) > 0 ? "text-amber-700" : ""}>{money(Number(m.refund_due) > 0 ? m.refund_due : Number(m.balance_due))}</dd>
+          </div>
+        </dl>
+      ) : (
       <div className="mb-3 grid grid-cols-3 text-center text-sm">
         <div>
           <p className="text-slate-500">{invoiced ? "Invoice" : "Est. bill"}</p>
@@ -123,12 +156,13 @@ export default function PaymentsCard({ booking, payments, onChanged }: PaymentsC
           <p className="font-semibold">{invoiced ? money(Math.max(round2(Number(booking.invoice_amount) - paid), 0)) : "—"}</p>
         </div>
       </div>
+      )}
 
       {invoiced && (
         <p className="-mt-1 mb-3 flex items-center justify-center gap-2 text-sm">
-          <StatusBadge status={invoiceStatus(Number(booking.invoice_amount), paid)} />
-          {round2(paid - Number(booking.invoice_amount)) > 0 && (
-            <span className="text-amber-700">Overpaid by {money(round2(paid - Number(booking.invoice_amount)))}</span>
+          <StatusBadge status={m?.pay_status ?? invoiceStatus(Number(booking.invoice_amount), paid)} />
+          {(m ? Number(m.refund_due) : Math.max(round2(paid - Number(booking.invoice_amount)), 0)) > 0 && (
+            <span className="text-amber-700">Owed back to the customer: {money(m ? Number(m.refund_due) : round2(paid - Number(booking.invoice_amount)))}</span>
           )}
         </p>
       )}
@@ -196,6 +230,28 @@ export default function PaymentsCard({ booking, payments, onChanged }: PaymentsC
               </li>
             )
           )}
+        </ul>
+      )}
+
+      {(notes.length > 0 || refunds.length > 0) && (
+        <ul className="mb-3 divide-y divide-slate-100 border-t border-slate-100 text-sm" aria-label="Credit notes and refunds">
+          {[
+            ...notes.map((n) => ({ key: n.id, at: n.created_at, title: `Credit note ${n.number}`, detail: n.reason, amount: `−${money(Number(n.credit_amount))}`, hint: "invoice lowered", status: n.status, why: n.void_reason })),
+            ...refunds.map((r) => ({ key: r.id, at: r.created_at, title: `Refund ${r.number}`, detail: `${methodLabel(r.method)}${r.note ? ` · ${r.note}` : ""}`, amount: `−${money(Number(r.amount))}`, hint: "money handed back", status: r.status, why: r.void_reason })),
+          ]
+            .sort((a, b) => a.at.localeCompare(b.at))
+            .map((e) => (
+              <li key={e.key} className="flex items-start justify-between gap-3 py-2">
+                <span className={e.status === "void" ? "text-slate-500 line-through" : ""}>
+                  <span className="font-medium">{e.title}</span>
+                  <span className="block text-xs text-slate-500">{formatDate(e.at)} · {e.detail}</span>
+                </span>
+                <span className="shrink-0 text-right">
+                  <span className={`font-medium ${e.status === "void" ? "text-slate-500 line-through" : "text-amber-800"}`}>{e.amount}</span>
+                  <span className="block text-xs text-slate-500">{e.status === "void" ? `VOID${e.why ? `: ${e.why}` : ""}` : e.hint}</span>
+                </span>
+              </li>
+            ))}
         </ul>
       )}
 

@@ -14,16 +14,21 @@ import { money } from "@/lib/format";
 import { useOrganization } from "@/lib/organization";
 import { SortSelect, SortableTh } from "@/components/ui/Sortable";
 import type { SortColumn } from "@/lib/sort";
+import type { PayStatus } from "@/lib/types";
 import { useSort } from "@/lib/use-sort";
 
 // Totals and the invoice list are computed in the database (see ADR-0007), so they stay correct at any size.
 type Summary = {
   invoiced: number;
-  collected: number;
+  collected: number; // payments received minus refunds handed back
   outstanding: number;
+  refunded: number;
+  refund_due_count: number;
+  refund_due_amount: number;
   no_amount_count: number;
   estimated_pending: number;
   collections: { name: string; cash: number; bank: number }[];
+  refunds: { cash: number; bank: number };
 };
 type InvoiceRow = {
   r_booking_id: string;
@@ -34,8 +39,9 @@ type InvoiceRow = {
   r_paid: number;
   r_balance: number | null;
   r_booking_status: string;
-  r_pay_status: "not_invoiced" | "unpaid" | "partial" | "paid";
+  r_pay_status: PayStatus;
   r_total: number;
+  r_credited: number;
 };
 
 const PAGE = 25;
@@ -48,7 +54,7 @@ const INVOICE_COLUMNS: Record<string, SortColumn<InvoiceRow>> = {
   amount: { key: "amount", label: "Amount", kind: "number" },
   paid: { key: "paid", label: "Paid", kind: "number" },
   balance: { key: "balance", label: "Balance", kind: "number", hint: "Sorts by the amount still to pay" },
-  status: { key: "status", label: "Status", kind: "number", firstDir: "asc", words: ["Needs attention first", "Paid first"], hint: "Unpaid first, then partly paid, paid, and no amount yet" },
+  status: { key: "status", label: "Status", kind: "number", firstDir: "asc", words: ["Needs attention first", "Paid first"], hint: "Money owed back first, then unpaid, partly paid, paid, fully credited, and no amount yet" },
 };
 const INVOICE_COLUMN_LIST = Object.values(INVOICE_COLUMNS);
 
@@ -61,12 +67,13 @@ const COLLECT_COLUMNS: Record<string, SortColumn<Collection>> = {
   total: { key: "total", label: "Total", kind: "number", value: (c) => Number(c.cash) + Number(c.bank) },
 };
 const COLLECT_COLUMN_LIST = Object.values(COLLECT_COLUMNS);
-const FILTERS = [
+export const FILTERS = [
   { value: "all", label: "All" },
   { value: "outstanding", label: "Outstanding" },
   { value: "unpaid", label: "Unpaid" },
   { value: "partial", label: "Partially paid" },
   { value: "paid", label: "Paid" },
+  { value: "refund_due", label: "Refund due" },
   { value: "not_invoiced", label: "No amount yet" },
 ];
 
@@ -138,7 +145,7 @@ function AccountsContent() {
 
       <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Invoiced" value={money(s?.invoiced ?? 0)} onOpen={() => show("all", "invoices")} active={status === "all"} />
-        <StatCard label="Collected" value={money(s?.collected ?? 0)} onOpen={() => show(null, "collections")} />
+        <StatCard label="Collected" value={money(s?.collected ?? 0)} note={s?.refunded ? `Refunded: ${money(s.refunded)}` : undefined} onOpen={() => show(null, "collections")} />
         <StatCard label="Outstanding" value={money(s?.outstanding ?? 0)} onOpen={() => show("outstanding", "invoices")} active={status === "outstanding"} />
         <StatCard
           label="Amount not set yet"
@@ -199,6 +206,7 @@ function AccountsContent() {
                   <span>
                     <span className="block text-sm text-slate-600">Amount</span>
                     {r.r_amount === null ? "—" : money(Number(r.r_amount))}
+                    {Number(r.r_credited) > 0 && <span className="block text-sm text-slate-600">credited {money(Number(r.r_credited))}</span>}
                   </span>
                   <span>
                     <span className="block text-sm text-slate-600">Paid</span>
@@ -234,7 +242,10 @@ function AccountsContent() {
                       <span className="block font-mono text-xs text-slate-500">{r.r_code}</span>
                     </td>
                     <td className="px-4 py-3">{r.r_customer}</td>
-                    <td className="px-4 py-3 text-right">{r.r_amount === null ? "—" : money(Number(r.r_amount))}</td>
+                    <td className="px-4 py-3 text-right">
+                      {r.r_amount === null ? "—" : money(Number(r.r_amount))}
+                      {Number(r.r_credited) > 0 && <span className="block text-xs text-slate-500">credited {money(Number(r.r_credited))}</span>}
+                    </td>
                     <td className="px-4 py-3 text-right">{money(Number(r.r_paid))}</td>
                     <td className="px-4 py-3 text-right font-medium">{r.r_balance === null ? "—" : money(Number(r.r_balance))}</td>
                     <td className="space-x-1 whitespace-nowrap px-4 py-3">
@@ -263,7 +274,7 @@ function AccountsContent() {
       )}
 
       <h2 id="collections" className="mb-2 mt-6 scroll-mt-4 text-base font-semibold">Collected, by who and how</h2>
-      {!s?.collections.length ? (
+      {!s?.collections.length && !s?.refunded ? (
         <EmptyState message="No payments recorded yet." />
       ) : (
         <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
@@ -277,7 +288,7 @@ function AccountsContent() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {collectSort.sorted(s.collections).map((c) => (
+              {collectSort.sorted(s!.collections).map((c) => (
                 <tr key={c.name}>
                   <td className="px-4 py-3">{c.name}</td>
                   <td className="px-4 py-3 text-right">{money(Number(c.cash))}</td>
@@ -285,11 +296,19 @@ function AccountsContent() {
                   <td className="px-4 py-3 text-right font-medium">{money(Number(c.cash) + Number(c.bank))}</td>
                 </tr>
               ))}
+              {!!s!.refunded && (
+                <tr className="text-amber-800">
+                  <td className="px-4 py-3">Refunded</td>
+                  <td className="px-4 py-3 text-right">−{money(Number(s!.refunds.cash))}</td>
+                  <td className="px-4 py-3 text-right">−{money(Number(s!.refunds.bank))}</td>
+                  <td className="px-4 py-3 text-right font-medium">−{money(Number(s!.refunded))}</td>
+                </tr>
+              )}
               <tr className="font-semibold">
                 <td className="px-4 py-3">All</td>
-                <td className="px-4 py-3 text-right">{money(s.collections.reduce((t, c) => t + Number(c.cash), 0))}</td>
-                <td className="px-4 py-3 text-right">{money(s.collections.reduce((t, c) => t + Number(c.bank), 0))}</td>
-                <td className="px-4 py-3 text-right">{money(s.collected)}</td>
+                <td className="px-4 py-3 text-right">{money(s!.collections.reduce((t, c) => t + Number(c.cash), 0) - Number(s!.refunds.cash))}</td>
+                <td className="px-4 py-3 text-right">{money(s!.collections.reduce((t, c) => t + Number(c.bank), 0) - Number(s!.refunds.bank))}</td>
+                <td className="px-4 py-3 text-right">{money(s!.collected)}</td>
               </tr>
             </tbody>
           </table>

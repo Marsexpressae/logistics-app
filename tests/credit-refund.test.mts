@@ -94,3 +94,19 @@ test("a booking with payments cannot be cancelled", async () => {
   const b = await booking("BK-1002");
   assert.match((await c.rpc("cancel_booking", { p_booking_id: b.id, p_reason: "Changed mind" })).error.message, /Payments exist/);
 });
+
+// The screens are checked as source (like tests/disclosure.test.mts): they cannot run here, but they must use the one database rule.
+import { readFileSync } from "node:fs";
+
+test("Accounts offers the Refund due filter and shows refunds", () => {
+  const code = readFileSync("src/app/accounts/page.tsx", "utf8");
+  assert.match(code, /export const FILTERS/);
+  assert.match(code, /value: "refund_due", label: "Refund due"/);
+  assert.match(code, /Refunded: /);
+  assert.match(code, /r_credited/);
+});
+
+test("the payments card reads the money from booking_money, credit notes and refunds", () => {
+  const code = readFileSync("src/components/bookings/PaymentsCard.tsx", "utf8");
+  for (const word of ["booking_money", '"credit_notes"', '"refunds"', "Invoice total now"]) assert.ok(code.includes(word), `missing ${word}`);
+});

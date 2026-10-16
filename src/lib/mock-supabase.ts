@@ -293,6 +293,7 @@ const RELATIONS: Record<string, { fk: string; kind: "one" | "many"; from?: strin
   "booking_contacts.customers": { kind: "one", fk: "customer_id" },
   "booking_contacts.bookings": { kind: "one", fk: "booking_id" },
   "returns.parcels": { kind: "many", fk: "return_id" },
+  "credit_notes.credit_note_lines": { kind: "many", fk: "credit_note_id" },
 };
 
 function splitTopLevel(s: string): string[] {
