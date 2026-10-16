@@ -110,3 +110,24 @@ test("the payments card reads the money from booking_money, credit notes and ref
   const code = readFileSync("src/components/bookings/PaymentsCard.tsx", "utf8");
   for (const word of ["booking_money", '"credit_notes"', '"refunds"', "Invoice total now"]) assert.ok(code.includes(word), `missing ${word}`);
 });
+
+test("the screen flow: refund exactly the refund due, then void both and get the original back", async () => {
+  // BK-1002 was credited down to 0 above, with 400 paid, so 400 is owed back.
+  const due = (await money("BK-1002")).refund_due;
+  assert.equal(due, 400);
+  const note = (await c.from("credit_notes").select("*").eq("booking_id", (await booking("BK-1002")).id).single()).data;
+  const r = await refund("BK-1002", { p_amount: due, p_credit_note_id: note.id, p_method: "bank_transfer" });
+  assert.equal(r.error, null);
+  assert.deepEqual(await money("BK-1002"), { invoice_now: 0, paid: 0, balance_due: 0, refund_due: 0, pay_status: "credited" });
+  assert.equal((await c.rpc("void_refund", { p_id: r.data, p_reason: "Test" })).error, null);
+  assert.equal((await c.rpc("void_credit_note", { p_id: note.id, p_reason: "Test" })).error, null);
+  assert.deepEqual(await money("BK-1002"), { invoice_now: 800, paid: 400, balance_due: 400, refund_due: 0, pay_status: "partial" });
+});
+
+test("the payments card shows both panels only to people who may issue refunds, on a collected, invoiced, live booking", () => {
+  const code = readFileSync("src/components/bookings/PaymentsCard.tsx", "utf8");
+  assert.ok(code.includes("CreditNotePanel") && code.includes("RefundPanel"));
+  assert.ok(code.includes('can("refunds.issue")'));
+  assert.match(code, /\["collected", "at_warehouse"\]\.includes\(booking\.status\)/);
+  assert.ok(code.includes("invoiced"));
+});

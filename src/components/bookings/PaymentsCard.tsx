@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { Check, Pencil, Trash2, X } from "lucide-react";
+import { Check, FileMinus, Pencil, Trash2, Undo2, X } from "lucide-react";
+import CreditNotePanel from "@/components/money/CreditNotePanel";
+import RefundPanel from "@/components/money/RefundPanel";
 import { Button, Card, ErrorMessage, Field, StatusBadge, inputClass } from "@/components/ui/form";
 import { dateStamp, formatDate, todayISO, invoiceStatus, methodLabel, money, round2, totalPaid } from "@/lib/format";
 import DateField from "@/components/ui/DateField";
@@ -32,6 +34,7 @@ export default function PaymentsCard({ booking, payments, onChanged }: PaymentsC
   const [draft, setDraft] = useState({ amount: "", method: "cash", note: "", date: todayISO() });
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [panel, setPanel] = useState<"credit" | "refund" | null>(null);
 
   const sorted = [...payments].sort((a, b) => a.created_at.localeCompare(b.created_at));
   const paid = totalPaid(sorted);
@@ -42,12 +45,25 @@ export default function PaymentsCard({ booking, payments, onChanged }: PaymentsC
   const moneyQ = useQuery<Money>(() => supabase.rpc("booking_money", { p_booking: booking.id }), again);
   const notesQ = useQuery<CreditNote[]>(() => supabase.from("credit_notes").select("*, credit_note_lines(*)").eq("booking_id", booking.id).order("created_at"), again);
   const refundsQ = useQuery<Refund[]>(() => supabase.from("refunds").select("*").eq("booking_id", booking.id).order("created_at"), again);
+  const returnsQ = useQuery<{ id: string; code: string }[]>(() => supabase.from("returns").select("id, code").eq("booking_id", booking.id).order("created_at"), [booking.id]);
   const m = moneyQ.data;
   const notes = notesQ.data ?? [];
   const refunds = refundsQ.data ?? [];
   const credited = round2(notes.filter((n) => n.status === "active").reduce((t, n) => t + Number(n.credit_amount), 0));
   const refunded = round2(refunds.filter((r) => r.status === "active").reduce((t, r) => t + Number(r.amount), 0));
   const adjusted = credited > 0 || refunded > 0;
+
+  // Credit notes and refunds: only for people granted "Issue refunds and credit notes". A credit note needs a collected, invoiced, live booking.
+  const canIssue = can("refunds.issue");
+  const mayCredit = canIssue && invoiced && ["collected", "at_warehouse"].includes(booking.status) && !!m && Number(m.invoice_now) > 0;
+  const mayRefund = canIssue && !!m && Number(m.refund_due) > 0;
+  function issued() {
+    setPanel(null);
+    moneyQ.reload();
+    notesQ.reload();
+    refundsQ.reload();
+    onChanged();
+  }
 
   async function run(action: PromiseLike<{ error: { message: string } | null }>) {
     setBusy(true);
@@ -253,6 +269,25 @@ export default function PaymentsCard({ booking, payments, onChanged }: PaymentsC
               </li>
             ))}
         </ul>
+      )}
+
+      {panel === "credit" && m ? (
+        <div className="mb-3"><CreditNotePanel booking={booking} money={m} returns={returnsQ.data ?? []} onDone={issued} /></div>
+      ) : panel === "refund" && m ? (
+        <div className="mb-3"><RefundPanel booking={booking} money={m} onDone={issued} /></div>
+      ) : (mayCredit || mayRefund) && (
+        <div className="mb-3 flex flex-wrap gap-2">
+          {mayCredit && (
+            <Button variant="secondary" onClick={() => setPanel("credit")}>
+              <FileMinus className="h-4 w-4" /> Credit note
+            </Button>
+          )}
+          {mayRefund && (
+            <Button variant="secondary" onClick={() => setPanel("refund")}>
+              <Undo2 className="h-4 w-4" /> Refund {money(Number(m!.refund_due))}
+            </Button>
+          )}
+        </div>
       )}
 
       {canRecord && (
