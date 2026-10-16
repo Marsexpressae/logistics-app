@@ -33,6 +33,8 @@ class Db {
   /** Run as the database owner (no row security), for setting the scene. */
   async owner(sql: string, params: unknown[] = []): Promise<Row[]> {
     await this.c.query("reset role");
+    // the owner is nobody in particular: forget any person a previous call signed in as
+    await this.c.query("select set_config('request.jwt.claims', '', true), set_config('request.jwt.claim.sub', '', true)");
     return (await this.c.query(sql, params)).rows;
   }
 
@@ -520,5 +522,83 @@ test("booking_money gives the same numbers to the app, to signed-in people only"
     // a person who cannot read payments sees no payments in the sums (row security applies), so never someone else's money
     const nobody = await db.person(["dashboard.view"]);
     assert.equal(Number((await db.as(nobody, "select booking_money($1) m", [a]))[0].m?.paid ?? 0), 0);
+  });
+});
+
+// ---- issue_credit_note
+type CreditLine = { category: string; amount: number; note?: string };
+const issueCredit = (db: Db, who: string, booking: string, reason: string, lines: CreditLine[], date: string | null = null, returnId: string | null = null) =>
+  db.as(who, "select issue_credit_note($1, $2, $3::jsonb, $4::date, $5::uuid) id", [booking, reason, JSON.stringify(lines), date, returnId]);
+const collectionDay = async (db: Db, booking: string) => (await db.owner("select ((collected_at at time zone 'Asia/Dubai')::date)::text d from bookings where id = $1", [booking]))[0].d as string;
+const daysFromToday = async (db: Db, n: number) => (await db.owner("select (((now() at time zone 'Asia/Dubai')::date) + $1::int)::text d", [n]))[0].d as string;
+const KEPT = [{ category: "transport", amount: 400, note: "to Karachi" }, { category: "packing", amount: 150 }, { category: "labour", amount: 100 }];
+
+test("issue_credit_note: a credit note with kept services is numbered, totalled and visible in the money", { skip }, async () => {
+  await inTransaction(async (db) => {
+    await db.owner(readFileSync(MONEY_MIGRATION, "utf8"));
+    const issuer = await db.person(["refunds.issue", "accounts.view", "bookings.view"], "issuer");
+    const booking = await moneyBooking(db);
+    await addPayment(db, booking, 1000);
+    const id = (await issueCredit(db, issuer, booking, "Parcels returned", KEPT))[0].id as string;
+    const note = (await db.owner("select number, status, old_total, new_total, credit_amount, return_id, created_by_name, invoice_no from credit_notes where id = $1", [id]))[0];
+    assert.match(note.number, /^CR-\d+$/);
+    assert.deepEqual([note.status, Number(note.old_total), Number(note.new_total), Number(note.credit_amount), note.return_id], ["active", 1000, 650, 350, null]);
+    assert.equal(note.created_by_name, "Test issuer");
+    assert.equal((await db.owner("select count(*)::int n from credit_note_lines where credit_note_id = $1", [id]))[0].n, 3);
+    assert.deepEqual(await moneyOf(db, booking), { invoice_now: 650, paid: 1000, balance_due: 0, refund_due: 350, pay_status: "refund_due" });
+  });
+});
+
+test("issue_credit_note: no lines is a full credit, amounts are rounded to two decimals, the collection day is allowed", { skip }, async () => {
+  await inTransaction(async (db) => {
+    await db.owner(readFileSync(MONEY_MIGRATION, "utf8"));
+    const issuer = await db.person(["refunds.issue", "accounts.view", "bookings.view"], "issuer");
+    const full = await moneyBooking(db);
+    const id = (await issueCredit(db, issuer, full, "Wrong invoice", []))[0].id as string;
+    const n = (await db.owner("select new_total, credit_amount from credit_notes where id = $1", [id]))[0];
+    assert.deepEqual([Number(n.new_total), Number(n.credit_amount)], [0, 1000]);
+
+    const rounded = await moneyBooking(db);
+    const r = (await issueCredit(db, issuer, rounded, "Correction", [{ category: "other", amount: 100.005 }], await collectionDay(db, rounded)))[0].id as string;
+    const row = (await db.owner("select new_total, credit_amount, note_date::text d from credit_notes where id = $1", [r]))[0];
+    assert.deepEqual([Number(row.new_total), Number(row.credit_amount)], [100.01, 899.99]);
+    assert.equal(row.d, await collectionDay(db, rounded)); // the collection day itself is accepted
+  });
+});
+
+test("issue_credit_note: refuses what the rules do not allow", { skip }, async () => {
+  await inTransaction(async (db) => {
+    await db.owner(readFileSync(MONEY_MIGRATION, "utf8"));
+    const issuer = await db.person(["refunds.issue", "accounts.view", "bookings.view"], "issuer");
+    const ok = await moneyBooking(db);
+    const refused = async (label: string, who: string, booking: string, reason: string, lines: CreditLine[], expect: RegExp, date: string | null = null, returnId: string | null = null) =>
+      assert.match((await db.error(() => issueCredit(db, who, booking, reason, lines, date, returnId))) ?? "NOT REFUSED", expect, label);
+
+    const notCollected = await db.booking({ invoice_no: "T-NC-1" });
+    await db.owner("update bookings set invoice_amount = 500 where id = $1", [notCollected]);
+    await refused("not collected", issuer, notCollected, "x", [], /collected/);
+    const noAmount = await moneyBooking(db, null);
+    await refused("no invoice amount", issuer, noAmount, "x", [], /invoice amount/);
+    const cancelled = await moneyBooking(db);
+    await db.owner("update bookings set status = 'cancelled', cancellation_reason = 'x' where id = $1", [cancelled]);
+    await refused("cancelled", issuer, cancelled, "x", [], /cancel/);
+
+    await refused("empty reason", issuer, ok, "   ", [], /reason/);
+    await refused("zero line", issuer, ok, "x", [{ category: "transport", amount: 0 }], /above zero/);
+    await refused("negative line", issuer, ok, "x", [{ category: "transport", amount: -5 }], /above zero/);
+    await refused("unknown category", issuer, ok, "x", [{ category: "food", amount: 10 }], /category/);
+    await refused("new total equal to the old", issuer, ok, "x", [{ category: "other", amount: 1000 }], /below/);
+    await refused("new total above the old", issuer, ok, "x", [{ category: "other", amount: 1200 }], /below/);
+    await refused("future date", issuer, ok, "x", [], /future/, await daysFromToday(db, 2));
+    await refused("before the collection day", issuer, ok, "x", [], /before the collection/, await daysFromToday(db, -9));
+
+    const other = await moneyBooking(db);
+    const foreignReturn = (await db.owner("insert into returns (booking_id) values ($1) returning id", [other]))[0].id as string;
+    await refused("a return of another booking", issuer, ok, "x", [], /return/, null, foreignReturn);
+
+    const noPermission = await db.person(["accounts.view", "bookings.view"], "viewer");
+    await refused("no permission", noPermission, ok, "x", [], /permission/i);
+    // nothing was written by any refused call
+    assert.equal((await db.owner("select count(*)::int n from credit_notes where booking_id = any($1::uuid[])", [[ok, notCollected, noAmount, cancelled, other]]))[0].n, 0);
   });
 });

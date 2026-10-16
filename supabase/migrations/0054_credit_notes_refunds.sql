@@ -146,3 +146,63 @@ $$;
 
 revoke execute on function money_of(uuid), booking_money(uuid) from public, anon;
 grant execute on function money_of(uuid), booking_money(uuid) to authenticated;
+
+-- ---------- issuing a credit note ----------
+-- p_lines is a JSON list of kept services: [{"category": "transport", "amount": 400, "note": "..."}].
+-- The new invoice total is the SUM of those lines (it is never typed); no lines means a full credit.
+-- The credit is the old total minus the new total, and must be above zero.
+create or replace function issue_credit_note(p_booking_id uuid, p_reason text, p_lines jsonb, p_date date default null, p_return_id uuid default null)
+returns uuid language plpgsql security definer set search_path = public as $$
+declare
+  b bookings;
+  today date := (now() at time zone 'Asia/Dubai')::date;
+  day date;
+  old_total numeric;
+  new_total numeric := 0;
+  line jsonb;
+  amount numeric;
+  cn_id uuid;
+  actor uuid := auth.uid();
+begin
+  perform require_perm('refunds.issue');
+  select * into b from bookings where id = p_booking_id for update;
+  if not found then raise exception 'Booking not found'; end if;
+  if b.status = 'cancelled' then raise exception 'A cancelled booking cannot be credited'; end if;
+  if b.status not in ('collected', 'at_warehouse') then raise exception 'Credit notes are only for bookings that have been collected'; end if;
+  if b.invoice_amount is null or b.invoice_no is null then raise exception 'This booking has no invoice amount yet'; end if;
+  if length(btrim(coalesce(p_reason, ''))) = 0 then raise exception 'A reason is required'; end if;
+
+  for line in select * from jsonb_array_elements(coalesce(p_lines, '[]'::jsonb)) loop
+    if coalesce(line ->> 'category', '') not in ('transport', 'packing', 'labour', 'other') then
+      raise exception 'Choose a category for each kept service: transport, packing, labour or other';
+    end if;
+    amount := round(coalesce((line ->> 'amount')::numeric, 0), 2);
+    if amount <= 0 then raise exception 'Each kept service needs an amount above zero'; end if;
+    new_total := new_total + amount;
+  end loop;
+
+  old_total := (select m.invoice_now from money_of(p_booking_id) m);
+  if new_total >= old_total then raise exception 'The new invoice total must be below the current total (%)', old_total; end if;
+
+  day := coalesce(p_date, today);
+  if day > today then raise exception 'The date cannot be in the future'; end if;
+  if b.collected_at is not null and day < (b.collected_at at time zone 'Asia/Dubai')::date then
+    raise exception 'The date cannot be before the collection day (%)', (b.collected_at at time zone 'Asia/Dubai')::date;
+  end if;
+  if p_return_id is not null and not exists (select 1 from returns r where r.id = p_return_id and r.booking_id = p_booking_id) then
+    raise exception 'That return belongs to another booking';
+  end if;
+
+  insert into credit_notes (number, booking_id, invoice_no, return_id, note_date, reason, old_total, new_total, credit_amount, created_by, created_by_name)
+  values (take_next_number('credit_note'), b.id, b.invoice_no, p_return_id, day, btrim(p_reason), old_total, new_total, old_total - new_total,
+          actor, (select full_name from profiles where id = actor))
+  returning id into cn_id;
+
+  insert into credit_note_lines (credit_note_id, category, amount, note)
+  select cn_id, l ->> 'category', round((l ->> 'amount')::numeric, 2), nullif(btrim(coalesce(l ->> 'note', '')), '')
+  from jsonb_array_elements(coalesce(p_lines, '[]'::jsonb)) l;
+
+  return cn_id;
+end $$;
+revoke execute on function issue_credit_note(uuid, text, jsonb, date, uuid) from public, anon;
+grant execute on function issue_credit_note(uuid, text, jsonb, date, uuid) to authenticated;
