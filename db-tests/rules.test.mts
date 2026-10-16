@@ -446,3 +446,79 @@ test("credit notes and refunds: tables are protected, permissions and series exi
     assert.equal((await db.as(nobody, "select count(*)::int n from credit_notes"))[0].n, 0);
   });
 });
+
+// A collected booking with an invoice amount, for the money tests. Returns the booking id.
+async function moneyBooking(db: Db, amount: number | null = 1000): Promise<string> {
+  const id = await db.booking({ invoice_no: `T-M-${Math.random().toString(36).slice(2, 8).toUpperCase()}` });
+  await db.owner("update bookings set status = 'collected', collected_at = now() - interval '2 days', invoice_amount = $2 where id = $1", [id, amount]);
+  return id;
+}
+const moneyOf = async (db: Db, id: string) => {
+  const r = (await db.owner("select invoice_now, paid, balance_due, refund_due, pay_status from money_of($1)", [id]))[0];
+  return { invoice_now: r.invoice_now === null ? null : Number(r.invoice_now), paid: Number(r.paid), balance_due: r.balance_due === null ? null : Number(r.balance_due), refund_due: Number(r.refund_due), pay_status: r.pay_status as string };
+};
+const addPayment = (db: Db, id: string, amount: number) => db.owner("insert into payments (booking_id, amount, method) values ($1, $2, 'cash')", [id, amount]);
+const addCredit = async (db: Db, id: string, oldTotal: number, newTotal: number, status = "active") =>
+  (await db.owner(
+    "insert into credit_notes (number, booking_id, invoice_no, note_date, reason, old_total, new_total, credit_amount, status) select 'T-CN-' || substr(gen_random_uuid()::text, 1, 6), $1, invoice_no, current_date, 'test', $2::numeric, $3::numeric, $2::numeric - $3::numeric, $4 from bookings where id = $1 returning id",
+    [id, oldTotal, newTotal, status]
+  ))[0].id as string;
+const addRefund = (db: Db, id: string, amount: number, creditId: string | null, status = "active") =>
+  db.owner("insert into refunds (number, booking_id, credit_note_id, amount, method, refund_date, status) values ('T-RF-' || substr(gen_random_uuid()::text, 1, 6), $1, $2, $3, 'cash', current_date, $4)", [id, creditId, amount, status]);
+
+test("money_of works out invoice total now, paid, balance, refund due and the state", { skip }, async () => {
+  await inTransaction(async (db) => {
+    await db.owner(readFileSync(MONEY_MIGRATION, "utf8"));
+    const a = await moneyBooking(db);
+    assert.deepEqual(await moneyOf(db, a), { invoice_now: 1000, paid: 0, balance_due: 1000, refund_due: 0, pay_status: "unpaid" });
+    await addPayment(db, a, 400);
+    assert.deepEqual(await moneyOf(db, a), { invoice_now: 1000, paid: 400, balance_due: 600, refund_due: 0, pay_status: "partial" });
+    await addPayment(db, a, 600);
+    assert.deepEqual(await moneyOf(db, a), { invoice_now: 1000, paid: 1000, balance_due: 0, refund_due: 0, pay_status: "paid" });
+
+    // a credit to 650 after paying 1000: 350 is owed back; paying it back settles the invoice
+    const credit = await addCredit(db, a, 1000, 650);
+    assert.deepEqual(await moneyOf(db, a), { invoice_now: 650, paid: 1000, balance_due: 0, refund_due: 350, pay_status: "refund_due" });
+    await addRefund(db, a, 350, credit);
+    assert.deepEqual(await moneyOf(db, a), { invoice_now: 650, paid: 650, balance_due: 0, refund_due: 0, pay_status: "paid" });
+
+    // voided records change nothing
+    const b = await moneyBooking(db);
+    await addPayment(db, b, 1000);
+    const voidCredit = await addCredit(db, b, 1000, 0, "void");
+    await addRefund(db, b, 500, voidCredit, "void");
+    assert.deepEqual(await moneyOf(db, b), { invoice_now: 1000, paid: 1000, balance_due: 0, refund_due: 0, pay_status: "paid" });
+
+    // no invoice amount yet
+    const c = await moneyBooking(db, null);
+    assert.deepEqual(await moneyOf(db, c), { invoice_now: null, paid: 0, balance_due: null, refund_due: 0, pay_status: "not_invoiced" });
+  });
+});
+
+test("credit above paid leaves a balance, and a full credit with nothing paid is 'credited'", { skip }, async () => {
+  await inTransaction(async (db) => {
+    await db.owner(readFileSync(MONEY_MIGRATION, "utf8"));
+    const a = await moneyBooking(db);
+    await addPayment(db, a, 100);
+    await addCredit(db, a, 1000, 650);
+    assert.deepEqual(await moneyOf(db, a), { invoice_now: 650, paid: 100, balance_due: 550, refund_due: 0, pay_status: "partial" }); // the kept services are still owed
+    const b = await moneyBooking(db);
+    await addCredit(db, b, 1000, 0);
+    assert.deepEqual(await moneyOf(db, b), { invoice_now: 0, paid: 0, balance_due: 0, refund_due: 0, pay_status: "credited" });
+  });
+});
+
+test("booking_money gives the same numbers to the app, to signed-in people only", { skip }, async () => {
+  await inTransaction(async (db) => {
+    await db.owner(readFileSync(MONEY_MIGRATION, "utf8"));
+    const a = await moneyBooking(db);
+    await addPayment(db, a, 400);
+    const viewer = await db.person(["accounts.view", "bookings.view"]);
+    const m = (await db.as(viewer, "select booking_money($1) m", [a]))[0].m;
+    assert.deepEqual({ invoice_now: Number(m.invoice_now), paid: Number(m.paid), balance_due: Number(m.balance_due), refund_due: Number(m.refund_due), pay_status: m.pay_status }, { invoice_now: 1000, paid: 400, balance_due: 600, refund_due: 0, pay_status: "partial" });
+    assert.match((await db.error(() => db.anonymous("select booking_money($1)", [a]))) ?? "", /permission denied/i);
+    // a person who cannot read payments sees no payments in the sums (row security applies), so never someone else's money
+    const nobody = await db.person(["dashboard.view"]);
+    assert.equal(Number((await db.as(nobody, "select booking_money($1) m", [a]))[0].m?.paid ?? 0), 0);
+  });
+});

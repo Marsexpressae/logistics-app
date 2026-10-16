@@ -106,3 +106,43 @@ on conflict do nothing;
 -- ---------- numbers (Settings > Numbering) ----------
 select register_number_series('credit_note', 'Credit note numbers', 'CR-', 1001, 'credit_notes', 'number', 50);
 select register_number_series('refund', 'Refund numbers', 'RF-', 1001, 'refunds', 'number', 60);
+
+-- ---------- the money maths, in ONE place ----------
+-- For a booking: the invoice total now (original amount minus active credits), what has been paid (payments minus active
+-- refunds), the balance still due, the refund due (paid above what is now owed), and the payment state.
+-- Accounts totals, the invoice list, search and the booking page all read this, so they cannot disagree.
+-- It runs with the caller's own rights (no security definer), so row security on payments, refunds and credit notes applies:
+-- a person who may not read the money sees nothing of it.
+-- Payment state, in this order: not_invoiced, refund_due, credited, paid, partial, unpaid.
+create or replace function money_of(p_booking uuid)
+returns table (invoice_now numeric, paid numeric, balance_due numeric, refund_due numeric, pay_status text)
+language sql stable set search_path = public as $$
+  with m as (
+    select b.invoice_amount,
+           coalesce((select sum(p.amount) from payments p where p.booking_id = p_booking), 0)
+             - coalesce((select sum(r.amount) from refunds r where r.booking_id = p_booking and r.status = 'active'), 0) as paid,
+           coalesce((select sum(c.credit_amount) from credit_notes c where c.booking_id = p_booking and c.status = 'active'), 0) as credits
+    from bookings b
+    where b.id = p_booking
+  )
+  select case when m.invoice_amount is null then null else round(m.invoice_amount - m.credits, 2) end,
+         round(m.paid, 2),
+         case when m.invoice_amount is null then null else greatest(round(m.invoice_amount - m.credits - m.paid, 2), 0) end,
+         case when m.invoice_amount is null then 0 else greatest(round(m.paid - (m.invoice_amount - m.credits), 2), 0) end,
+         case when m.invoice_amount is null then 'not_invoiced'
+              when m.paid > m.invoice_amount - m.credits then 'refund_due'
+              when m.invoice_amount - m.credits = 0 and m.paid = 0 then 'credited'
+              when m.invoice_amount - m.credits - m.paid <= 0 then 'paid'
+              when m.paid > 0 then 'partial'
+              else 'unpaid' end
+  from m
+$$;
+
+-- The same numbers as one JSON object, for the app.
+create or replace function booking_money(p_booking uuid) returns jsonb
+language sql stable set search_path = public as $$
+  select to_jsonb(m) from money_of(p_booking) m
+$$;
+
+revoke execute on function money_of(uuid), booking_money(uuid) from public, anon;
+grant execute on function money_of(uuid), booking_money(uuid) to authenticated;
