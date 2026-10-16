@@ -707,3 +707,65 @@ test("voiding: refuses a missing reason, a second void, and anyone without the v
     assert.match((await db.error(() => db.as(voider, "select void_refund($1, 'x')", [credit]))) ?? "NOT REFUSED", /not found/i);
   });
 });
+
+// ---- review fixes: the books cannot be undermined from the side
+test("the invoice amount and the payments cannot be changed under a credit note or a refund", { skip }, async () => {
+  await inTransaction(async (db) => {
+    await db.owner(readFileSync(MONEY_MIGRATION, "utf8"));
+    const issuer = await db.person(ISSUER, "issuer");
+    const voider = await db.person(["refunds.void", "accounts.view", "bookings.view"], "voider");
+    const booking = await moneyBooking(db);
+    await addPayment(db, booking, 1000);
+    await db.owner("update bookings set invoice_amount = 900 where id = $1", [booking]); // nothing issued yet: allowed
+    await db.owner("update bookings set invoice_amount = 1000 where id = $1", [booking]);
+    const credit = (await issueCredit(db, issuer, booking, "x", KEPT))[0].id as string;
+    assert.match((await db.error(() => db.owner("update bookings set invoice_amount = 300 where id = $1", [booking]))) ?? "NOT REFUSED", /credit note/i);
+    const refund = (await refundIt(db, issuer, booking, credit, 350))[0].id as string;
+    assert.match((await db.error(() => db.owner("delete from payments where booking_id = $1", [booking]))) ?? "NOT REFUSED", /refund/i);
+    assert.match((await db.error(() => db.owner("update payments set amount = 300 where booking_id = $1", [booking]))) ?? "NOT REFUSED", /refund/i);
+    assert.equal(await db.error(() => db.owner("update payments set amount = 700 where booking_id = $1", [booking])), null); // 700 still covers the 350 handed back
+    assert.equal(await db.error(() => db.owner("update payments set amount = 1000 where booking_id = $1", [booking])), null);
+    // once everything is voided the booking is free again
+    await db.as(voider, "select void_refund($1, 'x')", [refund]);
+    await db.as(voider, "select void_credit_note($1, 'x')", [credit]);
+    assert.equal(await db.error(() => db.owner("update bookings set invoice_amount = 1100 where id = $1", [booking])), null);
+    const plain = await moneyBooking(db);
+    await addPayment(db, plain, 50);
+    assert.equal(await db.error(() => db.owner("delete from payments where booking_id = $1", [plain])), null); // no refunds: deleting works as before
+  });
+});
+
+test("credit notes and refunds: chained credits, a full credit then refund, void rules, odd input, no truncate", { skip }, async () => {
+  await inTransaction(async (db) => {
+    await db.owner(readFileSync(MONEY_MIGRATION, "utf8"));
+    const issuer = await db.person(ISSUER, "issuer");
+    const a = await moneyBooking(db);
+    await addPayment(db, a, 1000);
+    const first = (await issueCredit(db, issuer, a, "x", KEPT))[0].id as string;
+    const second = (await issueCredit(db, issuer, a, "again", [{ category: "transport", amount: 300 }]))[0].id as string;
+    const row = (await db.owner("select old_total, new_total, credit_amount from credit_notes where id = $1", [second]))[0];
+    assert.deepEqual([Number(row.old_total), Number(row.new_total), Number(row.credit_amount)], [650, 300, 350]); // the second credit starts from the first's new total
+    assert.equal((await moneyOf(db, a)).invoice_now, 300);
+    assert.ok(first);
+
+    const b = await moneyBooking(db);
+    await addPayment(db, b, 1000);
+    const full = (await issueCredit(db, issuer, b, "Cancelled order", []))[0].id as string;
+    assert.equal((await moneyOf(db, b)).refund_due, 1000);
+    const refund = (await refundIt(db, issuer, b, full, 1000))[0].id as string;
+    assert.deepEqual(await moneyOf(db, b), { invoice_now: 0, paid: 0, balance_due: 0, refund_due: 0, pay_status: "credited" });
+
+    assert.match((await db.error(() => db.as(issuer, "select void_refund($1, 'x')", [refund]))) ?? "NOT REFUSED", /permission/i);
+    const voider = await db.person(["refunds.void", "accounts.view", "bookings.view"], "voider");
+    await db.as(voider, "select void_refund($1, 'x')", [refund]);
+    assert.match((await db.error(() => db.as(voider, "select void_refund($1, 'again')", [refund]))) ?? "NOT REFUSED", /already/i);
+
+    assert.match((await db.error(() => db.as(issuer, "select issue_credit_note($1, 'x', '{\"a\": 1}'::jsonb)", [a]))) ?? "NOT REFUSED", /list/i);
+    for (const t of ["credit_notes", "credit_note_lines", "refunds"]) {
+      for (const priv of ["truncate", "references", "trigger", "insert", "update", "delete"]) {
+        assert.equal((await db.owner("select has_table_privilege('authenticated', $1, $2) ok", [t, priv]))[0].ok, false, `${t} ${priv}`);
+      }
+      assert.equal((await db.owner("select has_table_privilege('anon', $1, 'select') ok", [t]))[0].ok, false);
+    }
+  });
+});

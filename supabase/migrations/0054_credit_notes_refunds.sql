@@ -66,8 +66,8 @@ create index if not exists refunds_credit_note_idx on refunds (credit_note_id);
 alter table credit_notes enable row level security;
 alter table credit_note_lines enable row level security;
 alter table refunds enable row level security;
-revoke all on credit_notes, credit_note_lines, refunds from anon;
-revoke insert, update, delete on credit_notes, credit_note_lines, refunds from authenticated;
+-- Nothing but reading. "revoke all" also removes truncate, references and trigger, which row security and the change log do not cover.
+revoke all on credit_notes, credit_note_lines, refunds from anon, authenticated;
 grant select on credit_notes, credit_note_lines, refunds to authenticated;
 
 -- Reading follows exactly who may read payments today (payments_select).
@@ -171,6 +171,7 @@ begin
   if b.status not in ('collected', 'at_warehouse') then raise exception 'Credit notes are only for bookings that have been collected'; end if;
   if b.invoice_amount is null or b.invoice_no is null then raise exception 'This booking has no invoice amount yet'; end if;
   if length(btrim(coalesce(p_reason, ''))) = 0 then raise exception 'A reason is required'; end if;
+  if p_lines is not null and jsonb_typeof(p_lines) <> 'array' then raise exception 'The kept services must be a list'; end if;
 
   for line in select * from jsonb_array_elements(coalesce(p_lines, '[]'::jsonb)) loop
     if coalesce(line ->> 'category', '') not in ('transport', 'packing', 'labour', 'other') then
@@ -289,3 +290,45 @@ end $$;
 
 revoke execute on function void_refund(uuid, text), void_credit_note(uuid, text) from public, anon;
 grant execute on function void_refund(uuid, text), void_credit_note(uuid, text) to authenticated;
+
+-- ---------- the books cannot be undermined from the side ----------
+-- Once a credit note or a refund exists, the invoice amount it was worked out from must not change under it.
+-- (A wrong amount is fixed with another credit note.)
+create or replace function bookings_keep_credits() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if new.invoice_amount is distinct from old.invoice_amount and (
+       exists (select 1 from credit_notes c where c.booking_id = old.id and c.status = 'active')
+    or exists (select 1 from refunds r where r.booking_id = old.id and r.status = 'active')
+  ) then
+    raise exception 'This invoice has a credit note or a refund, so its amount cannot be changed. Issue a credit note instead.';
+  end if;
+  return new;
+end $$;
+drop trigger if exists bookings_keep_credits on bookings;
+create trigger bookings_keep_credits before update of invoice_amount on bookings
+  for each row execute function bookings_keep_credits();
+
+-- A payment that money was refunded from cannot be lowered or deleted below what was handed back. The booking is locked first,
+-- the same lock record_refund takes, so a payment change and a refund cannot pass each other.
+create or replace function payments_keep_refunds() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare remaining numeric; refunded numeric;
+begin
+  perform 1 from bookings where id = old.booking_id for update;
+  refunded := coalesce((select sum(r.amount) from refunds r where r.booking_id = old.booking_id and r.status = 'active'), 0);
+  if refunded = 0 then
+    if tg_op = 'DELETE' then return old; end if;
+    return new;
+  end if;
+  remaining := coalesce((select sum(p.amount) from payments p where p.booking_id = old.booking_id and p.id <> old.id), 0)
+             + case when tg_op = 'UPDATE' and new.booking_id = old.booking_id then new.amount else 0 end;
+  if remaining < refunded then
+    raise exception 'Part of this payment was refunded (%). Void the refund first.', refunded;
+  end if;
+  if tg_op = 'DELETE' then return old; end if;
+  return new;
+end $$;
+drop trigger if exists payments_keep_refunds on payments;
+create trigger payments_keep_refunds before update of amount, booking_id or delete on payments
+  for each row execute function payments_keep_refunds();
