@@ -17,7 +17,7 @@ type Db = {
   booking_events: Row[]; notifications: Row[]; app_settings: Row[]; returns: Row[]; booking_notes: Row[]; client_errors: Row[]; number_series: Row[]; organization: Row[]; customers: Row[]; booking_contacts: Row[]; customer_notes: Row[]; customer_receivers: Row[]; id_documents: Row[];
 };
 
-const STORAGE_KEY = "logistics-mock-db-v35";
+const STORAGE_KEY = "logistics-mock-db-v36";
 const AUTH_KEY = "logistics-mock-signed-out";
 
 const uid = () => crypto.randomUUID();
@@ -665,6 +665,59 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
     return { data: p_parcels.length, error: null };
   },
 
+  // Add, merge and split parcels: the same rules and messages as edit_parcels() in migration 0058.
+  edit_parcels({ p_booking_id, p_retire_ids = [], p_new = [], p_warehouse_id = null, p_date = null }) {
+    const d = db();
+    const b = d.bookings.find((x) => x.id === p_booking_id);
+    if (!b) return fail("Booking not found");
+    if (!["collected", "at_warehouse"].includes(b.status)) return fail(`Booking ${b.code} has not been collected yet`);
+    const retireIds: string[] = p_retire_ids ?? [];
+    const news: Row[] = p_new ?? [];
+    if (retireIds.length === 0 && news.length !== 1) return fail("Add one parcel at a time");
+    if (retireIds.length === 1 && news.length < 2) return fail("Splitting needs two or more new parcels");
+    if (retireIds.length >= 2 && news.length !== 1) return fail("Merging makes exactly one new parcel");
+    if (new Set(retireIds).size !== retireIds.length) return fail("The same parcel was chosen twice");
+    const retiring = d.parcels.filter((p) => retireIds.includes(p.id) && p.booking_id === b.id && p.status === "in_warehouse");
+    if (retiring.length !== retireIds.length) return fail("Only parcels of this booking that are in the warehouse can be changed");
+    if (news.some((p) => Number(p.weight_kg ?? 0) < 0)) return fail("A parcel weight cannot be negative");
+    retiring.sort((x, y) => x.seq - y.seq);
+    const warehouseId = retiring.length ? retiring[0].warehouse_id : p_warehouse_id;
+    const dest = d.warehouses.find((w) => w.id === warehouseId);
+    if (!dest) return fail("Choose where the new parcel goes");
+    if (dest.active === false) return fail(`${dest.name} is not active`);
+    let ts: string | null;
+    try { ts = eventTime(p_date); } catch (e) { return fail((e as Error).message); }
+    if (ts && b.collected_at && ts.slice(0, 10) < String(b.collected_at).slice(0, 10)) return fail(`Received cannot be before the collection date (${String(b.collected_at).slice(0, 10)})`);
+
+    const mine = d.parcels.filter((p) => p.booking_id === b.id);
+    const round = Math.max(0, ...mine.map((p) => p.round ?? 1)) + 1;
+    const lastSeq = Math.max(0, ...mine.map((p) => p.seq));
+    const short = (barcode: string) => barcode.slice(b.code.length + 1);
+    const list = (labels: string[]) => (labels.length <= 1 ? (labels[0] ?? "") : `${labels.slice(0, -1).join(", ")} and ${labels[labels.length - 1]}`);
+    const oldLabels = retiring.map((p) => short(p.barcode));
+    retiring.forEach((p) => { p.container_id = null; setParcelStatus(p, "repacked"); });
+    const fresh: Row[] = news.map((p: Row, i: number) => {
+      const barcode = round === 1 ? `${b.code}-P${i + 1}` : `${b.code}-R${round}-P${i + 1}`;
+      const row = { id: uid(), booking_id: b.id, seq: lastSeq + i + 1, round, barcode, description: String(p.description ?? "").trim() || null,
+        weight_kg: p.weight_kg ?? 0, status: "in_warehouse", warehouse_id: warehouseId, container_id: null, updated_at: now() };
+      d.parcels.push(row);
+      d.parcel_events.push({ id: uid(), parcel_id: row.id, status: "in_warehouse", created_at: now() });
+      return row;
+    });
+    if (ts) {
+      backdate(fresh.map((p) => p.id), "in_warehouse", ts);
+      backdate(retiring.map((p) => p.id), "repacked", new Date(new Date(ts).getTime() - 60000).toISOString());
+    }
+    if (b.status === "collected") b.status = "at_warehouse";
+    const newLabels = fresh.map((p) => short(p.barcode));
+    const reason = retiring.length === 0 ? `Added parcel ${list(newLabels)}`
+      : retiring.length === 1 ? `Split parcel ${list(oldLabels)} into new parcels ${list(newLabels)}`
+      : `Merged parcels ${list(oldLabels)} into new parcel ${list(newLabels)}`;
+    d.booking_events.push({ id: uid(), booking_id: b.id, kind: "parcels_edited", reason, old_date: null, new_date: null, actor_name: "You (sample data)", created_at: now() });
+    save();
+    return { data: fresh.length, error: null };
+  },
+
   load_parcel({ p_container_id, p_barcode, p_override_reason, p_date }) {
     const d = db();
     const c = d.containers.find((x) => x.id === p_container_id);
@@ -1290,7 +1343,7 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
     if (c) add(c.created_at, "customer", "Customer record created", null, null, c.created_by_name ?? null);
     for (const b of linkedBookings(p_customer_id)) {
       add(b.created_at, "booking", `Booking ${b.code} created`, null, b, null);
-      for (const e of d.booking_events.filter((x) => x.booking_id === b.id)) add(e.created_at, "event", String(e.kind).replace(/_/g, " "), e.reason ?? null, b, e.actor_name ?? null);
+      for (const e of d.booking_events.filter((x) => x.booking_id === b.id)) add(e.created_at, "event", e.kind === "parcels_edited" ? "Parcels changed" : String(e.kind).replace(/_/g, " "), e.reason ?? null, b, e.actor_name ?? null);
       for (const p of d.payments.filter((x) => x.booking_id === b.id)) add(p.created_at, "payment", `Payment of ${p.amount} received`, p.method ?? null, b, null);
       for (const cn of d.credit_notes.filter((x) => x.booking_id === b.id)) {
         add(cn.created_at, "credit_note", `Credit note ${cn.number} issued`, `Invoice lowered by ${cn.credit_amount}. ${cn.reason}`, b, cn.created_by_name);
