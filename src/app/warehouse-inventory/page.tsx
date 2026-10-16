@@ -99,11 +99,17 @@ function WarehouseContent() {
   // Merge needs two or more ticked parcels of one invoice, Split exactly one (only parcels in the warehouse can be ticked).
   const canMerge = oneBooking && picked.length >= 2;
   const canSplit = picked.length === 1;
-  const [edit, setEdit] = useState<{ mode: EditMode; bookingId: string; code: string } | null>(null);
+  // The panel keeps the parcels it was opened for (a snapshot), so changing the ticks behind it cannot change what it does.
+  const [edit, setEdit] = useState<{ mode: EditMode; bookingId: string; code: string; parcels: StockParcel[] } | null>(null);
   const editParcels = stock.filter((p) => picked.includes(p.id));
   const startEdit = (mode: "merge" | "split") => {
     const first = editParcels[0];
-    if (first) setEdit({ mode, bookingId: first.booking_id, code: first.booking?.code ?? "" });
+    if (first) setEdit({ mode, bookingId: first.booking_id, code: first.booking?.code ?? "", parcels: editParcels });
+  };
+  // saved: the retired parcels are gone from stock, so their ticks go too (the panel stays open to show the new labels)
+  const saved = () => {
+    setPicked([]);
+    parcels.reload();
   };
   const finishEdit = () => {
     setEdit(null);
@@ -145,7 +151,7 @@ function WarehouseContent() {
 
   const stockProps = {
     warehouses: warehouses.data ?? [], filter, setFilter, q, groupLimit, setGroupLimit, open, toggleOpen, picked, setPicked, toggle, toggleGroup,
-    canOperate, canMerge, canSplit, onEdit: startEdit, onAdd: (bookingId: string, code: string) => setEdit({ mode: "add", bookingId, code }), oneBooking, busy, prepareReturn, moveTo, setMoveTo, moveSelected, moved, returnError, reload: parcels.reload,
+    canOperate, canMerge, canSplit, onEdit: startEdit, onAdd: (bookingId: string, code: string) => setEdit({ mode: "add", bookingId, code, parcels: [] }), oneBooking, busy, prepareReturn, moveTo, setMoveTo, moveSelected, moved, returnError, reload: parcels.reload,
   };
 
   return (
@@ -218,9 +224,9 @@ function WarehouseContent() {
           key={`${edit.mode}-${edit.bookingId}`}
           mode={edit.mode}
           booking={{ id: edit.bookingId, code: edit.code }}
-          parcels={edit.mode === "add" ? [] : editParcels}
+          parcels={edit.mode === "add" ? [] : edit.parcels}
           warehouses={warehouses.data ?? []}
-          onSaved={parcels.reload}
+          onSaved={saved}
           onDone={finishEdit}
         />
       )}

@@ -673,10 +673,10 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
     if (!["collected", "at_warehouse"].includes(b.status)) return fail(`Booking ${b.code} has not been collected yet`);
     const retireIds: string[] = p_retire_ids ?? [];
     const news: Row[] = p_new ?? [];
+    if (new Set(retireIds).size !== retireIds.length) return fail("The same parcel was chosen twice");
     if (retireIds.length === 0 && news.length !== 1) return fail("Add one parcel at a time");
     if (retireIds.length === 1 && news.length < 2) return fail("Splitting needs two or more new parcels");
     if (retireIds.length >= 2 && news.length !== 1) return fail("Merging makes exactly one new parcel");
-    if (new Set(retireIds).size !== retireIds.length) return fail("The same parcel was chosen twice");
     const retiring = d.parcels.filter((p) => retireIds.includes(p.id) && p.booking_id === b.id && p.status === "in_warehouse");
     if (retiring.length !== retireIds.length) return fail("Only parcels of this booking that are in the warehouse can be changed");
     if (news.some((p) => Number(p.weight_kg ?? 0) < 0)) return fail("A parcel weight cannot be negative");

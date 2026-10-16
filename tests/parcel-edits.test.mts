@@ -73,6 +73,7 @@ test("refusals: shape, duplicates, other bookings, parcels that cannot be change
   await refused(b, [x], [{ weight_kg: 1 }], /Splitting needs two or more new parcels/);
   await refused(b, [x, y], [{ weight_kg: 1 }, { weight_kg: 1 }], /Merging makes exactly one new parcel/);
   await refused(b, [x, x], [{ weight_kg: 1 }], /The same parcel was chosen twice/);
+  await refused(b, [x, x], [{ weight_kg: 1 }, { weight_kg: 1 }], /The same parcel was chosen twice/);
   await refused(b, [x], [{ weight_kg: 1 }, { weight_kg: -1 }], /weight cannot be negative/);
   await refused(b, [], [{ weight_kg: -1 }], /weight cannot be negative/, wh.id);
   const msg = /Only parcels of this booking that are in the warehouse can be changed/;
@@ -153,4 +154,20 @@ test("the booking history labels parcel edits, never as Cancelled", async () => 
   const code = readFileSync("src/components/bookings/ScheduleHistory.tsx", "utf8");
   assert.ok(code.includes('"parcels_edited"') && code.includes("Parcels changed"));
   assert.ok(readFileSync("src/lib/types.ts", "utf8").includes('"parcels_edited"'));
+});
+
+test("the migration locks the parcels it retires, and only retires parcels that are still in the warehouse", async () => {
+  const { readFileSync } = await import("node:fs");
+  const sql = readFileSync("supabase/migrations/0058_edit_parcels.sql", "utf8");
+  assert.match(sql, /from parcels x where x\.id = any \(p_retire_ids\)[^;]*for update/);
+  assert.match(sql, /update parcels set status = 'repacked'[^;]*status = 'in_warehouse'/);
+});
+
+test("the open panel keeps the parcels it was opened for, and a saved edit clears the selection", async () => {
+  const { readFileSync } = await import("node:fs");
+  const page = readFileSync("src/app/warehouse-inventory/page.tsx", "utf8");
+  assert.match(page, /setEdit\(\{ mode, bookingId: first\.booking_id, code: first\.booking\?\.code \?\? "", parcels: editParcels \}\)/);
+  assert.match(page, /parcels=\{edit\.mode === "add" \? \[\] : edit\.parcels\}/);
+  assert.match(page, /const saved = \(\) => \{\s*setPicked\(\[\]\);\s*parcels\.reload\(\);\s*\};/);
+  assert.match(page, /onSaved=\{saved\}/);
 });

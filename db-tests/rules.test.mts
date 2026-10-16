@@ -872,7 +872,7 @@ async function receivedBooking(db: Db) {
   await db.owner(readFileSync(PARCEL_EDIT_MIGRATION, "utf8"));
   const worker = await db.person(["warehouse.view", "warehouse.manage"], "parcel-worker");
   const booking = await db.booking({ invoice_no: "T-PE-" + Math.floor(Math.random() * 1e6) });
-  await db.owner("update bookings set status = 'collected' where id = $1", [booking]);
+  await db.owner("update bookings set status = 'collected', collected_at = now() - interval '3 days' where id = $1", [booking]);
   const wh = (await db.owner("select id from warehouses where active order by code limit 1"))[0].id as string;
   await db.as(worker, "select split_booking($1, $2, $3::jsonb)", [booking, wh, JSON.stringify([
     { description: "Box A", weight_kg: 10 }, { description: "Box B", weight_kg: 12 }, { description: "Box C", weight_kg: 8 },
@@ -967,6 +967,7 @@ test("edit_parcels: the shape of the edit must be add, merge or split", { skip }
     await refusedEdit(db, worker, booking, [parcelIds[0], parcelIds[1]], two, /Merging makes exactly one new parcel/);
     await refusedEdit(db, worker, booking, [parcelIds[0], parcelIds[1]], [], /Merging makes exactly one new parcel/);
     await refusedEdit(db, worker, booking, [parcelIds[0], parcelIds[0]], one, /The same parcel was chosen twice/);
+    await refusedEdit(db, worker, booking, [parcelIds[0], parcelIds[0]], two, /The same parcel was chosen twice/); // the duplicate is named first, whatever the number of new parcels
   });
 });
 
@@ -1007,7 +1008,8 @@ test("edit_parcels: booking, weights, warehouse, dates and permission", { skip }
     await db.owner("update warehouses set active = true where id = $1", [wh]);
     const collected = (await db.owner("select ((collected_at at time zone 'Asia/Dubai')::date)::text d from bookings where id = $1", [booking]))[0].d as string;
     const day = await daysFromToday(db, 0);
-    if (collected) await refusedEdit(db, worker, booking, [], [{ weight_kg: 1 }], /Received cannot be before the collection date/, wh, "2000-01-01");
+    assert.ok(collected, "the fixture has a collection day");
+    await refusedEdit(db, worker, booking, [], [{ weight_kg: 1 }], /Received cannot be before the collection date/, wh, "2000-01-01");
     await refusedEdit(db, worker, booking, [], [{ weight_kg: 1 }], /future|cannot be in the/i, wh, await daysFromToday(db, 5));
     // weight 0 and no description are fine, and so is today's date
     assert.equal((await editParcels(db, worker, booking, [], [{ weight_kg: 0 }], wh, day))[0].n, 1);

@@ -44,11 +44,14 @@ begin
   if not found then raise exception 'Booking not found'; end if;
   if b.status not in ('collected', 'at_warehouse') then raise exception 'Booking % has not been collected yet', b.code; end if;
 
+  -- the same parcel twice is named first, whatever the number of new parcels
+  if retire_n <> (select count(distinct i) from unnest(coalesce(p_retire_ids, '{}')) i) then raise exception 'The same parcel was chosen twice'; end if;
   -- the shape: add (nothing retired, one new), merge (two or more retired, one new), split (one retired, two or more new)
   if retire_n = 0 and new_n <> 1 then raise exception 'Add one parcel at a time'; end if;
   if retire_n = 1 and new_n < 2 then raise exception 'Splitting needs two or more new parcels'; end if;
   if retire_n >= 2 and new_n <> 1 then raise exception 'Merging makes exactly one new parcel'; end if;
-  if retire_n <> (select count(distinct i) from unnest(coalesce(p_retire_ids, '{}')) i) then raise exception 'The same parcel was chosen twice'; end if;
+  -- lock the parcels being retired (loading and returning lock single parcels, not the booking), then check they are still in the warehouse
+  if retire_n > 0 then perform 1 from parcels x where x.id = any (p_retire_ids) order by x.id for update; end if;
   if retire_n > 0 and (select count(*) from parcels x where x.id = any (p_retire_ids) and x.booking_id = b.id and x.status = 'in_warehouse') <> retire_n then
     raise exception 'Only parcels of this booking that are in the warehouse can be changed';
   end if;
@@ -74,7 +77,10 @@ begin
   if retire_n > 0 then
     select array_agg(substr(x.barcode, length(b.code) + 2) order by x.seq) into old_labels
     from parcels x where x.id = any (p_retire_ids) and x.booking_id = b.id;
-    update parcels set status = 'repacked', container_id = null where id = any (p_retire_ids) and booking_id = b.id;
+    update parcels set status = 'repacked', container_id = null where id = any (p_retire_ids) and booking_id = b.id and status = 'in_warehouse';
+    get diagnostics n = row_count;
+    if n <> retire_n then raise exception 'Only parcels of this booking that are in the warehouse can be changed'; end if;
+    n := 0;
   end if;
 
   new_labels := '{}';
