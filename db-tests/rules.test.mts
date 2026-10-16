@@ -821,11 +821,9 @@ test("cancel_booking is blocked once a payment exists", { skip }, async () => {
 });
 
 // ---------------- stage 3: the customer timeline lists credit notes and refunds ----------------
-const TIMELINE_MIGRATION = "supabase/migrations/0056_money_in_timeline.sql";
 
 test("customer timeline lists credit notes and refunds, and their voiding", { skip }, async () => {
   await inTransaction(async (db) => {
-    await db.owner(readFileSync(TIMELINE_MIGRATION, "utf8"));
     const issuer = await db.person([...ISSUER, "customers.view", "refunds.void"], "issuer");
     const booking = await moneyBooking(db);
     await addPayment(db, booking, 1000);
@@ -845,11 +843,9 @@ test("customer timeline lists credit notes and refunds, and their voiding", { sk
 });
 
 // ---------------- final review: the payment-before-loading gate knows about credit notes and refunds ----------------
-const GATE_MIGRATION = "supabase/migrations/0057_loading_gate_money.sql";
 
 test("payment before loading: a credit note settles the balance, and a refund reopens it", { skip }, async () => {
   await inTransaction(async (db) => {
-    await db.owner(readFileSync(GATE_MIGRATION, "utf8"));
     const warehouseUser = await db.person(["warehouse.view", "warehouse.manage", "containers.view", "containers.manage"]);
     const booking = await db.booking({ invoice_no: "T-GATE-1" });
     await db.owner("update bookings set status = 'collected', invoice_amount = 1000 where id = $1", [booking]);
