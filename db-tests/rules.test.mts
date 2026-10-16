@@ -426,11 +426,8 @@ test("Customers and Accounts lists can be sorted in the database, safely, and a 
 });
 
 // ---------------- refunds and credit notes (stage 1) ----------------
-const MONEY_MIGRATION = "supabase/migrations/0054_credit_notes_refunds.sql";
-
 test("credit notes and refunds: tables are protected, permissions and series exist", { skip }, async () => {
   await inTransaction(async (db) => {
-    await db.owner(readFileSync(MONEY_MIGRATION, "utf8"));
     const series = await db.owner("select kind, prefix from number_series where kind in ('credit_note', 'refund') order by kind");
     assert.deepEqual(series.map((r) => `${r.kind}:${r.prefix}`), ["credit_note:CR-", "refund:RF-"]);
     const grants = await db.owner("select role, permission from role_permissions where permission in ('refunds.issue', 'refunds.void') order by permission, role");
@@ -470,7 +467,6 @@ const addRefund = (db: Db, id: string, amount: number, creditId: string | null, 
 
 test("money_of works out invoice total now, paid, balance, refund due and the state", { skip }, async () => {
   await inTransaction(async (db) => {
-    await db.owner(readFileSync(MONEY_MIGRATION, "utf8"));
     const a = await moneyBooking(db);
     assert.deepEqual(await moneyOf(db, a), { invoice_now: 1000, paid: 0, balance_due: 1000, refund_due: 0, pay_status: "unpaid" });
     await addPayment(db, a, 400);
@@ -499,7 +495,6 @@ test("money_of works out invoice total now, paid, balance, refund due and the st
 
 test("credit above paid leaves a balance, and a full credit with nothing paid is 'credited'", { skip }, async () => {
   await inTransaction(async (db) => {
-    await db.owner(readFileSync(MONEY_MIGRATION, "utf8"));
     const a = await moneyBooking(db);
     await addPayment(db, a, 100);
     await addCredit(db, a, 1000, 650);
@@ -512,7 +507,6 @@ test("credit above paid leaves a balance, and a full credit with nothing paid is
 
 test("booking_money gives the same numbers to the app, to signed-in people only", { skip }, async () => {
   await inTransaction(async (db) => {
-    await db.owner(readFileSync(MONEY_MIGRATION, "utf8"));
     const a = await moneyBooking(db);
     await addPayment(db, a, 400);
     const viewer = await db.person(["accounts.view", "bookings.view"]);
@@ -535,7 +529,6 @@ const KEPT = [{ category: "transport", amount: 400, note: "to Karachi" }, { cate
 
 test("issue_credit_note: a credit note with kept services is numbered, totalled and visible in the money", { skip }, async () => {
   await inTransaction(async (db) => {
-    await db.owner(readFileSync(MONEY_MIGRATION, "utf8"));
     const issuer = await db.person(["refunds.issue", "accounts.view", "bookings.view"], "issuer");
     const booking = await moneyBooking(db);
     await addPayment(db, booking, 1000);
@@ -551,7 +544,6 @@ test("issue_credit_note: a credit note with kept services is numbered, totalled 
 
 test("issue_credit_note: no lines is a full credit, amounts are rounded to two decimals, the collection day is allowed", { skip }, async () => {
   await inTransaction(async (db) => {
-    await db.owner(readFileSync(MONEY_MIGRATION, "utf8"));
     const issuer = await db.person(["refunds.issue", "accounts.view", "bookings.view"], "issuer");
     const full = await moneyBooking(db);
     const id = (await issueCredit(db, issuer, full, "Wrong invoice", []))[0].id as string;
@@ -568,7 +560,6 @@ test("issue_credit_note: no lines is a full credit, amounts are rounded to two d
 
 test("issue_credit_note: refuses what the rules do not allow", { skip }, async () => {
   await inTransaction(async (db) => {
-    await db.owner(readFileSync(MONEY_MIGRATION, "utf8"));
     const issuer = await db.person(["refunds.issue", "accounts.view", "bookings.view"], "issuer");
     const ok = await moneyBooking(db);
     const refused = async (label: string, who: string, booking: string, reason: string, lines: CreditLine[], expect: RegExp, date: string | null = null, returnId: string | null = null) =>
@@ -610,7 +601,6 @@ const ISSUER = ["refunds.issue", "accounts.view", "bookings.view"];
 
 test("record_refund: refunds never exceed refund due, however they are split", { skip }, async () => {
   await inTransaction(async (db) => {
-    await db.owner(readFileSync(MONEY_MIGRATION, "utf8"));
     const issuer = await db.person(ISSUER, "issuer");
     const booking = await moneyBooking(db);
     await addPayment(db, booking, 1000);
@@ -628,7 +618,6 @@ test("record_refund: refunds never exceed refund due, however they are split", {
 
 test("record_refund: no refund when nothing is due, and a plain overpayment can be refunded without a credit note", { skip }, async () => {
   await inTransaction(async (db) => {
-    await db.owner(readFileSync(MONEY_MIGRATION, "utf8"));
     const issuer = await db.person(ISSUER, "issuer");
     const exact = await moneyBooking(db);
     await addPayment(db, exact, 1000);
@@ -643,7 +632,6 @@ test("record_refund: no refund when nothing is due, and a plain overpayment can 
 
 test("record_refund: refuses what the rules do not allow", { skip }, async () => {
   await inTransaction(async (db) => {
-    await db.owner(readFileSync(MONEY_MIGRATION, "utf8"));
     const issuer = await db.person(ISSUER, "issuer");
     const booking = await moneyBooking(db);
     await addPayment(db, booking, 1000);
@@ -669,7 +657,6 @@ test("record_refund: refuses what the rules do not allow", { skip }, async () =>
 // ---- voiding
 test("voiding: records stay, the numbers are restored, and the order matters", { skip }, async () => {
   await inTransaction(async (db) => {
-    await db.owner(readFileSync(MONEY_MIGRATION, "utf8"));
     const issuer = await db.person(ISSUER, "issuer");
     const voider = await db.person(["refunds.void", "accounts.view", "bookings.view"], "voider");
     const booking = await moneyBooking(db);
@@ -694,7 +681,6 @@ test("voiding: records stay, the numbers are restored, and the order matters", {
 
 test("voiding: refuses a missing reason, a second void, and anyone without the void permission", { skip }, async () => {
   await inTransaction(async (db) => {
-    await db.owner(readFileSync(MONEY_MIGRATION, "utf8"));
     const issuer = await db.person(ISSUER, "issuer");
     const voider = await db.person(["refunds.void", "accounts.view", "bookings.view"], "voider");
     const booking = await moneyBooking(db);
@@ -711,7 +697,6 @@ test("voiding: refuses a missing reason, a second void, and anyone without the v
 // ---- review fixes: the books cannot be undermined from the side
 test("the invoice amount and the payments cannot be changed under a credit note or a refund", { skip }, async () => {
   await inTransaction(async (db) => {
-    await db.owner(readFileSync(MONEY_MIGRATION, "utf8"));
     const issuer = await db.person(ISSUER, "issuer");
     const voider = await db.person(["refunds.void", "accounts.view", "bookings.view"], "voider");
     const booking = await moneyBooking(db);
@@ -737,7 +722,6 @@ test("the invoice amount and the payments cannot be changed under a credit note 
 
 test("credit notes and refunds: chained credits, a full credit then refund, void rules, odd input, no truncate", { skip }, async () => {
   await inTransaction(async (db) => {
-    await db.owner(readFileSync(MONEY_MIGRATION, "utf8"));
     const issuer = await db.person(ISSUER, "issuer");
     const a = await moneyBooking(db);
     await addPayment(db, a, 1000);
