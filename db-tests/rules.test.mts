@@ -422,3 +422,27 @@ test("Customers and Accounts lists can be sorted in the database, safely, and a 
     assert.match((await db.error(() => db.as(noAccounts, "select accounts_invoices('all', null, 25, 0, 'amount', 'asc')"))) ?? "", /permission/i);
   });
 });
+
+// ---------------- refunds and credit notes (stage 1) ----------------
+const MONEY_MIGRATION = "supabase/migrations/0054_credit_notes_refunds.sql";
+
+test("credit notes and refunds: tables are protected, permissions and series exist", { skip }, async () => {
+  await inTransaction(async (db) => {
+    await db.owner(readFileSync(MONEY_MIGRATION, "utf8"));
+    const series = await db.owner("select kind, prefix from number_series where kind in ('credit_note', 'refund') order by kind");
+    assert.deepEqual(series.map((r) => `${r.kind}:${r.prefix}`), ["credit_note:CR-", "refund:RF-"]);
+    const grants = await db.owner("select role, permission from role_permissions where permission in ('refunds.issue', 'refunds.void') order by permission, role");
+    assert.deepEqual(grants.map((g) => `${g.permission}:${g.role}`), ["refunds.issue:manager", "refunds.issue:super_admin", "refunds.void:super_admin"]);
+
+    // nobody can write to the tables directly, whatever they may do elsewhere
+    const everything = await db.person(["accounts.view", "payments.manage", "bookings.view", "refunds.issue", "refunds.void"]);
+    for (const sql of ["insert into credit_notes (number) values ('x')", "update refunds set note = 'x'", "delete from credit_note_lines", "insert into refunds (number) values ('x')"]) {
+      assert.match((await db.error(() => db.as(everything, sql))) ?? "", /permission denied/i, sql);
+    }
+    assert.match((await db.error(() => db.anonymous("select count(*) from credit_notes"))) ?? "", /permission denied/i);
+    // a person who can see accounts can read them (empty here), a person without any money permission cannot
+    assert.equal((await db.as(everything, "select count(*)::int n from refunds"))[0].n >= 0, true);
+    const nobody = await db.person(["dashboard.view"]);
+    assert.equal((await db.as(nobody, "select count(*)::int n from credit_notes"))[0].n, 0);
+  });
+});
