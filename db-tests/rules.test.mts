@@ -1018,3 +1018,20 @@ test("edit_parcels: booking, weights, warehouse, dates and permission", { skip }
     assert.match((await db.error(() => db.anonymous("select edit_parcels($1, '{}'::uuid[], '[]'::jsonb)", [booking]))) ?? "", /permission denied/i);
   });
 });
+
+test("edit_parcels: the customer timeline labels parcel edits, and still lists credit notes", { skip }, async () => {
+  await inTransaction(async (db) => {
+    const { worker, booking, parcelIds } = await receivedBooking(db);
+    await db.owner("update bookings set invoice_amount = 1000 where id = $1", [booking]);
+    await addCredit(db, booking, 1000, 400);
+    await editParcels(db, worker, booking, [parcelIds[0], parcelIds[1]], [{ weight_kg: 22 }]);
+    const viewer = await db.person(["customers.view"], "timeline-viewer");
+    const customer = (await db.owner("select customer_id from booking_contacts where booking_id = $1 and role = 'customer'", [booking]))[0].customer_id as string;
+    const rows = (await db.as(viewer, "select r_kind, r_title, r_detail from customer_timeline($1, 100, 0)", [customer])) as { r_kind: string; r_title: string; r_detail: string }[];
+    const edit = rows.find((r) => r.r_title === "Parcels changed");
+    assert.ok(edit, "the parcel edit is on the customer's history");
+    assert.match(edit.r_detail, /^Merged parcels P1 and P2 into new parcel R2-P1$/);
+    assert.ok(!rows.some((r) => r.r_title === "Cancelled"), "never shown as Cancelled");
+    assert.ok(rows.some((r) => r.r_kind === "credit_note" && /^Credit note .* issued$/.test(r.r_title)), "credit notes are still listed");
+  });
+});
