@@ -379,7 +379,6 @@ test("the booking stage follows the parcels, for search and tracking too, even w
 
 test("Customers and Accounts lists can be sorted in the database, safely, and a custom invoice number cannot break Accounts", { skip }, async () => {
   await inTransaction(async (db) => {
-    await db.owner(readFileSync("supabase/migrations/0053_sortable_lists.sql", "utf8"));
     const viewer = await db.person(["customers.view", "accounts.view", "bookings.view"]);
     const make = async (name: string, phone: string, invoice: string, amount: number, daysAgo: number) => {
       const id = await db.booking({ sender_name: name, sender_phone: phone, invoice_no: invoice });
@@ -755,12 +754,10 @@ test("credit notes and refunds: chained credits, a full credit then refund, void
 });
 
 // ---------------- stage 2: the money maths in Accounts, search and the cancel rule ----------------
-const ACCOUNTS_MIGRATION = "supabase/migrations/0055_money_in_accounts.sql";
 const invoiceOf = async (db: Db, booking: string) => (await db.owner("select invoice_no from bookings where id = $1", [booking]))[0].invoice_no as string;
 
 test("accounts_summary counts credits and refunds, and shows what is owed back", { skip }, async () => {
   await inTransaction(async (db) => {
-    await db.owner(readFileSync(ACCOUNTS_MIGRATION, "utf8"));
     const viewer = await db.person(["accounts.view", "bookings.view", "refunds.issue"], "viewer");
     const read = async () => {
       const s = (await db.as(viewer, "select accounts_summary() s"))[0].s;
@@ -780,7 +777,6 @@ test("accounts_summary counts credits and refunds, and shows what is owed back",
 
 test("accounts_invoices shows current values, a credited note, and a Refund due filter; sorting still works", { skip }, async () => {
   await inTransaction(async (db) => {
-    await db.owner(readFileSync(ACCOUNTS_MIGRATION, "utf8"));
     const viewer = await db.person(["accounts.view", "bookings.view", "refunds.issue"], "viewer");
     const a = await moneyBooking(db);
     await addPayment(db, a, 1000);
@@ -802,7 +798,6 @@ test("accounts_invoices shows current values, a credited note, and a Refund due 
 
 test("search shows the same payment state as Accounts", { skip }, async () => {
   await inTransaction(async (db) => {
-    await db.owner(readFileSync(ACCOUNTS_MIGRATION, "utf8"));
     const viewer = await db.person(["accounts.view", "bookings.view", "refunds.issue"], "viewer");
     const a = await moneyBooking(db);
     await addPayment(db, a, 1000);
@@ -815,7 +810,6 @@ test("search shows the same payment state as Accounts", { skip }, async () => {
 
 test("cancel_booking is blocked once a payment exists", { skip }, async () => {
   await inTransaction(async (db) => {
-    await db.owner(readFileSync(ACCOUNTS_MIGRATION, "utf8"));
     const canceller = await db.person(["bookings.cancel", "bookings.view"], "canceller");
     const paid = await moneyBooking(db);
     await addPayment(db, paid, 200);
