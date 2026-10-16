@@ -109,3 +109,9 @@ test("the customer timeline labels parcel edits", async () => {
   assert.ok(changed.includes("Merged parcels P1 and P2 into new parcel R2-P1"));
   assert.ok(!rows.some((r) => r.r_title === "parcels edited"));
 });
+
+test("the Warehouse page is split into smaller files", async () => {
+  const { readFileSync, existsSync } = await import("node:fs");
+  assert.ok(readFileSync("src/app/warehouse-inventory/page.tsx", "utf8").split("\n").length < 300, "page.tsx is under 300 lines");
+  for (const f of ["types.ts", "StockList.tsx", "IntakeList.tsx", "ReturnsList.tsx"]) assert.ok(existsSync(`src/components/warehouse/${f}`), `${f} exists`);
+});
