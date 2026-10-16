@@ -175,3 +175,21 @@ test("the void button asks for a reason and is shown only with refunds.void, on 
   const card = readFileSync("src/components/bookings/PaymentsCard.tsx", "utf8");
   assert.ok(card.includes("VoidButton") && card.includes('can("refunds.void")') && card.includes('e.status === "active"'));
 });
+
+test("the standalone Refund button links the refund to the latest active credit note", () => {
+  const card = readFileSync("src/components/bookings/PaymentsCard.tsx", "utf8");
+  assert.match(card, /<RefundPanel booking=\{booking\} money=\{m\} creditNoteId=\{/);
+});
+
+test("payment before loading uses the money rules: a partly credited booking that is settled can load", async () => {
+  await c.from("app_settings").update({ value: true }).eq("key", "require_payment_before_loading");
+  const b = await booking("BK-1002"); // invoice 800, 400 paid
+  const wh = (await c.from("warehouses").select("*")).data[0];
+  await c.rpc("split_booking", { p_booking_id: b.id, p_warehouse_id: wh.id, p_parcels: [{ description: "Z", weight_kg: 5 }] });
+  const parcel = (await c.from("parcels").select("*").eq("booking_id", b.id).eq("status", "in_warehouse")).data[0];
+  const cont = (await c.from("containers").insert({ destination: "Test" }).select("*").single()).data;
+  assert.match((await c.rpc("load_parcel", { p_container_id: cont.id, p_barcode: parcel.barcode })).error.message, /^PAYMENT_REQUIRED/);
+  assert.equal((await credit("BK-1002", { p_lines: [{ category: "other", amount: 400 }] })).error, null); // invoice now 400, paid 400
+  assert.equal((await c.rpc("load_parcel", { p_container_id: cont.id, p_barcode: parcel.barcode })).error, null);
+  await c.from("app_settings").update({ value: false }).eq("key", "require_payment_before_loading");
+});

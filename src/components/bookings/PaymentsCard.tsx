@@ -282,7 +282,7 @@ export default function PaymentsCard({ booking, payments, onChanged }: PaymentsC
       {panel === "credit" && m && mayCredit ? (
         <div className="mb-3"><CreditNotePanel booking={booking} money={m} returns={returnsQ.data ?? []} returnId={returnFromLink} onDone={issued} /></div>
       ) : panel === "refund" && m && mayRefund ? (
-        <div className="mb-3"><RefundPanel booking={booking} money={m} onDone={issued} /></div>
+        <div className="mb-3"><RefundPanel booking={booking} money={m} creditNoteId={[...notes].reverse().find((n) => n.status === "active")?.id} onDone={issued} /></div>
       ) : (mayCredit || mayRefund) && (
         <div className="mb-3 flex flex-wrap gap-2">
           {mayCredit && (

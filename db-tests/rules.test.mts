@@ -843,3 +843,27 @@ test("customer timeline lists credit notes and refunds, and their voiding", { sk
     assert.ok((await rows()).some((r) => r.r_kind === "booking"), "the existing branches are still there");
   });
 });
+
+// ---------------- final review: the payment-before-loading gate knows about credit notes and refunds ----------------
+const GATE_MIGRATION = "supabase/migrations/0057_loading_gate_money.sql";
+
+test("payment before loading: a credit note settles the balance, and a refund reopens it", { skip }, async () => {
+  await inTransaction(async (db) => {
+    await db.owner(readFileSync(GATE_MIGRATION, "utf8"));
+    const warehouseUser = await db.person(["warehouse.view", "warehouse.manage", "containers.view", "containers.manage"]);
+    const booking = await db.booking({ invoice_no: "T-GATE-1" });
+    await db.owner("update bookings set status = 'collected', invoice_amount = 1000 where id = $1", [booking]);
+    const wh = (await db.owner("select id from warehouses order by code limit 1"))[0].id;
+    await db.as(warehouseUser, "select split_booking($1, $2, $3::jsonb)", [booking, wh, JSON.stringify([{ description: "A", weight_kg: 5 }, { description: "B", weight_kg: 5 }])]);
+    const barcodes = (await db.owner("select barcode from parcels where booking_id = $1 and status = 'in_warehouse' order by seq", [booking])).map((r) => r.barcode as string);
+    const container = (await db.owner("insert into containers (destination) values ('Test') returning id"))[0].id;
+    await db.owner("update app_settings set value = 'true'::jsonb where key = 'require_payment_before_loading'");
+    await addPayment(db, booking, 400);
+    const load = (code: string) => db.error(() => db.as(warehouseUser, "select load_parcel($1, $2, null)", [container, code]));
+    assert.match((await load(barcodes[0])) ?? "", /PAYMENT_REQUIRED/); // 400 of 1000
+    await addCredit(db, booking, 1000, 400); // partly returned: the invoice is now 400
+    assert.equal(await load(barcodes[0]), null, "paid in full after the credit note");
+    await addRefund(db, booking, 100, null); // 100 handed back: 300 of 400 is now paid
+    assert.match((await load(barcodes[1])) ?? "", /PAYMENT_REQUIRED/);
+  });
+});

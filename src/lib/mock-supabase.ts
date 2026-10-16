@@ -676,10 +676,10 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
     if (p.status !== "in_warehouse") return fail(`Parcel ${p.barcode} is not in a warehouse (status: ${p.status})`);
     if (d.app_settings.find((s) => s.key === "require_payment_before_loading")?.value === true) {
       const b = d.bookings.find((x) => x.id === p.booking_id)!;
-      const paid = d.payments.filter((x) => x.booking_id === b.id).reduce((s, x) => s + Number(x.amount), 0);
-      if (b.invoice_amount === null || paid < Number(b.invoice_amount)) {
+      const m = moneyFor(d, b); // the same money rules as Accounts: credit notes lower what is owed, refunds lower what was paid
+      if (b.invoice_amount === null || m.paid < Number(m.invoice_now)) {
         if (!String(p_override_reason ?? "").trim())
-          return fail(`PAYMENT_REQUIRED ${b.code} : ${b.invoice_amount === null ? "no invoice amount is set yet" : `paid ${paid} of ${b.invoice_amount}`}`);
+          return fail(`PAYMENT_REQUIRED ${b.code} : ${b.invoice_amount === null ? "no invoice amount is set yet" : `paid ${m.paid} of ${m.invoice_now}`}`);
         d.booking_events.push({ id: uid(), booking_id: b.id, kind: "loaded_without_payment", reason: `${String(p_override_reason).trim()} (${p.barcode} into ${c.code})`,
           old_date: null, new_date: null, actor_name: "You (sample data)", created_at: now() });
       }
