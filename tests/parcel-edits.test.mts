@@ -115,3 +115,25 @@ test("the Warehouse page is split into smaller files", async () => {
   assert.ok(readFileSync("src/app/warehouse-inventory/page.tsx", "utf8").split("\n").length < 300, "page.tsx is under 300 lines");
   for (const f of ["types.ts", "StockList.tsx", "IntakeList.tsx", "ReturnsList.tsx"]) assert.ok(existsSync(`src/components/warehouse/${f}`), `${f} exists`);
 });
+
+test("the stock the page reads after an edit lists the new parcels and not the retired ones", async () => {
+  const stock = async (): Promise<R[]> => (await c.from("parcels").select("*").in("status", ["in_warehouse", "ready_for_return"]).eq("booking_id", b.id)).data;
+  const [one, two] = (await stock()).filter((p) => p.status === "in_warehouse");
+  assert.ok(one && two, "the booking has at least two parcels in stock");
+  const r = await c.rpc("edit_parcels", { p_booking_id: b.id, p_retire_ids: [one.id, two.id], p_new: [{ description: "Merged for the page", weight_kg: 1 }], p_warehouse_id: null, p_date: null });
+  assert.equal(r.error, null);
+  const after = await stock();
+  assert.ok(!after.some((p) => p.id === one.id || p.id === two.id));
+  assert.ok(after.some((p) => p.description === "Merged for the page"));
+});
+
+test("the Warehouse page offers Merge and Split to people who may edit parcels, and Add parcel on each booking", async () => {
+  const { readFileSync } = await import("node:fs");
+  const page = readFileSync("src/app/warehouse-inventory/page.tsx", "utf8");
+  assert.match(page, /picked\.length >= 2/);
+  assert.match(page, /picked\.length === 1/);
+  assert.ok(page.includes("ParcelEditPanel") && page.includes("canOperate"));
+  assert.ok(readFileSync("src/components/warehouse/StockList.tsx", "utf8").includes("Add parcel"));
+  const panel = readFileSync("src/components/warehouse/ParcelEditPanel.tsx", "utf8");
+  assert.ok(panel.includes('"edit_parcels"') && panel.includes("confirmAction"));
+});

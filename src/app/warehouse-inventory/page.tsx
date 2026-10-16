@@ -20,6 +20,7 @@ import { TABS, type StockParcel, type Tab } from "@/components/warehouse/types";
 import StockList from "@/components/warehouse/StockList";
 import IntakeList from "@/components/warehouse/IntakeList";
 import ReturnsList from "@/components/warehouse/ReturnsList";
+import ParcelEditPanel, { type EditMode } from "@/components/warehouse/ParcelEditPanel";
 
 function WarehouseContent() {
   const router = useRouter();
@@ -95,6 +96,20 @@ function WarehouseContent() {
   // A return form covers the parcels of one booking.
   const pickedBookings = new Set(stock.filter((p) => picked.includes(p.id)).map((p) => p.booking_id));
   const oneBooking = pickedBookings.size === 1;
+  // Merge needs two or more ticked parcels of one invoice, Split exactly one (only parcels in the warehouse can be ticked).
+  const canMerge = oneBooking && picked.length >= 2;
+  const canSplit = picked.length === 1;
+  const [edit, setEdit] = useState<{ mode: EditMode; bookingId: string; code: string } | null>(null);
+  const editParcels = stock.filter((p) => picked.includes(p.id));
+  const startEdit = (mode: "merge" | "split") => {
+    const first = editParcels[0];
+    if (first) setEdit({ mode, bookingId: first.booking_id, code: first.booking?.code ?? "" });
+  };
+  const finishEdit = () => {
+    setEdit(null);
+    setPicked([]);
+    parcels.reload();
+  };
   const toggle = (id: string) => setPicked(picked.includes(id) ? picked.filter((x) => x !== id) : [...picked, id]);
   const toggleOpen = (bookingId: string) => setOpen(open.includes(bookingId) ? open.filter((x) => x !== bookingId) : [...open, bookingId]);
   // Ticking an invoice ticks every package of it that can be returned.
@@ -130,7 +145,7 @@ function WarehouseContent() {
 
   const stockProps = {
     warehouses: warehouses.data ?? [], filter, setFilter, q, groupLimit, setGroupLimit, open, toggleOpen, picked, setPicked, toggle, toggleGroup,
-    canOperate, oneBooking, busy, prepareReturn, moveTo, setMoveTo, moveSelected, moved, returnError, reload: parcels.reload,
+    canOperate, canMerge, canSplit, onEdit: startEdit, onAdd: (bookingId: string, code: string) => setEdit({ mode: "add", bookingId, code }), oneBooking, busy, prepareReturn, moveTo, setMoveTo, moveSelected, moved, returnError, reload: parcels.reload,
   };
 
   return (
@@ -197,6 +212,17 @@ function WarehouseContent() {
           placeholder={tab === "returns" ? "Return, invoice or customer" : tab === "intake" ? "Invoice, booking or customer" : "Invoice, barcode, position or customer"}
         />
       </div>
+
+      {canOperate && edit && (tab === "unpacked" || tab === "packed") && (
+        <ParcelEditPanel
+          key={`${edit.mode}-${edit.bookingId}`}
+          mode={edit.mode}
+          booking={{ id: edit.bookingId, code: edit.code }}
+          parcels={edit.mode === "add" ? [] : editParcels}
+          warehouses={warehouses.data ?? []}
+          onDone={finishEdit}
+        />
+      )}
 
       <div key={tab} className={slide ? `swipe-in-${slide}` : ""}>
       {tab === "intake" && <IntakeList bookings={intake} hasAny={!!awaiting.data?.length} canOperate={canOperate} />}
