@@ -151,7 +151,7 @@ function WarehouseContent() {
 
   const stockProps = {
     warehouses: warehouses.data ?? [], filter, setFilter, q, groupLimit, setGroupLimit, open, toggleOpen, picked, setPicked, toggle, toggleGroup,
-    canOperate, canMerge, canSplit, onEdit: startEdit, onAdd: (bookingId: string, code: string) => setEdit({ mode: "add", bookingId, code, parcels: [] }), oneBooking, busy, prepareReturn, moveTo, setMoveTo, moveSelected, moved, returnError, reload: parcels.reload,
+    canOperate, canMerge, canSplit, onEdit: startEdit, oneBooking, busy, prepareReturn, moveTo, setMoveTo, moveSelected, moved, returnError, reload: parcels.reload,
   };
 
   return (
@@ -224,8 +224,7 @@ function WarehouseContent() {
           key={`${edit.mode}-${edit.bookingId}`}
           mode={edit.mode}
           booking={{ id: edit.bookingId, code: edit.code }}
-          parcels={edit.mode === "add" ? [] : edit.parcels}
-          warehouses={warehouses.data ?? []}
+          parcels={edit.parcels}
           onSaved={saved}
           onDone={finishEdit}
         />

@@ -89,3 +89,7 @@ The database change goes live before the screens that need it.
 - Parcels are the physical truth, so rules sit in the database and are tested before any screen exists.
 - A merge or split that changes the total weight is allowed on purpose (scales differ); the screen shows the difference.
 - Existing repack (`split_booking`) is not changed.
+
+## 11. Amendment (2026-10-16, owner's decision after the preview)
+
+**Adding a parcel is removed.** Extra cargo from a customer is a new booking with its own invoice, so a parcel must never appear with no parcel retired. `edit_parcels` is merge and split only (migration `0059_edit_parcels_no_add.sql` replaces the function with `edit_parcels(p_booking_id, p_retire_ids, p_new, p_date)`; an empty retire list is refused with "Choose the parcels to change"; the `p_warehouse_id` parameter is gone because new parcels go to the place of the retired ones). The Add parcel buttons and the "Added parcel" history line are gone. A box forgotten at intake is fixed with the existing repack (Labels).

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronDown, ChevronRight, Merge, MoveRight, Plus, Split, Undo2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Merge, MoveRight, Split, Undo2 } from "lucide-react";
 import EmptyState from "@/components/ui/EmptyState";
 import { Button, ErrorMessage, StatusBadge, inputClass } from "@/components/ui/form";
 import { kg } from "@/lib/format";
@@ -31,7 +31,6 @@ export type StockListProps = {
   canMerge: boolean; // two or more parcels of one invoice are ticked
   canSplit: boolean; // exactly one parcel is ticked
   onEdit: (mode: "merge" | "split") => void;
-  onAdd: (bookingId: string, code: string) => void;
   oneBooking: boolean;
   busy: boolean;
   prepareReturn: () => void;
@@ -46,7 +45,7 @@ export type StockListProps = {
 /** The parcels in stock (Unpacked and Packed tabs): one group per invoice, with the selection bar for returning and moving. */
 export default function StockList({
   list, empty, warehouses, filter, setFilter, q, groupLimit, setGroupLimit, open, toggleOpen, picked, setPicked, toggle, toggleGroup,
-  canOperate, canMerge, canSplit, onEdit, onAdd, oneBooking, busy, prepareReturn, moveTo, setMoveTo, moveSelected, moved, returnError, reload,
+  canOperate, canMerge, canSplit, onEdit, oneBooking, busy, prepareReturn, moveTo, setMoveTo, moveSelected, moved, returnError, reload,
 }: StockListProps) {
   const groups = (list: StockParcel[]) => {
     const byBooking = new Map<string, { bookingId: string; invoice: string; code: string; customer: string; parcels: StockParcel[] }>();
@@ -211,15 +210,6 @@ export default function StockList({
                       </div>
                     ))}
                     {canOperate && (
-                      <button
-                        type="button"
-                        onClick={() => onAdd(g.bookingId, g.code)}
-                        className="flex min-h-14 w-full items-center justify-center gap-2 rounded-md border-2 border-slate-300 text-base font-semibold text-slate-700"
-                      >
-                        <Plus className="h-5 w-5" /> Add parcel
-                      </button>
-                    )}
-                    {canOperate && (
                       <Link
                         href={`/warehouse-inventory/split/${g.bookingId}`}
                         className="flex min-h-14 items-center justify-center rounded-md border-2 border-brand-600 text-base font-semibold text-brand-700"
@@ -295,16 +285,7 @@ export default function StockList({
                         <StatusBadge large key={s} status={s} />
                       ))}
                     </td>
-                    <td className="space-x-2 whitespace-nowrap px-4 py-3">
-                      {canOperate && (
-                        <button
-                          type="button"
-                          onClick={() => onAdd(g.bookingId, g.code)}
-                          className="inline-flex min-h-11 items-center gap-1 rounded-md border border-slate-300 px-4 font-medium text-slate-700"
-                        >
-                          <Plus className="h-4 w-4" /> Add parcel
-                        </button>
-                      )}
+                    <td className="px-4 py-3">
                       {canOperate && (
                         <Link href={`/warehouse-inventory/split/${g.bookingId}`} className="inline-flex min-h-11 items-center rounded-md border border-brand-600 px-4 font-medium text-brand-700">
                           Labels

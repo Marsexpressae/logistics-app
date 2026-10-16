@@ -665,8 +665,8 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
     return { data: p_parcels.length, error: null };
   },
 
-  // Add, merge and split parcels: the same rules and messages as edit_parcels() in migration 0058.
-  edit_parcels({ p_booking_id, p_retire_ids = [], p_new = [], p_warehouse_id = null, p_date = null }) {
+  // Merge and split parcels: the same rules and messages as edit_parcels() in migrations 0058 and 0059 (no Add: extra cargo is a new booking).
+  edit_parcels({ p_booking_id, p_retire_ids = [], p_new = [], p_date = null }) {
     const d = db();
     const b = d.bookings.find((x) => x.id === p_booking_id);
     if (!b) return fail("Booking not found");
@@ -674,16 +674,16 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
     const retireIds: string[] = p_retire_ids ?? [];
     const news: Row[] = p_new ?? [];
     if (new Set(retireIds).size !== retireIds.length) return fail("The same parcel was chosen twice");
-    if (retireIds.length === 0 && news.length !== 1) return fail("Add one parcel at a time");
+    if (retireIds.length === 0) return fail("Choose the parcels to change");
     if (retireIds.length === 1 && news.length < 2) return fail("Splitting needs two or more new parcels");
     if (retireIds.length >= 2 && news.length !== 1) return fail("Merging makes exactly one new parcel");
     const retiring = d.parcels.filter((p) => retireIds.includes(p.id) && p.booking_id === b.id && p.status === "in_warehouse");
     if (retiring.length !== retireIds.length) return fail("Only parcels of this booking that are in the warehouse can be changed");
     if (news.some((p) => Number(p.weight_kg ?? 0) < 0)) return fail("A parcel weight cannot be negative");
     retiring.sort((x, y) => x.seq - y.seq);
-    const warehouseId = retiring.length ? retiring[0].warehouse_id : p_warehouse_id;
+    const warehouseId = retiring[0].warehouse_id;
     const dest = d.warehouses.find((w) => w.id === warehouseId);
-    if (!dest) return fail("Choose where the new parcel goes");
+    if (!dest) return fail("The parcels are not in a warehouse");
     if (dest.active === false) return fail(`${dest.name} is not active`);
     let ts: string | null;
     try { ts = eventTime(p_date); } catch (e) { return fail((e as Error).message); }
@@ -710,8 +710,7 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
     }
     if (b.status === "collected") b.status = "at_warehouse";
     const newLabels = fresh.map((p) => short(p.barcode));
-    const reason = retiring.length === 0 ? `Added parcel ${list(newLabels)}`
-      : retiring.length === 1 ? `Split parcel ${list(oldLabels)} into new parcels ${list(newLabels)}`
+    const reason = retiring.length === 1 ? `Split parcel ${list(oldLabels)} into new parcels ${list(newLabels)}`
       : `Merged parcels ${list(oldLabels)} into new parcel ${list(newLabels)}`;
     d.booking_events.push({ id: uid(), booking_id: b.id, kind: "parcels_edited", reason, old_date: null, new_date: null, actor_name: "You (sample data)", created_at: now() });
     save();
