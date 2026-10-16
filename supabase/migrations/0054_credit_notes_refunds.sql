@@ -252,3 +252,40 @@ begin
 end $$;
 revoke execute on function record_refund(uuid, uuid, numeric, text, date, text) from public, anon;
 grant execute on function record_refund(uuid, uuid, numeric, text, date, text) to authenticated;
+
+-- ---------- voiding (fixing a mistake without deleting anything) ----------
+-- The record stays, marked void, with the reason, who and when. A void record no longer counts in any total.
+-- A credit note cannot be voided while an active refund still points to it: void the refund first.
+create or replace function void_refund(p_id uuid, p_reason text) returns void
+language plpgsql security definer set search_path = public as $$
+declare r refunds; actor uuid := auth.uid();
+begin
+  perform require_perm('refunds.void');
+  select * into r from refunds where id = p_id;
+  if not found then raise exception 'Refund not found'; end if;
+  perform 1 from bookings where id = r.booking_id for update;
+  select * into r from refunds where id = p_id for update;
+  if length(btrim(coalesce(p_reason, ''))) = 0 then raise exception 'A reason is required'; end if;
+  if r.status = 'void' then raise exception 'This refund is already void'; end if;
+  update refunds set status = 'void', void_reason = btrim(p_reason), voided_at = now(), voided_by_name = (select full_name from profiles where id = actor) where id = p_id;
+end $$;
+
+create or replace function void_credit_note(p_id uuid, p_reason text) returns void
+language plpgsql security definer set search_path = public as $$
+declare c credit_notes; actor uuid := auth.uid();
+begin
+  perform require_perm('refunds.void');
+  select * into c from credit_notes where id = p_id;
+  if not found then raise exception 'Credit note not found'; end if;
+  perform 1 from bookings where id = c.booking_id for update;
+  select * into c from credit_notes where id = p_id for update;
+  if length(btrim(coalesce(p_reason, ''))) = 0 then raise exception 'A reason is required'; end if;
+  if c.status = 'void' then raise exception 'This credit note is already void'; end if;
+  if exists (select 1 from refunds r where r.credit_note_id = p_id and r.status = 'active') then
+    raise exception 'Void the refund first: an active refund was paid on this credit note';
+  end if;
+  update credit_notes set status = 'void', void_reason = btrim(p_reason), voided_at = now(), voided_by_name = (select full_name from profiles where id = actor) where id = p_id;
+end $$;
+
+revoke execute on function void_refund(uuid, text), void_credit_note(uuid, text) from public, anon;
+grant execute on function void_refund(uuid, text), void_credit_note(uuid, text) to authenticated;

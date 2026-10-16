@@ -665,3 +665,45 @@ test("record_refund: refuses what the rules do not allow", { skip }, async () =>
     assert.equal((await db.owner("select count(*)::int n from refunds where booking_id = any($1::uuid[])", [[booking, other]]))[0].n, 0);
   });
 });
+
+// ---- voiding
+test("voiding: records stay, the numbers are restored, and the order matters", { skip }, async () => {
+  await inTransaction(async (db) => {
+    await db.owner(readFileSync(MONEY_MIGRATION, "utf8"));
+    const issuer = await db.person(ISSUER, "issuer");
+    const voider = await db.person(["refunds.void", "accounts.view", "bookings.view"], "voider");
+    const booking = await moneyBooking(db);
+    await addPayment(db, booking, 1000);
+    const credit = (await issueCredit(db, issuer, booking, "Parcels returned", KEPT))[0].id as string;
+    const refund = (await refundIt(db, issuer, booking, credit, 350))[0].id as string;
+
+    // a credit note cannot be voided while its refund is still active
+    assert.match((await db.error(() => db.as(voider, "select void_credit_note($1, 'mistake')", [credit]))) ?? "NOT REFUSED", /refund/i);
+    await db.as(voider, "select void_refund($1, 'paid twice by mistake')", [refund]);
+    assert.deepEqual(await moneyOf(db, booking), { invoice_now: 650, paid: 1000, balance_due: 0, refund_due: 350, pay_status: "refund_due" });
+    await db.as(voider, "select void_credit_note($1, 'wrong kept services')", [credit]);
+    assert.deepEqual(await moneyOf(db, booking), { invoice_now: 1000, paid: 1000, balance_due: 0, refund_due: 0, pay_status: "paid" });
+
+    // the records stay, marked void, with who and why
+    const c = (await db.owner("select status, void_reason, voided_by_name, voided_at is not null as stamped, credit_amount from credit_notes where id = $1", [credit]))[0];
+    assert.deepEqual([c.status, c.void_reason, c.voided_by_name, c.stamped, Number(c.credit_amount)], ["void", "wrong kept services", "Test voider", true, 350]);
+    const r = (await db.owner("select status, void_reason, amount from refunds where id = $1", [refund]))[0];
+    assert.deepEqual([r.status, r.void_reason, Number(r.amount)], ["void", "paid twice by mistake", 350]);
+  });
+});
+
+test("voiding: refuses a missing reason, a second void, and anyone without the void permission", { skip }, async () => {
+  await inTransaction(async (db) => {
+    await db.owner(readFileSync(MONEY_MIGRATION, "utf8"));
+    const issuer = await db.person(ISSUER, "issuer");
+    const voider = await db.person(["refunds.void", "accounts.view", "bookings.view"], "voider");
+    const booking = await moneyBooking(db);
+    await addPayment(db, booking, 1000);
+    const credit = (await issueCredit(db, issuer, booking, "x", KEPT))[0].id as string;
+    assert.match((await db.error(() => db.as(voider, "select void_credit_note($1, '   ')", [credit]))) ?? "NOT REFUSED", /reason/i);
+    assert.match((await db.error(() => db.as(issuer, "select void_credit_note($1, 'because')", [credit]))) ?? "NOT REFUSED", /permission/i); // issuing is not voiding
+    await db.as(voider, "select void_credit_note($1, 'because')", [credit]);
+    assert.match((await db.error(() => db.as(voider, "select void_credit_note($1, 'again')", [credit]))) ?? "NOT REFUSED", /already/i);
+    assert.match((await db.error(() => db.as(voider, "select void_refund($1, 'x')", [credit]))) ?? "NOT REFUSED", /not found/i);
+  });
+});
