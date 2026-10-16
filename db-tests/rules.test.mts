@@ -946,3 +946,75 @@ test("edit_parcels: two edits in a row use rounds 2 and 3 with unique barcodes, 
     assert.deepEqual([p3?.status, p3?.round], ["in_warehouse", 1]);
   });
 });
+
+/** Everything an edit could change, to prove a refused edit changed nothing. */
+const editState = async (db: Db, booking: string) => JSON.stringify([await parcelRows(db, booking), (await editEvents(db, booking)).length]);
+const refusedEdit = async (db: Db, who: string, booking: string, retire: string[], news: object[], pattern: RegExp, warehouse: string | null = null, date: string | null = null) => {
+  const before = await editState(db, booking);
+  assert.match((await db.error(() => editParcels(db, who, booking, retire, news, warehouse, date))) ?? "NOT REFUSED", pattern);
+  assert.equal(await editState(db, booking), before, "a refused edit changes nothing");
+};
+
+test("edit_parcels: the shape of the edit must be add, merge or split", { skip }, async () => {
+  await inTransaction(async (db) => {
+    const { worker, booking, wh, parcelIds } = await receivedBooking(db);
+    const one = [{ weight_kg: 1 }];
+    const two = [{ weight_kg: 1 }, { weight_kg: 1 }];
+    await refusedEdit(db, worker, booking, [], two, /Add one parcel at a time/, wh);
+    await refusedEdit(db, worker, booking, [], [], /Add one parcel at a time/, wh);
+    await refusedEdit(db, worker, booking, [], one, /Choose where the new parcel goes/);
+    await refusedEdit(db, worker, booking, [parcelIds[0]], one, /Splitting needs two or more new parcels/);
+    await refusedEdit(db, worker, booking, [parcelIds[0], parcelIds[1]], two, /Merging makes exactly one new parcel/);
+    await refusedEdit(db, worker, booking, [parcelIds[0], parcelIds[1]], [], /Merging makes exactly one new parcel/);
+    await refusedEdit(db, worker, booking, [parcelIds[0], parcelIds[0]], one, /The same parcel was chosen twice/);
+  });
+});
+
+test("edit_parcels: only parcels of this booking that are in the warehouse can be changed", { skip }, async () => {
+  await inTransaction(async (db) => {
+    const { worker, booking, wh, parcelIds } = await receivedBooking(db);
+    const other = await db.booking({ invoice_no: "T-PE-OTHER" });
+    await db.owner("update bookings set status = 'collected' where id = $1", [other]);
+    await db.as(worker, "select split_booking($1, $2, $3::jsonb)", [other, wh, JSON.stringify([{ weight_kg: 1 }, { weight_kg: 1 }])]);
+    const foreign = (await db.owner("select id from parcels where booking_id = $1 order by seq", [other])).map((r) => r.id as string);
+    const msg = /Only parcels of this booking that are in the warehouse can be changed/;
+    const split = [{ weight_kg: 1 }, { weight_kg: 1 }];
+    await refusedEdit(db, worker, booking, [foreign[0]], split, msg);
+    await refusedEdit(db, worker, booking, [parcelIds[0], foreign[0]], [{ weight_kg: 2 }], msg);
+    await refusedEdit(db, worker, booking, [randomUuid()], split, msg);
+    await db.owner("update parcels set status = 'loaded' where id = $1", [parcelIds[0]]);
+    await refusedEdit(db, worker, booking, [parcelIds[0]], split, msg);
+    await db.owner("update parcels set status = 'in_transit' where id = $1", [parcelIds[0]]);
+    await refusedEdit(db, worker, booking, [parcelIds[0], parcelIds[1]], [{ weight_kg: 2 }], msg);
+    await db.as(worker, "select prepare_return($1, $2::uuid[])", [booking, [parcelIds[1]]]); // ready for return: on a return form
+    await refusedEdit(db, worker, booking, [parcelIds[1]], split, msg);
+    await db.owner("update parcels set status = 'repacked' where id = $1", [parcelIds[2]]);
+    await refusedEdit(db, worker, booking, [parcelIds[2]], split, msg);
+  });
+});
+const randomUuid = () => "00000000-0000-4000-8000-" + String(Math.floor(Math.random() * 1e12)).padStart(12, "0");
+
+test("edit_parcels: booking, weights, warehouse, dates and permission", { skip }, async () => {
+  await inTransaction(async (db) => {
+    const { worker, booking, code, wh, parcelIds } = await receivedBooking(db);
+    assert.match((await db.error(() => editParcels(db, worker, randomUuid(), [], [{ weight_kg: 1 }], wh))) ?? "", /Booking not found/);
+    const fresh = await db.booking({ invoice_no: "T-PE-BOOKED" }); // still booked, not collected
+    assert.match((await db.error(() => editParcels(db, worker, fresh, [], [{ weight_kg: 1 }], wh))) ?? "", /has not been collected yet/);
+    await refusedEdit(db, worker, booking, [], [{ weight_kg: -1 }], /A parcel weight cannot be negative/, wh);
+    await refusedEdit(db, worker, booking, [parcelIds[0]], [{ weight_kg: 1 }, { weight_kg: -0.5 }], /A parcel weight cannot be negative/);
+    await db.owner("update warehouses set active = false where id = $1", [wh]);
+    await refusedEdit(db, worker, booking, [], [{ weight_kg: 1 }], /is not active/, wh);
+    await db.owner("update warehouses set active = true where id = $1", [wh]);
+    const collected = (await db.owner("select ((collected_at at time zone 'Asia/Dubai')::date)::text d from bookings where id = $1", [booking]))[0].d as string;
+    const day = await daysFromToday(db, 0);
+    if (collected) await refusedEdit(db, worker, booking, [], [{ weight_kg: 1 }], /Received cannot be before the collection date/, wh, "2000-01-01");
+    await refusedEdit(db, worker, booking, [], [{ weight_kg: 1 }], /future|cannot be in the/i, wh, await daysFromToday(db, 5));
+    // weight 0 and no description are fine, and so is today's date
+    assert.equal((await editParcels(db, worker, booking, [], [{ weight_kg: 0 }], wh, day))[0].n, 1);
+    assert.equal((await parcelRows(db, booking)).at(-1)?.barcode, `${code}-R2-P1`);
+    // permission
+    const viewer = await db.person(["warehouse.view"], "viewer-only");
+    assert.match((await db.error(() => editParcels(db, viewer, booking, [], [{ weight_kg: 1 }], wh))) ?? "", /permission/i);
+    assert.match((await db.error(() => db.anonymous("select edit_parcels($1, '{}'::uuid[], '[]'::jsonb)", [booking]))) ?? "", /permission denied/i);
+  });
+});
