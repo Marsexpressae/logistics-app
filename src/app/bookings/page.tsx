@@ -62,9 +62,9 @@ function BookingsContent() {
   const canCreate = usePermissions().can("bookings.create");
   const [search, setSearch] = useState("");
   const params = useSearchParams();
-  const initial = params.get("status") ?? "booked"; // the list opens on bookings still to be collected; "All statuses" is one tap away
+  const initial = params.get("status") ?? "all";
   const created = params.get("created");
-  const [status, setStatus] = useState(STATUS_FILTERS.some((f) => f.value === initial) ? initial : "booked");
+  const [status, setStatus] = useState(STATUS_FILTERS.some((f) => f.value === initial) ? initial : "all");
 
   const sort = useSort(COLUMN_LIST);
   const filtered = (data ?? []).filter(

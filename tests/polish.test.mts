@@ -50,11 +50,10 @@ test("hint lines on screens are 14px, while printed documents keep their small p
   assert.deepEqual(offenders, [], "12px hint paragraphs left");
 });
 
-test("the Bookings list opens on Booked only", () => {
+test("the Bookings list opens on all statuses", () => {
   const code = read("src/app/bookings/page.tsx");
-  assert.ok(code.includes('params.get("status") ?? "booked"'));
-  assert.ok(code.includes('{ value: "booked"'));
-  assert.ok(!/useState\(STATUS_FILTERS\.some\(\(f\) => f\.value === initial\) \? initial : "all"\)/.test(code), "an unknown status in the address no longer falls back to all");
+  assert.ok(code.includes('params.get("status") ?? "all"'));
+  assert.ok(code.includes('STATUS_FILTERS.some((f) => f.value === initial) ? initial : "all"'));
 });
 
 test("the Bookings list is ordered by booking number, highest first, until a column is chosen", () => {
