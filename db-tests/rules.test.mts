@@ -1035,6 +1035,7 @@ test("packing list: existing items keep today's order and new items go last", { 
     const other = await db.booking({ invoice_no: "T-PL-B" });
     // go back to the state before the migration (this also works once it is live), then add items in a mixed insert order
     await db.owner("set local lock_timeout = '3s'"); // these tests change the table inside a transaction that is rolled back: never wait long for a lock
+    await db.owner("drop trigger if exists booking_items_set_position on booking_items"); // the live trigger needs the column
     await db.owner("alter table booking_items drop column if exists position");
     const add = (id: string, b: string, name: string) => db.owner("insert into booking_items (id, booking_id, description, quantity, weight_kg) values ($1, $2, $3, 1, 5)", [id, b, name]);
     await add("00000000-0000-4000-8000-000000000003", booking, "third by id");
@@ -1059,8 +1060,6 @@ test("packing list: existing items keep today's order and new items go last", { 
 
 /** A booking with n items named I1..In (positions 1..n), plus a person who may edit items. */
 async function packingBooking(db: Db, n = 3, over: Row = {}) {
-  await db.owner("set local lock_timeout = '3s'");
-  await db.owner(readFileSync(PACKING_MIGRATION, "utf8"));
   const booking = await db.booking({ invoice_no: "T-PL-" + Math.floor(Math.random() * 1e6) });
   if (over.status) await db.owner("update bookings set status = $2 where id = $1", [booking, over.status]);
   for (let i = 1; i <= n; i++) await db.owner("insert into booking_items (booking_id, description, quantity, weight_kg) values ($1, $2, 1, 5)", [booking, `I${i}`]);
