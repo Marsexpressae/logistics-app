@@ -1052,3 +1052,76 @@ test("packing list: existing items keep today's order and new items go last", { 
     assert.deepEqual((await order(booking)).map((r) => r[1]), [1, 3, 4]);
   });
 });
+
+/** A booking with n items named I1..In (positions 1..n), plus a person who may edit items. */
+async function packingBooking(db: Db, n = 3, over: Row = {}) {
+  await db.owner(readFileSync(PACKING_MIGRATION, "utf8"));
+  const booking = await db.booking({ invoice_no: "T-PL-" + Math.floor(Math.random() * 1e6) });
+  if (over.status) await db.owner("update bookings set status = $2 where id = $1", [booking, over.status]);
+  for (let i = 1; i <= n; i++) await db.owner("insert into booking_items (booking_id, description, quantity, weight_kg) values ($1, $2, 1, 5)", [booking, `I${i}`]);
+  const ids = (await db.owner("select id from booking_items where booking_id = $1 order by position", [booking])).map((r) => r.id as string);
+  const editor = await db.person(["bookings.view", "items.edit", "items.edit_after"], "item-editor");
+  return { booking, ids, editor };
+}
+const listOrder = async (db: Db, booking: string) => (await db.owner("select description from booking_items where booking_id = $1 order by position, id", [booking])).map((r) => r.description as string);
+const moveItem = (db: Db, who: string, item: string, direction: string) => db.as(who, "select move_booking_item($1, $2)", [item, direction]);
+
+test("move_booking_item: up and down swap with the neighbour", { skip }, async () => {
+  await inTransaction(async (db) => {
+    const { booking, ids, editor } = await packingBooking(db);
+    await moveItem(db, editor, ids[1], "up");
+    assert.deepEqual(await listOrder(db, booking), ["I2", "I1", "I3"]);
+    await moveItem(db, editor, ids[0], "down"); // I1 is now second
+    assert.deepEqual(await listOrder(db, booking), ["I2", "I3", "I1"]);
+  });
+});
+
+test("move_booking_item: the edges and bad input are refused and change nothing", { skip }, async () => {
+  await inTransaction(async (db) => {
+    const { booking, ids, editor } = await packingBooking(db);
+    const refused = async (item: string, dir: string, pattern: RegExp) => {
+      assert.match((await db.error(() => moveItem(db, editor, item, dir))) ?? "NOT REFUSED", pattern);
+      assert.deepEqual(await listOrder(db, booking), ["I1", "I2", "I3"]);
+    };
+    await refused(ids[0], "up", /It is already first/);
+    await refused(ids[2], "down", /It is already last/);
+    await refused(ids[1], "sideways", /Direction must be up or down/);
+    await refused("00000000-0000-4000-8000-0000000000ff", "up", /Item not found/);
+  });
+});
+
+test("move_booking_item: only people who may edit the items can move them", { skip }, async () => {
+  await inTransaction(async (db) => {
+    const { booking, ids } = await packingBooking(db);
+    const viewer = await db.person(["bookings.view"], "viewer");
+    assert.match((await db.error(() => moveItem(db, viewer, ids[1], "up"))) ?? "NOT REFUSED", /You cannot change this packing list/);
+    assert.deepEqual(await listOrder(db, booking), ["I1", "I2", "I3"]);
+    // before collection (booked): items.edit is enough; after collection it is not
+    const before = await db.person(["bookings.view", "items.edit"], "before-only");
+    await moveItem(db, before, ids[1], "up");
+    assert.deepEqual(await listOrder(db, booking), ["I2", "I1", "I3"]);
+    await db.owner("update bookings set status = 'collected' where id = $1", [booking]);
+    assert.match((await db.error(() => moveItem(db, before, ids[2], "up"))) ?? "NOT REFUSED", /You cannot change this packing list/);
+    assert.deepEqual(await listOrder(db, booking), ["I2", "I1", "I3"]);
+    const after = await db.person(["bookings.view", "items.edit_after"], "after-allowed");
+    await moveItem(db, after, ids[2], "up");
+    assert.deepEqual(await listOrder(db, booking), ["I2", "I3", "I1"]);
+    assert.match((await db.error(() => db.anonymous("select move_booking_item($1, 'up')", [ids[1]]))) ?? "NOT REFUSED", /permission denied/i);
+  });
+});
+
+test("move_booking_item: other bookings are untouched and repeated moves give the expected order", { skip }, async () => {
+  await inTransaction(async (db) => {
+    const { booking, ids, editor } = await packingBooking(db, 5);
+    const other = await db.booking({ invoice_no: "T-PL-OTHER" });
+    for (const n of ["O1", "O2"]) await db.owner("insert into booking_items (booking_id, description, quantity, weight_kg) values ($1, $2, 1, 5)", [other, n]);
+    const before = await listOrder(db, other);
+    await moveItem(db, editor, ids[4], "up");
+    await moveItem(db, editor, ids[4], "up");
+    assert.deepEqual(await listOrder(db, booking), ["I1", "I2", "I5", "I3", "I4"]);
+    assert.deepEqual(await listOrder(db, other), before);
+    // positions stay distinct inside the booking
+    const positions = (await db.owner("select position from booking_items where booking_id = $1", [booking])).map((r) => r.position);
+    assert.equal(new Set(positions).size, positions.length);
+  });
+});
