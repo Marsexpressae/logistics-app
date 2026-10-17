@@ -93,3 +93,8 @@ test("the printed receipt has a # column with the serial number", () => {
   assert.ok(code.includes("n + 1"));
   assert.ok(code.includes("colSpan={3}"), "the total row spans the new column");
 });
+
+test("long item descriptions wrap instead of running under the buttons", () => {
+  const card = read("src/components/bookings/ItemsCard.tsx");
+  assert.ok(card.includes("min-w-0 break-words"));
+});

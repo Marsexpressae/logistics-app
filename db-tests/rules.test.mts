@@ -1034,6 +1034,7 @@ test("packing list: existing items keep today's order and new items go last", { 
     const booking = await db.booking({ invoice_no: "T-PL-A" });
     const other = await db.booking({ invoice_no: "T-PL-B" });
     // go back to the state before the migration (this also works once it is live), then add items in a mixed insert order
+    await db.owner("set local lock_timeout = '3s'"); // these tests change the table inside a transaction that is rolled back: never wait long for a lock
     await db.owner("alter table booking_items drop column if exists position");
     const add = (id: string, b: string, name: string) => db.owner("insert into booking_items (id, booking_id, description, quantity, weight_kg) values ($1, $2, $3, 1, 5)", [id, b, name]);
     await add("00000000-0000-4000-8000-000000000003", booking, "third by id");
@@ -1044,6 +1045,9 @@ test("packing list: existing items keep today's order and new items go last", { 
     const order = async (b: string) => (await db.owner("select description, position from booking_items where booking_id = $1 order by position, id", [b])).map((r) => [r.description, r.position]);
     assert.deepEqual(await order(booking), [["first by id", 1], ["second by id", 2], ["third by id", 3]]);
     assert.deepEqual(await order(other), [["other booking", 1]]);
+    // the numbering is housekeeping, not a change anyone made: it must not flood the Activity log
+    const logged = await db.owner("select count(*)::int n from audit_log where table_name = 'booking_items' and action = 'update' and booking_id in ($1, $2)", [booking, other]);
+    assert.equal(logged[0].n, 0, "the backfill writes no change-log entries");
     // a new item goes last, without anyone giving it a position
     await db.owner("insert into booking_items (booking_id, description, quantity, weight_kg) values ($1, 'newest', 1, 5)", [booking]);
     assert.deepEqual((await order(booking)).at(-1), ["newest", 4]);
@@ -1055,6 +1059,7 @@ test("packing list: existing items keep today's order and new items go last", { 
 
 /** A booking with n items named I1..In (positions 1..n), plus a person who may edit items. */
 async function packingBooking(db: Db, n = 3, over: Row = {}) {
+  await db.owner("set local lock_timeout = '3s'");
   await db.owner(readFileSync(PACKING_MIGRATION, "utf8"));
   const booking = await db.booking({ invoice_no: "T-PL-" + Math.floor(Math.random() * 1e6) });
   if (over.status) await db.owner("update bookings set status = $2 where id = $1", [booking, over.status]);
@@ -1123,5 +1128,19 @@ test("move_booking_item: other bookings are untouched and repeated moves give th
     // positions stay distinct inside the booking
     const positions = (await db.owner("select position from booking_items where booking_id = $1", [booking])).map((r) => r.position);
     assert.equal(new Set(positions).size, positions.length);
+  });
+});
+
+test("move_booking_item: two items that share a position are renumbered and then move normally", { skip }, async () => {
+  await inTransaction(async (db) => {
+    const { booking, ids, editor } = await packingBooking(db);
+    // two people added an item at the same moment and both got position 2 (simulated)
+    await db.owner("update booking_items set position = 2 where id = $1", [ids[2]]);
+    const tied = (await db.owner("select id, description from booking_items where booking_id = $1 and position = 2 order by id", [booking])) as { id: string; description: string }[];
+    assert.equal(tied.length, 2);
+    await moveItem(db, editor, tied[1].id, "up"); // the later of the pair goes before the earlier one
+    assert.deepEqual(await listOrder(db, booking), ["I1", tied[1].description, tied[0].description]);
+    const positions = (await db.owner("select position from booking_items where booking_id = $1", [booking])).map((r) => r.position);
+    assert.equal(new Set(positions).size, positions.length, "positions are distinct again");
   });
 });

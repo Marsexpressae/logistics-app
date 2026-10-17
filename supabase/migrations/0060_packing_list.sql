@@ -8,9 +8,13 @@
 -- ---------- the column ----------
 alter table booking_items add column if not exists position int;
 
+-- Numbering the existing items is housekeeping, not a change anyone made, so the change log is switched off for this one step
+-- (otherwise every item of every booking would get a "position" entry "by system" in the Activity log).
+alter table booking_items disable trigger audit_booking_items;
 update booking_items i set position = r.n
 from (select id, row_number() over (partition by booking_id order by id) as n from booking_items) r
 where r.id = i.id and i.position is null;
+alter table booking_items enable trigger audit_booking_items;
 
 alter table booking_items alter column position set not null;
 create index if not exists booking_items_booking_position_idx on booking_items (booking_id, position);
@@ -20,6 +24,8 @@ create or replace function booking_items_set_position() returns trigger
 language plpgsql security definer set search_path = public as $$
 begin
   if new.position is null then
+    -- one new item at a time per booking, so two people adding at the same moment do not get the same position
+    perform pg_advisory_xact_lock(hashtext(new.booking_id::text));
     new.position := coalesce((select max(x.position) from booking_items x where x.booking_id = new.booking_id), 0) + 1;
   end if;
   return new;
@@ -45,7 +51,13 @@ begin
   if not found then raise exception 'Item not found'; end if;
 
   perform 1 from booking_items where booking_id = it.booking_id order by id for update;
-  select * into it from booking_items where id = p_item_id; -- read again once the lock is ours
+  -- items that ended up with the same position (two inserts at the same moment) are renumbered first, so the swap below always works
+  if exists (select 1 from booking_items where booking_id = it.booking_id group by position having count(*) > 1) then
+    update booking_items b set position = r.n
+    from (select id, row_number() over (order by position, id) as n from booking_items where booking_id = it.booking_id) r
+    where r.id = b.id and b.position is distinct from r.n;
+  end if;
+  select * into it from booking_items where id = p_item_id; -- read again once the lock is ours (and after any renumbering)
 
   if p_direction = 'up' then
     select * into nb from booking_items where booking_id = it.booking_id and (position, id) < (it.position, it.id) order by position desc, id desc limit 1;

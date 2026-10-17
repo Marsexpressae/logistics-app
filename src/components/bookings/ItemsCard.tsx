@@ -141,7 +141,7 @@ export default function ItemsCard({ bookingId, status, items, onChanged }: Items
               <li key={i.id} className="flex items-center justify-between gap-3 py-2">
                 <span className="flex min-w-0 items-start gap-3">
                   <span className="w-6 shrink-0 text-right font-medium tabular-nums text-slate-500">{n + 1}.</span>
-                  <span>
+                  <span className="min-w-0 break-words">
                     <span className="font-medium">
                       {i.quantity} × {i.description}
                     </span>
