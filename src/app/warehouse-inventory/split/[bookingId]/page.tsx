@@ -30,7 +30,7 @@ export default function ReceivePage() {
   const { bookingId } = useParams<{ bookingId: string }>();
   const canPrint = usePermissions().can("documents.print");
   const booking = useQuery<Booking>(() => supabase.from("bookings").select("*").eq("id", bookingId).single());
-  const items = useQuery<BookingItem[]>(() => supabase.from("booking_items").select("*").eq("booking_id", bookingId).order("id"));
+  const items = useQuery<BookingItem[]>(() => supabase.from("booking_items").select("*").eq("booking_id", bookingId).order("position").order("id"));
   const warehouses = useQuery<Warehouse[]>(() => supabase.from("warehouses").select("*").order("code"));
   // Repacked parcels stay in the database as history, but only the live ones are shown here.
   const parcels = useQuery<(Parcel & { warehouse: { code: string } | null })[]>(() =>

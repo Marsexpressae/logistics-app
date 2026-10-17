@@ -42,7 +42,7 @@ export default function EditBookingPage() {
       : Promise.resolve({ data: [], error: null })
   );
   const items = useQuery<BookingItem[]>(() =>
-    supabase.from("booking_items").select("*").eq("booking_id", id).order("id")
+    supabase.from("booking_items").select("*").eq("booking_id", id).order("position").order("id")
   );
   const payments = useQuery<Payment[]>(() =>
     supabase.from("payments").select("*").eq("booking_id", id).order("created_at")

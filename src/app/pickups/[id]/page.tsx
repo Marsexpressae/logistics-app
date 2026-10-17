@@ -33,7 +33,7 @@ export default function PickupDetailPage() {
     supabase.from("bookings").select("*, payments(*), stage").eq("id", id).single()
   );
   const items = useQuery<BookingItem[]>(() =>
-    supabase.from("booking_items").select("*").eq("booking_id", id).order("id")
+    supabase.from("booking_items").select("*").eq("booking_id", id).order("position").order("id")
   );
   // Settings can require the sender's Emirates ID before a pickup is marked collected.
   const needId = useQuery<boolean>(async () => {

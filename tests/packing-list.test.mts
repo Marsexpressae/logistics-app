@@ -68,3 +68,28 @@ test("removing an item leaves the others in order", async () => {
   await c.from("booking_items").delete().eq("id", items[2].id);
   assert.deepEqual(await names(b), ["Suitcase", "Carton box", "Third", "Fourth"]);
 });
+
+// ---- the screens, checked as source ----
+import { readFileSync } from "node:fs";
+const read = (f: string) => readFileSync(f, "utf8");
+
+test("the card is called Packing list, shows serial numbers and has move up and down buttons", () => {
+  const card = read("src/components/bookings/ItemsCard.tsx");
+  assert.ok(card.includes('title="Packing list"') && !card.includes("Package items"));
+  assert.ok(card.includes('"move_booking_item"') && card.includes('"up"') && card.includes('"down"'));
+  assert.ok(card.includes("`Move ${") && card.includes("n + 1"), "serial number and button labels");
+  assert.ok(card.includes("ArrowUp") && card.includes("ArrowDown"));
+});
+
+test("every screen that reads the items puts them in packing-list order", () => {
+  for (const f of ["src/app/bookings/[id]/page.tsx", "src/app/pickups/[id]/page.tsx", "src/app/pickups/[id]/receipt/page.tsx", "src/app/warehouse-inventory/split/[bookingId]/page.tsx"]) {
+    assert.ok(read(f).includes('.order("position").order("id")'), `${f} orders by position`);
+  }
+});
+
+test("the printed receipt has a # column with the serial number", () => {
+  const code = read("src/app/pickups/[id]/receipt/page.tsx");
+  assert.match(code, /<th[^>]*>#<\/th>/);
+  assert.ok(code.includes("n + 1"));
+  assert.ok(code.includes("colSpan={3}"), "the total row spans the new column");
+});

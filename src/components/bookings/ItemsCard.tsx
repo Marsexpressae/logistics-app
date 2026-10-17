@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { Check, Pencil, Trash2, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Check, Pencil, Trash2, X } from "lucide-react";
 import { Button, Card, ErrorMessage, inputClass } from "@/components/ui/form";
 import { kg, round2 } from "@/lib/format";
 import { usePermissions } from "@/lib/profile-context";
@@ -17,7 +17,7 @@ type ItemsCardProps = {
 };
 
 /**
- * The packages recorded at pickup. Shared by the pickup page and the booking page, so both always show the
+ * The packing list: the packages recorded at pickup, in a stored order with serial numbers (1, 2, 3 ...) that can be moved up and down. Shared by the pickup page and the booking page, so both always show the
  * same list. Each row shows the weight of ONE package and the line total, so "2 x 40 kg" cannot be misread.
  *
  * Who can change it:
@@ -83,6 +83,9 @@ export default function ItemsCard({ bookingId, status, items, onChanged }: Items
     if (ok) setEditingId(null);
   }
 
+  /** Moves an item one place up or down. The database decides who may (the same rule as editing items). */
+  const move = (i: BookingItem, direction: "up" | "down") => run(supabase.rpc("move_booking_item", { p_item_id: i.id, p_direction: direction }));
+
   async function remove(i: BookingItem) {
     const sure = await confirmAction({
       title: `Remove "${i.description}"?`,
@@ -94,10 +97,10 @@ export default function ItemsCard({ bookingId, status, items, onChanged }: Items
   }
 
   return (
-    <Card title="Package items">
+    <Card title="Packing list">
       {items.length ? (
         <ul className="mb-3 divide-y divide-slate-100 text-sm">
-          {items.map((i) =>
+          {items.map((i, n) =>
             editingId === i.id ? (
               <li key={i.id} className="space-y-2 py-2">
                 <input
@@ -136,16 +139,33 @@ export default function ItemsCard({ bookingId, status, items, onChanged }: Items
               </li>
             ) : (
               <li key={i.id} className="flex items-center justify-between gap-3 py-2">
-                <span>
-                  <span className="font-medium">
-                    {i.quantity} × {i.description}
-                  </span>
-                  <span className="block text-xs text-slate-500">
-                    {kg(Number(i.weight_kg))} each · {kg(Number(i.weight_kg) * i.quantity)}
+                <span className="flex min-w-0 items-start gap-3">
+                  <span className="w-6 shrink-0 text-right font-medium tabular-nums text-slate-500">{n + 1}.</span>
+                  <span>
+                    <span className="font-medium">
+                      {i.quantity} × {i.description}
+                    </span>
+                    <span className="block text-xs text-slate-500">
+                      {kg(Number(i.weight_kg))} each · {kg(Number(i.weight_kg) * i.quantity)}
+                    </span>
                   </span>
                 </span>
                 {canChange && (
                   <span className="flex shrink-0 items-center gap-1">
+                    {n > 0 ? (
+                      <button aria-label={`Move ${i.description} up`} disabled={busy} onClick={() => move(i, "up")} className="p-3 text-slate-600 hover:text-slate-900 disabled:opacity-50">
+                        <ArrowUp className="h-4 w-4" />
+                      </button>
+                    ) : (
+                      <span className="w-10" aria-hidden="true" />
+                    )}
+                    {n < items.length - 1 ? (
+                      <button aria-label={`Move ${i.description} down`} disabled={busy} onClick={() => move(i, "down")} className="p-3 text-slate-600 hover:text-slate-900 disabled:opacity-50">
+                        <ArrowDown className="h-4 w-4" />
+                      </button>
+                    ) : (
+                      <span className="w-10" aria-hidden="true" />
+                    )}
                     <button aria-label={`Edit ${i.description}`} onClick={() => startEdit(i)} className="p-3 text-slate-600 hover:text-slate-900">
                       <Pencil className="h-4 w-4" />
                     </button>

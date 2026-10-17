@@ -22,7 +22,7 @@ export default function ReceiptPage() {
     supabase.from("bookings").select("*, driver:drivers(name), payments(*)").eq("id", id).single()
   );
   const items = useQuery<BookingItem[]>(() =>
-    supabase.from("booking_items").select("*").eq("booking_id", id).order("id")
+    supabase.from("booking_items").select("*").eq("booking_id", id).order("position").order("id")
   );
 
   const b = booking.data;
@@ -77,21 +77,23 @@ export default function ReceiptPage() {
         <table className="w-full border-t border-slate-300 text-left">
           <thead>
             <tr className="text-xs uppercase text-slate-500">
+              <th className="w-8 py-2 pr-2 text-left">#</th>
               <th className="py-2">Item</th>
               <th className="py-2 text-right">Qty</th>
               <th className="py-2 text-right">Weight</th>
             </tr>
           </thead>
           <tbody>
-            {items.data?.map((i) => (
+            {items.data?.map((i, n) => (
               <tr key={i.id} className="border-t border-slate-100">
+                <td className="py-1.5 pr-2 text-slate-500">{n + 1}</td>
                 <td className="py-1.5">{i.description}</td>
                 <td className="py-1.5 text-right">{i.quantity}</td>
                 <td className="py-1.5 text-right">{kg(Number(i.weight_kg) * i.quantity)}</td>
               </tr>
             ))}
             <tr className="border-t border-slate-300 font-medium">
-              <td className="py-2" colSpan={2}>
+              <td className="py-2" colSpan={3}>
                 Total weight
               </td>
               <td className="py-2 text-right">{kg(totalWeight)}</td>
