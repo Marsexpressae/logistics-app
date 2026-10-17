@@ -1025,3 +1025,30 @@ test("edit_parcels: the customer timeline labels parcel edits, and still lists c
     assert.ok(rows.some((r) => r.r_kind === "credit_note" && /^Credit note .* issued$/.test(r.r_title)), "credit notes are still listed");
   });
 });
+
+// ---------------- packing list: item order and move up / down ----------------
+const PACKING_MIGRATION = "supabase/migrations/0060_packing_list.sql";
+
+test("packing list: existing items keep today's order and new items go last", { skip }, async () => {
+  await inTransaction(async (db) => {
+    const booking = await db.booking({ invoice_no: "T-PL-A" });
+    const other = await db.booking({ invoice_no: "T-PL-B" });
+    // go back to the state before the migration (this also works once it is live), then add items in a mixed insert order
+    await db.owner("alter table booking_items drop column if exists position");
+    const add = (id: string, b: string, name: string) => db.owner("insert into booking_items (id, booking_id, description, quantity, weight_kg) values ($1, $2, $3, 1, 5)", [id, b, name]);
+    await add("00000000-0000-4000-8000-000000000003", booking, "third by id");
+    await add("00000000-0000-4000-8000-000000000001", booking, "first by id");
+    await add("00000000-0000-4000-8000-000000000002", booking, "second by id");
+    await add("00000000-0000-4000-8000-000000000009", other, "other booking");
+    await db.owner(readFileSync(PACKING_MIGRATION, "utf8"));
+    const order = async (b: string) => (await db.owner("select description, position from booking_items where booking_id = $1 order by position, id", [b])).map((r) => [r.description, r.position]);
+    assert.deepEqual(await order(booking), [["first by id", 1], ["second by id", 2], ["third by id", 3]]);
+    assert.deepEqual(await order(other), [["other booking", 1]]);
+    // a new item goes last, without anyone giving it a position
+    await db.owner("insert into booking_items (booking_id, description, quantity, weight_kg) values ($1, 'newest', 1, 5)", [booking]);
+    assert.deepEqual((await order(booking)).at(-1), ["newest", 4]);
+    // a removed item leaves a gap, which is fine: the order is what counts
+    await db.owner("delete from booking_items where id = '00000000-0000-4000-8000-000000000002'");
+    assert.deepEqual((await order(booking)).map((r) => r[1]), [1, 3, 4]);
+  });
+});
