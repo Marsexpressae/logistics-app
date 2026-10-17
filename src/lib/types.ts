@@ -76,6 +76,7 @@ export type BookingItem = {
   description: string;
   quantity: number;
   weight_kg: number;
+  position?: number; // the item's place in the packing list (the serial number on screen is its index in this order)
 };
 
 export type Booking = {

@@ -17,7 +17,7 @@ type Db = {
   booking_events: Row[]; notifications: Row[]; app_settings: Row[]; returns: Row[]; booking_notes: Row[]; client_errors: Row[]; number_series: Row[]; organization: Row[]; customers: Row[]; booking_contacts: Row[]; customer_notes: Row[]; customer_receivers: Row[]; id_documents: Row[];
 };
 
-const STORAGE_KEY = "logistics-mock-db-v36";
+const STORAGE_KEY = "logistics-mock-db-v37";
 const AUTH_KEY = "logistics-mock-signed-out";
 
 const uid = () => crypto.randomUUID();
@@ -144,9 +144,9 @@ function seed(): Db {
     warehouses: [wA, wB],
     bookings: [b1, b2, b3, b4],
     booking_items: [
-      { id: uid(), booking_id: b2.id, description: "Suitcase", quantity: 2, weight_kg: 20 },
-      { id: uid(), booking_id: b2.id, description: "Carton box", quantity: 1, weight_kg: 15 },
-      { id: uid(), booking_id: b3.id, description: "Mixed goods", quantity: 2, weight_kg: 20 },
+      { id: uid(), booking_id: b2.id, description: "Suitcase", quantity: 2, weight_kg: 20, position: 1 },
+      { id: uid(), booking_id: b2.id, description: "Carton box", quantity: 1, weight_kg: 15, position: 2 },
+      { id: uid(), booking_id: b3.id, description: "Mixed goods", quantity: 2, weight_kg: 20, position: 1 },
     ],
     payments: [
       { id: uid(), booking_id: b2.id, invoice_no: "INV-1001", amount: 400, method: "bank_transfer", received_by_driver: d2.id, note: null, created_at: ago(3) },
@@ -518,6 +518,10 @@ function withDefaults(table: string, it: Row): Row {
           actor_name: row.author_name, created_at: now(), read_at: null });
       }
       break;
+    case "booking_items":
+      // A new item goes last in its booking (like the database trigger).
+      if (row.position == null) row.position = Math.max(0, ...d.booking_items.filter((x) => x.booking_id === it.booking_id).map((x) => x.position ?? 0)) + 1;
+      break;
     case "payments": {
       // A payment is recorded against the invoice; the first payment issues it if the booking has none yet.
       const bk = d.bookings.find((x) => x.id === it.booking_id);
@@ -663,6 +667,21 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
     }
     save();
     return { data: p_parcels.length, error: null };
+  },
+
+  // Packing list: the same rules and messages as move_booking_item() in migration 0060.
+  move_booking_item({ p_item_id, p_direction }) {
+    const d = db();
+    if (!["up", "down"].includes(p_direction)) return fail("Direction must be up or down");
+    const it = d.booking_items.find((x) => x.id === p_item_id);
+    if (!it) return fail("Item not found");
+    const order = d.booking_items.filter((x) => x.booking_id === it.booking_id).sort((a, b) => a.position - b.position || String(a.id).localeCompare(String(b.id)));
+    const at = order.indexOf(it);
+    const nb = order[p_direction === "up" ? at - 1 : at + 1];
+    if (!nb) return fail(p_direction === "up" ? "It is already first" : "It is already last");
+    [it.position, nb.position] = [nb.position, it.position];
+    save();
+    return { data: null, error: null };
   },
 
   // Merge and split parcels: the same rules and messages as edit_parcels() in migrations 0058 and 0059 (no Add: extra cargo is a new booking).
