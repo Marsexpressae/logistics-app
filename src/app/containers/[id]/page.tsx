@@ -175,7 +175,7 @@ export default function ContainerManifestPage() {
     const typed = await askText({
       title: `Rename container ${c!.code}`,
       message: "Type the new container number, for example 38 or CN-120. Loaded parcels stay in this container.",
-      field: { label: "Container number", placeholder: c!.code },
+      field: { label: "Container number", placeholder: c!.code, defaultValue: c!.code },
       confirmLabel: "Save",
     });
     const code = typed?.trim().toUpperCase();

@@ -47,7 +47,7 @@ export default function NumbersCard({ booking, numbers: n }: { booking?: Booking
           </Field>
         )}
       </div>
-      <p className="mt-2 text-xs text-slate-500">
+      <p className="mt-2 text-sm text-slate-500">
         Leave empty for the automatic number. The prefix is set in Settings and cannot be changed here. A typed number must be unique.
         {booking?.invoice_no
           ? " The booking number cannot change once parcels exist, and an invoice number can be changed but not removed."

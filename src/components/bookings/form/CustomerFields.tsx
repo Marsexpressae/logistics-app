@@ -58,7 +58,7 @@ export default function CustomerFields({
             <>
               <p className="mb-2 text-sm font-medium text-slate-700">Existing customer? Search by mobile, name or an old invoice number.</p>
               <CustomerPicker onPick={onPick} />
-              <p className="mt-2 text-xs text-slate-500">New customer? Just fill in the details below. They are saved as a customer automatically.</p>
+              <p className="mt-2 text-sm text-slate-500">New customer? Just fill in the details below. They are saved as a customer automatically.</p>
             </>
           )}
         </div>

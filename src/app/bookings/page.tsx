@@ -15,7 +15,7 @@ import RowLimitNotice from "@/components/ui/RowLimitNotice";
 import { ErrorMessage, StatusBadge, inputClass, Loading, Notice } from "@/components/ui/form";
 import { useQuery } from "@/lib/hooks";
 import { SortSelect, SortableTh } from "@/components/ui/Sortable";
-import { STAGE_ORDER, orderOf, type SortColumn } from "@/lib/sort";
+import { STAGE_ORDER, orderOf, sortRows, type SortColumn } from "@/lib/sort";
 import { useSort } from "@/lib/use-sort";
 import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
@@ -37,8 +37,10 @@ const STATUS_FILTERS = [
 
 // What each column sorts by. Status sorts by progress (booked ... delivered), and Payment by the amount still to pay.
 const balanceOf = (b: Booking) => (b.invoice_amount !== null ? Number(b.invoice_amount) - totalPaid(b.payments) : null);
+// The number at the END of a booking code (BK-1219 -> 1219), so BK-9 comes before BK-10.
+const numberOf = (code: string) => { const m = String(code).match(/(\d+)\D*$/); return m ? Number(m[1]) : null; };
 const COLUMNS: Record<string, SortColumn<Booking>> = {
-  code: { key: "code", label: "Code", value: (b) => b.code },
+  code: { key: "code", label: "Code", kind: "number", hint: "Sorts by the booking number", value: (b) => numberOf(b.code) },
   customer: { key: "customer", label: "Customer → Receiver", value: (b) => b.sender_name },
   pickup: { key: "pickup", label: "Pickup", kind: "date", value: (b) => b.pickup_date },
   area: { key: "area", label: "Area", value: (b) => b.pickup_area },
@@ -60,9 +62,9 @@ function BookingsContent() {
   const canCreate = usePermissions().can("bookings.create");
   const [search, setSearch] = useState("");
   const params = useSearchParams();
-  const initial = params.get("status") ?? "all";
+  const initial = params.get("status") ?? "booked"; // the list opens on bookings still to be collected; "All statuses" is one tap away
   const created = params.get("created");
-  const [status, setStatus] = useState(STATUS_FILTERS.some((f) => f.value === initial) ? initial : "all");
+  const [status, setStatus] = useState(STATUS_FILTERS.some((f) => f.value === initial) ? initial : "booked");
 
   const sort = useSort(COLUMN_LIST);
   const filtered = (data ?? []).filter(
@@ -74,7 +76,8 @@ function BookingsContent() {
         [b.sender_phone, b.sender_whatsapp, b.receiver_phone, b.receiver_whatsapp]
       )
   );
-  const rows = sort.sorted(filtered);
+  // Until a column is chosen: highest booking number first.
+  const rows = sort.activeKey ? sort.sorted(filtered) : sortRows(filtered, COLUMNS.code, "desc");
   const win = useWindow(rows);
 
   return (
@@ -171,7 +174,7 @@ function BookingsContent() {
                     <td className="px-4 py-3">
                       <StatusBadge status={b.stage ?? b.status} />
                       {b.status === "cancelled" && b.cancellation_reason && (
-                        <p className="mt-1 max-w-48 text-xs text-slate-500" title={b.cancellation_reason}>
+                        <p className="mt-1 max-w-48 text-sm text-slate-500" title={b.cancellation_reason}>
                           {b.cancellation_reason.length > 40 ? `${b.cancellation_reason.slice(0, 40)}…` : b.cancellation_reason}
                         </p>
                       )}

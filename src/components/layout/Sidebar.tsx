@@ -8,7 +8,7 @@ import { homePath, navItems } from "@/config/navigation";
 import { useMenuSwitches } from "@/lib/nav-settings";
 import InstallButton from "@/components/pwa/InstallButton";
 import CountBadge from "@/components/ui/CountBadge";
-import { useBadges } from "@/lib/badges";
+import { badgeLabel, useBadges } from "@/lib/badges";
 import { site } from "@/config/site";
 import { supabase } from "@/lib/supabase";
 import { useCurrentProfile, usePermissions } from "@/lib/profile-context";
@@ -51,7 +51,7 @@ export default function Sidebar() {
           >
             <Icon className="h-5 w-5" />
             {label}
-            <CountBadge count={badges[href] ?? 0} className="ml-auto" />
+            <CountBadge count={badges[href] ?? 0} label={badgeLabel(href)} className="ml-auto" />
           </Link>
         ))}
       </nav>
@@ -59,7 +59,7 @@ export default function Sidebar() {
       <InstallButton />
       <div className="border-t border-slate-200 px-6 py-3">
         <p className="truncate text-sm font-medium text-slate-900">{profile.full_name || "Signed in"}</p>
-        <p className="text-xs text-slate-500">{profile.roleLabel}</p>
+        <p className="text-sm text-slate-500">{profile.roleLabel}</p>
       </div>
       <Link href="/account" className="flex min-h-11 items-center gap-3 border-t border-slate-200 px-6 text-sm font-medium text-slate-700 hover:text-slate-900">
         <UserCog className="h-5 w-5" aria-hidden="true" />

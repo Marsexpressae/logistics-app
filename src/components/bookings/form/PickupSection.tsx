@@ -55,7 +55,7 @@ export default function PickupSection({
     <>
       <div className={onlyPickup ? "sm:col-span-2" : "border-t border-slate-100 pt-4 sm:col-span-2"}>
         {!onlyPickup && <h3 className="text-sm font-semibold text-slate-900">Pickup</h3>}
-        <p className="text-xs text-slate-500">Where, when and by whom the customer&apos;s cargo is collected.</p>
+        <p className="text-sm text-slate-500">Where, when and by whom the customer&apos;s cargo is collected.</p>
       </div>
 
       {summary && booking && (

@@ -47,7 +47,7 @@ export default function ScheduleHistory({ bookingId, reloadKey = 0 }: { bookingI
                         : "Cancelled"}
               </p>
               <p className="text-slate-700">{e.kind === "parcels_edited" ? e.reason : `Reason: ${e.reason}`}</p>
-              <p className="text-xs text-slate-500">
+              <p className="text-sm text-slate-500">
                 {e.actor_name || "System"} · {formatDate(e.created_at)}
               </p>
             </div>

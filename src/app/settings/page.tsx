@@ -92,7 +92,7 @@ export default function SettingsPage() {
             ))}
           </ul>
         )}
-        {!canChange && <p className="mt-2 text-xs text-slate-500">Only people with &quot;Change app settings&quot; can change these.</p>}
+        {!canChange && <p className="mt-2 text-sm text-slate-500">Only people with &quot;Change app settings&quot; can change these.</p>}
         {changed > 0 && (
           <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-brand-200 bg-brand-50 px-4 py-3 text-sm">
             <span>

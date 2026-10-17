@@ -320,7 +320,7 @@ export default function PaymentsCard({ booking, payments, onChanged }: PaymentsC
         </form>
       )}
       {!canCorrect && sorted.length > 0 && (
-        <p className="mt-2 text-xs text-slate-500">Wrong amount? Ask the office to correct it.</p>
+        <p className="mt-2 text-sm text-slate-500">Wrong amount? Ask the office to correct it.</p>
       )}
       <ErrorMessage message={error} />
     </Card>

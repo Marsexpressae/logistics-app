@@ -99,7 +99,7 @@ function SearchResults({ initial }: { initial: string }) {
               );
             })}
           </ul>
-          {result.bookings_total > LIMIT && <p className="mt-2 text-xs text-slate-500">Showing the first {LIMIT} of {result.bookings_total}. Add more words to narrow it.</p>}
+          {result.bookings_total > LIMIT && <p className="mt-2 text-sm text-slate-500">Showing the first {LIMIT} of {result.bookings_total}. Add more words to narrow it.</p>}
         </Card>
       )}
 
@@ -132,7 +132,7 @@ function SearchResults({ initial }: { initial: string }) {
               );
             })}
           </ul>
-          {result.parcels_total > LIMIT && <p className="mt-2 text-xs text-slate-500">Showing the first {LIMIT} of {result.parcels_total}. Add more words to narrow it.</p>}
+          {result.parcels_total > LIMIT && <p className="mt-2 text-sm text-slate-500">Showing the first {LIMIT} of {result.parcels_total}. Add more words to narrow it.</p>}
         </Card>
       )}
 

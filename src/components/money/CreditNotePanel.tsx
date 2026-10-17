@@ -93,7 +93,7 @@ export default function CreditNotePanel({ booking, money, returns, returnId: sta
 
         <fieldset className="space-y-2">
           <legend className="text-sm font-medium text-slate-700">Services the customer still pays for (not refundable)</legend>
-          {lines.length === 0 && <p className="text-xs text-slate-500">None. The whole invoice will be credited.</p>}
+          {lines.length === 0 && <p className="text-sm text-slate-500">None. The whole invoice will be credited.</p>}
           {lines.map((l, i) => (
             <div key={i} className="grid grid-cols-[1fr_6rem_auto] items-center gap-2">
               <select aria-label="Service" value={l.category} onChange={(e) => setLine(i, { category: e.target.value as CreditCategory })} className={inputClass}>

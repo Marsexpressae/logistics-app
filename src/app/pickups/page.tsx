@@ -172,7 +172,7 @@ function PickupsContent() {
                   whatsapp={b.sender_whatsapp}
                   name={b.sender_name}
                   compact
-                  className="relative z-10 mt-3"
+                  className="relative z-(--z-raised) mt-3"
                 />
               </div>
             </li>

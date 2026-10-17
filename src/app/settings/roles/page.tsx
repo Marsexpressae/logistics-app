@@ -199,7 +199,7 @@ export default function RolesPage() {
                       <tr key={p.key} className="border-t border-slate-100">
                         <td className="px-4 py-2.5">
                           <p className="font-medium">{p.label}</p>
-                          <p className="text-xs text-slate-500">{p.description}</p>
+                          <p className="text-sm text-slate-500">{p.description}</p>
                         </td>
                         {m.roles.map((r) => {
                           const key = cell(r.key, p.key);
@@ -245,7 +245,7 @@ export default function RolesPage() {
         </div>
       )}
 
-      <p className="mt-3 max-w-3xl text-xs text-slate-500">
+      <p className="mt-3 max-w-3xl text-sm text-slate-500">
         The Super admin column is locked on purpose, so you can never lock yourself out. Every change here is recorded on the
         Activity page.
       </p>

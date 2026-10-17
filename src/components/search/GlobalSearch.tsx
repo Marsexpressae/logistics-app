@@ -162,7 +162,7 @@ export default function GlobalSearch({ autoFocus = false, onDone, className = ""
       />
 
       {open && ready && (
-        <div id="global-search-results" role="listbox" className="absolute left-0 right-0 top-full z-40 mt-2 max-h-[70vh] overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-lg">
+        <div id="global-search-results" role="listbox" className="absolute left-0 right-0 top-full z-(--z-menu) mt-2 max-h-[70vh] overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-lg">
           {loading && !total ? (
             <p className="px-3 py-3 text-sm text-slate-500">Searching…</p>
           ) : failed ? (
@@ -173,7 +173,7 @@ export default function GlobalSearch({ autoFocus = false, onDone, className = ""
             <>
               {customers.length > 0 && (
                 <>
-                  <p className="px-3 pb-1 pt-3 text-xs font-semibold uppercase text-slate-500">Customers</p>
+                  <p className="px-3 pb-1 pt-3 text-sm font-semibold uppercase text-slate-500">Customers</p>
                   <ul>
                     {customers.map((c) =>
                       row(
@@ -195,7 +195,7 @@ export default function GlobalSearch({ autoFocus = false, onDone, className = ""
               )}
               {result.bookings.length > 0 && (
                 <>
-                  <p className="px-3 pb-1 pt-3 text-xs font-semibold uppercase text-slate-500">Invoices and bookings</p>
+                  <p className="px-3 pb-1 pt-3 text-sm font-semibold uppercase text-slate-500">Invoices and bookings</p>
                   <ul>
                     {result.bookings.map((b) =>
                       row(
@@ -221,7 +221,7 @@ export default function GlobalSearch({ autoFocus = false, onDone, className = ""
               )}
               {result.parcels.length > 0 && (
                 <>
-                  <p className="px-3 pb-1 pt-3 text-xs font-semibold uppercase text-slate-500">Packages</p>
+                  <p className="px-3 pb-1 pt-3 text-sm font-semibold uppercase text-slate-500">Packages</p>
                   <ul>
                     {result.parcels.map((p) =>
                       row(
@@ -247,7 +247,7 @@ export default function GlobalSearch({ autoFocus = false, onDone, className = ""
               )}
               {seesContainers && result.containers.length > 0 && (
                 <>
-                  <p className="px-3 pb-1 pt-3 text-xs font-semibold uppercase text-slate-500">Containers</p>
+                  <p className="px-3 pb-1 pt-3 text-sm font-semibold uppercase text-slate-500">Containers</p>
                   <ul>
                     {result.containers.map((c) =>
                       row(

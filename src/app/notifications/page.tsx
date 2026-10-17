@@ -61,7 +61,7 @@ export default function NotificationsPage() {
                   <div className="min-w-0 flex-1">
                     <p className={`${n.read_at ? "font-medium" : "font-semibold"} text-slate-900`}>{n.title}</p>
                     <p className="text-sm text-slate-700">{n.body}</p>
-                    <p className="mt-0.5 text-xs text-slate-500">
+                    <p className="mt-0.5 text-sm text-slate-500">
                       {n.actor_name ? `${n.actor_name} · ` : ""}
                       {formatDate(n.created_at)}
                     </p>

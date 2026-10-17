@@ -69,7 +69,7 @@ export default function ActivityPage() {
         <Card>
           <AuditList entries={log.data.entries} codes={log.data.codes} />
           {log.data.entries.length === LIMIT && (
-            <p className="mt-3 text-xs text-slate-500">Showing the latest {LIMIT} entries.</p>
+            <p className="mt-3 text-sm text-slate-500">Showing the latest {LIMIT} entries.</p>
           )}
         </Card>
       )}

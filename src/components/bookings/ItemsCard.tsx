@@ -181,7 +181,7 @@ export default function ItemsCard({ bookingId, status, items, onChanged }: Items
         </form>
       ) : (
         status !== "booked" && (
-          <p className="text-xs text-slate-500">Locked after collection. Ask the office to correct it.</p>
+          <p className="text-sm text-slate-500">Locked after collection. Ask the office to correct it.</p>
         )
       )}
       <ErrorMessage message={error} />

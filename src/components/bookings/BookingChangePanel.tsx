@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { Ban, CalendarClock } from "lucide-react";
 import { Button, Card, ErrorMessage, Field, inputClass } from "@/components/ui/form";
+import { todayISO } from "@/lib/format";
 import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
 import type { Booking } from "@/lib/types";
@@ -98,6 +99,11 @@ export default function BookingChangePanel({ booking, onChanged }: { booking: Bo
                 />
               </Field>
             )}
+            {mode === "reschedule" && date && date < todayISO() && (
+              <p role="status" className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                That day has already passed. Use this only to correct an old record; nobody is notified.
+              </p>
+            )}
             <Field label={mode === "reschedule" ? "Reason for rescheduling (required)" : "Reason for cancelling (required)"}>
               <textarea
                 value={reason}
@@ -113,7 +119,7 @@ export default function BookingChangePanel({ booking, onChanged }: { booking: Bo
                 className={inputClass}
               />
             </Field>
-            <p className="text-xs text-slate-500">
+            <p className="text-sm text-slate-500">
               {isOffice ? "The assigned driver" : "The office team"} will be notified, and this is saved in the booking&apos;s history.
             </p>
             <ErrorMessage message={error} />

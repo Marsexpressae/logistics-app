@@ -117,7 +117,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
             </>
           )}
         </header>
-        <a href="#main" className="sr-only z-50 rounded-md bg-white px-4 py-2 text-sm font-medium text-brand-700 shadow focus:not-sr-only focus:absolute focus:left-2 focus:top-2">
+        <a href="#main" className="sr-only z-(--z-overlay) rounded-md bg-white px-4 py-2 text-sm font-medium text-brand-700 shadow focus:not-sr-only focus:absolute focus:left-2 focus:top-2">
           Skip to content
         </a>
         <ErrorReporter />

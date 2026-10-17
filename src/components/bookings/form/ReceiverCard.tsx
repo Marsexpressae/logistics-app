@@ -26,7 +26,7 @@ export default function ReceiverCard({
       </div>
       {picked && book.length > 0 && (
         <div className="mt-3">
-          <p className="mb-1 text-xs font-medium text-slate-600">{picked.full_name}&apos;s receivers. Tap one to fill the name, phone and address.</p>
+          <p className="mb-1 text-sm font-medium text-slate-600">{picked.full_name}&apos;s receivers. Tap one to fill the name, phone and address.</p>
           <div className="flex flex-wrap gap-2">
             {book.map((r) => (
               <button
@@ -42,7 +42,7 @@ export default function ReceiverCard({
           </div>
         </div>
       )}
-      <p className="mt-2 text-xs text-slate-500">Phone and address are added later with the invoice and shipment details.</p>
+      <p className="mt-2 text-sm text-slate-500">Phone and address are added later with the invoice and shipment details.</p>
     </Card>
   );
 }

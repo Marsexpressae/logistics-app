@@ -136,7 +136,7 @@ export default function WarehousesCard() {
           </div>
         </form>
       ) : (
-        <p className="mt-2 text-xs text-slate-500">Only people with &quot;Change app settings&quot; can change this.</p>
+        <p className="mt-2 text-sm text-slate-500">Only people with &quot;Change app settings&quot; can change this.</p>
       )}
     </CollapsibleCard>
   );

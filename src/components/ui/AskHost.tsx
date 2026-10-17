@@ -10,7 +10,7 @@ import { answerAsk, subscribeAsk, type PendingAsk } from "@/lib/ask";
  */
 export default function AskHost() {
   const [queue, setQueue] = useState<PendingAsk[]>([]);
-  const [text, setText] = useState("");
+  const [typed, setTyped] = useState<string | null>(null); // null = nothing typed yet, so the field shows its default
   const [tooShort, setTooShort] = useState(false);
   const dialog = useRef<HTMLDialogElement>(null);
   const current = queue[0];
@@ -27,9 +27,11 @@ export default function AskHost() {
 
   if (!current) return <dialog ref={dialog} />;
 
+  const text = typed ?? current.field?.defaultValue ?? "";
+  const setText = setTyped;
   const need = current.field ? (current.field.minLength ?? 1) : 0;
   const finish = (answer: string | boolean | null) => {
-    setText("");
+    setTyped(null);
     setTooShort(false);
     answerAsk(current, answer);
   };

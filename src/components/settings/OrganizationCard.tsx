@@ -57,7 +57,7 @@ export default function OrganizationCard() {
                 onChange={(e) => edit({ legal_name: e.target.value })}
               />
             </Field>
-            <p className="mt-1 text-xs text-slate-500">
+            <p className="mt-1 text-sm text-slate-500">
               The legal name. It is different from the brand name, which stays &quot;{site.name}&quot;. It appears on printed documents.
             </p>
           </div>
@@ -83,7 +83,7 @@ export default function OrganizationCard() {
           </Field>
         </div>
       )}
-      {!canChange && <p className="mt-2 text-xs text-slate-500">Only people with &quot;Change app settings&quot; can change this.</p>}
+      {!canChange && <p className="mt-2 text-sm text-slate-500">Only people with &quot;Change app settings&quot; can change this.</p>}
       {changed > 0 && (
         <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-brand-200 bg-brand-50 px-4 py-3 text-sm">
           <span>

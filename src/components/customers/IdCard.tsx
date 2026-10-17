@@ -21,7 +21,7 @@ export function IdPhoto({ path }: { path: string }) {
     [path]
   );
   if (url.error) return <p className="text-xs text-red-700">{url.error}</p>;
-  if (!url.data) return <p className="text-xs text-slate-500">Loading photo…</p>;
+  if (!url.data) return <p className="text-sm text-slate-500">Loading photo…</p>;
   // eslint-disable-next-line @next/next/no-img-element
   return <img src={url.data} alt="Emirates ID" className="max-h-64 rounded-md border border-slate-200" />;
 }
@@ -93,7 +93,7 @@ export default function IdCard({ bookingId, onChanged }: { bookingId: string; on
             <span className="font-mono">{d.emirates_id ?? "Photo only"}</span>
           </p>
           {d.photo_path && <IdPhoto path={d.photo_path} />}
-          <p className="text-xs text-slate-500">
+          <p className="text-sm text-slate-500">
             Added by {d.uploaded_by_name} · {formatDate(d.created_at)}
           </p>
           {can("customers.manage") && (

@@ -34,7 +34,7 @@ export default function NotificationToast() {
       onFocus={() => setHeldId(toast.id)}
       onBlur={() => setHeldId(null)}
       onKeyDown={(e) => e.key === "Escape" && dismissToast()}
-      className="fixed inset-x-3 top-3 z-[60] mx-auto max-w-md rounded-lg border border-slate-200 bg-white p-3 shadow-lg print:hidden md:left-auto md:right-4 md:mx-0 md:w-96"
+      className="fixed inset-x-3 top-3 z-(--z-toast) mx-auto max-w-md rounded-lg border border-slate-200 bg-white p-3 shadow-lg print:hidden md:left-auto md:right-4 md:mx-0 md:w-96"
       style={{ marginTop: "env(safe-area-inset-top)" }}
     >
       <div className="flex items-start gap-3">
@@ -42,7 +42,7 @@ export default function NotificationToast() {
         <div className="min-w-0 flex-1">
           <p className="font-semibold text-slate-900">{toast.title}</p>
           <p className="text-sm text-slate-600">{toast.body}</p>
-          {toast.actor_name && <p className="mt-0.5 text-xs text-slate-500">by {toast.actor_name}</p>}
+          {toast.actor_name && <p className="mt-0.5 text-sm text-slate-500">by {toast.actor_name}</p>}
           <Link
             href={href}
             onClick={() => {

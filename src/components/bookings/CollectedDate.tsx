@@ -16,6 +16,7 @@ export default function CollectedDate({ bookingId, collectedAt, canEdit, onChang
   const [day, setDay] = useState(current);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [saved, setSaved] = useState<string | null>(null);
 
   async function save() {
     setBusy(true);
@@ -24,12 +25,14 @@ export default function CollectedDate({ bookingId, collectedAt, canEdit, onChang
     setBusy(false);
     if (error) return setError(error.message);
     setEditing(false);
+    setSaved(`Collected date changed to ${formatDay(day)}.`);
     onChanged();
   }
 
   return (
     <Card title="Collected (invoice date)">
       <ErrorMessage message={error} />
+      {saved && !editing && <p role="status" className="mb-2 rounded-md bg-green-50 px-3 py-2 text-sm text-green-800">{saved}</p>}
       {editing ? (
         <div className="flex flex-wrap items-end gap-3">
           <DateField label="Collected on" value={day} onChange={setDay} />
@@ -44,7 +47,7 @@ export default function CollectedDate({ bookingId, collectedAt, canEdit, onChang
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-base text-slate-900">{formatDay(current)}</p>
           {canEdit && (
-            <Button variant="secondary" onClick={() => setEditing(true)}>
+            <Button variant="secondary" onClick={() => { setSaved(null); setEditing(true); }}>
               Change date
             </Button>
           )}

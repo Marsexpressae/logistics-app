@@ -88,7 +88,7 @@ export default function NotesCard({ bookingId }: { bookingId: string }) {
               className={inputClass}
             />
             {suggestions.length > 0 && (
-              <ul role="listbox" className="absolute left-0 right-0 z-10 mt-1 rounded-md border border-slate-200 bg-white shadow-lg">
+              <ul role="listbox" className="absolute left-0 right-0 z-(--z-raised) mt-1 rounded-md border border-slate-200 bg-white shadow-lg">
                 {suggestions.map((p) => (
                   <li key={p.id}>
                     <button type="button" role="option" aria-selected={false} onClick={() => pick(p)} className="flex w-full justify-between px-3 py-2 text-left text-sm hover:bg-slate-50 active:bg-slate-100">
@@ -116,7 +116,7 @@ export default function NotesCard({ bookingId }: { bookingId: string }) {
           {notes.data.map((n) => (
             <li key={n.id} className="py-3">
               <p className="whitespace-pre-wrap text-slate-800">{renderBody(n.body)}</p>
-              <p className="mt-1 text-xs text-slate-500">
+              <p className="mt-1 text-sm text-slate-500">
                 {n.author_name} · {formatDate(n.created_at)}
               </p>
             </li>

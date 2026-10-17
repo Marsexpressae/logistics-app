@@ -48,7 +48,7 @@ export default function ProblemsCard() {
             {rows.map((p) => (
               <li key={p.id} className="py-2.5">
                 <p className="font-medium text-slate-900">{p.message}</p>
-                <p className="text-xs text-slate-500">
+                <p className="text-sm text-slate-500">
                   {formatDate(p.last_seen)}
                   {p.count > 1 ? ` · ${p.count} times` : ""}
                   {p.user_name ? ` · ${p.user_name}` : ""}

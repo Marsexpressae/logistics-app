@@ -26,6 +26,20 @@
   --color-brand-900: var(--color-blue-900);
 }
 
+/*
+ * Layer order, in one place (use z-(--z-name) in a class). A higher number sits above a lower one.
+ *   raised  = a card or list that must sit above its neighbours (suggestion lists)
+ *   menu    = the bottom bar and the search results
+ *   overlay = full-screen sheets and the skip link
+ *   toast   = the notification pop-up, above everything
+ */
+:root {
+  --z-raised: 10;
+  --z-menu: 40;
+  --z-overlay: 50;
+  --z-toast: 60;
+}
+
 /* The content slides in a little from the side after a swipe between tabs. */
 @keyframes swipe-in-next {
   from { opacity: 0; transform: translateX(28px); }

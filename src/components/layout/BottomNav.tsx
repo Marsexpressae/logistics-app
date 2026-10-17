@@ -7,7 +7,7 @@ import { Download, Ellipsis, LogOut, UserCog, X } from "lucide-react";
 import CountBadge from "@/components/ui/CountBadge";
 import { navItems } from "@/config/navigation";
 import { useMenuSwitches } from "@/lib/nav-settings";
-import { useBadges } from "@/lib/badges";
+import { badgeLabel, useBadges } from "@/lib/badges";
 import { useInstall } from "@/lib/pwa";
 import { useCurrentProfile, usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
@@ -94,7 +94,7 @@ export default function BottomNav() {
     <>
       <nav
         aria-label="Main"
-        className={`fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 backdrop-blur md:hidden print:hidden ${
+        className={`fixed inset-x-0 bottom-0 z-(--z-menu) border-t border-slate-200 bg-white/95 backdrop-blur md:hidden print:hidden ${
           typing ? "hidden" : ""
         }`}
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
@@ -107,7 +107,7 @@ export default function BottomNav() {
                 <Link href={href} aria-current={active ? "page" : undefined} className={tabClass(active)}>
                   <span className="relative">
                     <Icon className="h-6 w-6" strokeWidth={active ? 2.5 : 2} />
-                    <CountBadge count={badges[href] ?? 0} className="absolute -right-3 -top-1.5 ring-2 ring-white" />
+                    <CountBadge count={badges[href] ?? 0} label={badgeLabel(href)} className="absolute -right-3 -top-1.5 ring-2 ring-white" />
                   </span>
                   <span>{shortLabel}</span>
                 </Link>
@@ -133,7 +133,7 @@ export default function BottomNav() {
       </nav>
 
       {sheetOpen && (
-        <div className="fixed inset-0 z-50 md:hidden print:hidden" role="dialog" aria-modal="true" aria-label="More">
+        <div className="fixed inset-0 z-(--z-overlay) md:hidden print:hidden" role="dialog" aria-modal="true" aria-label="More">
           <button aria-label="Close menu" className="absolute inset-0 bg-black/40" onClick={() => setSheetOpen(false)} />
           <div
             ref={sheet}

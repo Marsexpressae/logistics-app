@@ -6,6 +6,7 @@ export type AskField = {
   label: string;
   secret?: boolean; // a password: dots instead of letters
   placeholder?: string;
+  defaultValue?: string; // the box starts with this typed in (for example the current name when renaming)
   minLength?: number; // the answer must be at least this long (default 1)
   multiline?: boolean;
 };

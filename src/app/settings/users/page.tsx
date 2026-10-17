@@ -344,7 +344,7 @@ export default function UsersPage() {
                                 {u.full_name || "—"} {isMe && <span className="text-xs text-slate-600">(you)</span>}
                               </p>
                               <p className="text-slate-600">{u.email}</p>
-                              {u.driver && <p className="text-xs text-slate-600">Driver: {u.driver}</p>}
+                              {u.driver && <p className="text-sm text-slate-600">Driver: {u.driver}</p>}
                             </td>
                             <td className="px-4 py-3">{roleControl(u, locked)}</td>
                             <td className="px-4 py-3">{status(u)}</td>

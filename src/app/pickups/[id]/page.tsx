@@ -74,7 +74,7 @@ export default function PickupDetailPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="font-mono text-xl font-semibold">{b.invoice_no ?? b.code}</h1>
-            {b.invoice_no && <p className="text-xs text-slate-500">Booking <BookingLink id={b.id} className="text-xs">{b.code}</BookingLink></p>}
+            {b.invoice_no && <p className="text-sm text-slate-500">Booking <BookingLink id={b.id} className="text-xs">{b.code}</BookingLink></p>}
           </div>
           <StatusBadge status={b.stage ?? b.status} />
         </div>

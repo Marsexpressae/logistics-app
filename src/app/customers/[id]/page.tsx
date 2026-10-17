@@ -204,13 +204,13 @@ export default function CustomerPage() {
               <li key={d.id} className="space-y-2">
                 <p className="font-mono">{d.emirates_id ?? "Photo only"}</p>
                 {d.photo_path && <IdPhoto path={d.photo_path} />}
-                <p className="text-xs text-slate-500">
+                <p className="text-sm text-slate-500">
                   Added by {d.uploaded_by_name} · {formatDate(d.created_at)}
                 </p>
               </li>
             ))}
           </ul>
-          <p className="mt-2 text-xs text-slate-500">To delete an ID photo, open the invoice it was taken for.</p>
+          <p className="mt-2 text-sm text-slate-500">To delete an ID photo, open the invoice it was taken for.</p>
         </Card>
       )}
 
@@ -288,7 +288,7 @@ export default function CustomerPage() {
                     {t.r_invoice && <span className="font-mono text-xs text-brand-700">{t.r_invoice}</span>}
                   </p>
                   {t.r_detail && <p className="mt-1 whitespace-pre-wrap text-slate-700">{t.r_detail}</p>}
-                  <p className="mt-1 text-xs text-slate-600">
+                  <p className="mt-1 text-sm text-slate-600">
                     {formatDate(t.r_at)}
                     {t.r_actor ? ` · ${t.r_actor}` : ""}
                   </p>

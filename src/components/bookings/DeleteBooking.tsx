@@ -136,7 +136,7 @@ export default function DeleteBooking({ booking }: { booking: Booking }) {
             <input className={`${inputClass} font-mono`} value={typed} onChange={(e) => setTyped(e.target.value)} autoCapitalize="characters" />
           </label>
 
-          <p className="text-xs text-slate-500">A copy of everything deleted stays in the Activity log, with your name and the reason.</p>
+          <p className="text-sm text-slate-500">A copy of everything deleted stays in the Activity log, with your name and the reason.</p>
           <ErrorMessage message={error} />
           <div className="flex gap-2">
             <Button variant="danger" onClick={remove} disabled={busy || !ready}>

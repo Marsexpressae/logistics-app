@@ -155,7 +155,7 @@ function CustomersContent() {
                 </tbody>
               </table>
             </div>
-            <p className="text-xs text-slate-500">
+            <p className="text-sm text-slate-500">
               {customers.length} of {list.data?.total ?? customers.length}
               {(list.data?.total ?? 0) > customers.length ? ". Search to find the others." : ""}
             </p>
