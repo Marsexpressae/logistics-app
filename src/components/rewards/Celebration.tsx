@@ -13,7 +13,7 @@ const PIECES = Array.from({ length: 18 }, (_, i) => ({ left: `${(i * 37) % 100}%
  * The pop-up for a new badge: the medal, its name, and a short confetti burst. The confetti is CSS only, hidden when the device
  * asks for reduced motion, and it never takes a tap (pointer-events-none).
  */
-export default function Celebration({ badge, onClose }: { badge: BadgeView; onClose: () => void }) {
+export default function Celebration({ badge, more = 0, onClose }: { badge: BadgeView; more?: number; onClose: () => void }) {
   return (
     <div
       role="status"
@@ -32,6 +32,7 @@ export default function Celebration({ badge, onClose }: { badge: BadgeView; onCl
         <div className="min-w-0 flex-1">
           <p className="text-lg font-semibold text-green-900">You earned {badge.name}</p>
           <p className="text-sm text-green-900">{badge.message || badge.description}</p>
+          {more > 0 && <p className="text-sm font-medium text-green-900">and {more} more {more === 1 ? "badge" : "badges"}</p>}
           <Link href="/account" onClick={onClose} className="inline-flex min-h-11 items-center text-sm font-medium text-green-900 underline">
             See my badges
           </Link>

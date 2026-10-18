@@ -1897,3 +1897,27 @@ test("team medals: managers add a badge, it is earned at its goal, and the input
     assert.equal((await add("Seven payments by hand", { family: null, tier: null, kind: "manual", rule: null, goal: null }))[0].k, "seven_payments_by_hand");
   });
 });
+
+// ---- fixes after the team medals review ----
+test("team medals: the streak check uses a time range (so it can use the index), and still counts days in a row", { skip }, async () => {
+  await inTransaction(async (db) => {
+    await withTeamMedals(db);
+    const src = (await db.owner("select pg_get_functiondef('streak_of(uuid)'::regprocedure) d"))[0].d as string;
+    assert.equal(/::date\s*=\s*cur/.test(src), false, "a per-row cast cannot use the index");
+    assert.match(src, /created_at\s*>=/);
+    const a = await db.person([], "streak");
+    for (const d of [0, 1, 2]) await db.owner("insert into point_log (person_id, rule_key, points, reason, created_at) values ($1, 'booking_created', 1, 'x', now() - ($2 || ' days')::interval)", [a, String(d)]);
+    await db.owner("insert into point_log (person_id, rule_key, points, reason, created_at) values ($1, 'booking_created', 1, 'x', now() - interval '5 days')", [a]);
+    assert.equal((await db.as(a, "select (my_rewards()->>'streak')::int s"))[0].s, 3);
+  });
+});
+
+test("team medals: a badge in a family needs a tier, and an explore rule cannot be counted", { skip }, async () => {
+  await inTransaction(async (db) => {
+    await withTeamMedals(db);
+    const boss = await db.person(["rewards.manage"], "boss");
+    assert.match((await db.error(() => db.as(boss, "select create_badge('No tier', 'x', 'receipt', 'payments', null, 'count', 'payment_recorded', 5)"))) ?? "", /Choose a tier for a badge in a family/);
+    assert.match((await db.error(() => db.as(boss, "select create_badge('Explore count', 'x', 'compass', null, null, 'count', 'use_bookings', 5)"))) ?? "", /what is counted/);
+    assert.match((await db.error(() => db.as(boss, "select create_badge('Daily count', 'x', 'compass', null, null, 'count', 'active_today', 5)"))) ?? "", /what is counted/);
+  });
+});

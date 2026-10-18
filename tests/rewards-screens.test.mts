@@ -147,3 +147,25 @@ test("managers can add a badge from the rewards settings, and the badge table sh
   assert.ok(table.includes('key: "family"') && table.includes('key: "tier"'), "family and tier are sortable columns");
   assert.equal(/<th className="px-4 py-3/.test(table), false);
 });
+
+// ---- fixes after the team medals review ----
+test("the settings text no longer says the team decides the badges", () => {
+  const page = readFileSync("src/app/settings/rewards/page.tsx", "utf8");
+  assert.equal(page.includes("The team decides"), false);
+  assert.match(page, /Every badge is open to everyone/);
+  assert.equal(readFileSync(`${dir}/StaffDetailsTable.tsx`, "utf8").includes("decides which badges"), false);
+});
+
+test("the add-badge icon picker shows keyboard focus and a clear chosen state, and only offers things that can be earned", () => {
+  const form = readFileSync(`${dir}/AddBadgeForm.tsx`, "utf8");
+  assert.ok(form.includes("has-[:focus-visible]"), "the visually hidden radio needs a focus ring on its label");
+  assert.ok(form.includes("ring-2"), "the chosen icon has a clear ring");
+  assert.ok(readFileSync("src/app/settings/rewards/page.tsx", "utf8").includes('kind === "work"'));
+});
+
+test("several new badges at once make one pop-up that says how many more, not one pop-up each", () => {
+  const celebration = readFileSync(`${dir}/Celebration.tsx`, "utf8");
+  assert.match(celebration, /more/);
+  const tracker = readFileSync(`${dir}/FeatureUseTracker.tsx`, "utf8");
+  assert.ok(tracker.includes("more={") && tracker.includes("setFresh([])"));
+});

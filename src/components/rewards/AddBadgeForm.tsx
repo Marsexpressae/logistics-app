@@ -60,7 +60,7 @@ export default function AddBadgeForm({ rules, families, onAdded }: { rules: Rule
           {Object.entries(BADGE_ICONS).map(([key, Icon]) => (
             <label
               key={key}
-              className={`flex min-h-11 min-w-11 cursor-pointer items-center justify-center rounded-full border-4 ${icon === key ? "" : "opacity-50"}`}
+              className={`flex min-h-11 min-w-11 cursor-pointer items-center justify-center rounded-full border-4 has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-brand-700 ${icon === key ? "ring-2 ring-brand-700 ring-offset-2" : "opacity-50"}`}
               style={{ borderColor: colors.ring, background: colors.fill, color: colors.ink }}
             >
               <input type="radio" name="icon" value={key} checked={icon === key} onChange={() => setIcon(key)} className="sr-only" />

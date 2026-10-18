@@ -302,3 +302,13 @@ test("mock: managers add a badge, it is earned at its goal, and the inputs are c
   assert.match((await add("Bad kind", { p_kind: "magic" })).error?.message ?? "", /how the badge is earned/);
   assert.equal((await add("Seven payments by hand", { p_family: null, p_tier: null, p_kind: "manual", p_rule_key: null, p_threshold: null })).data, "seven_payments_by_hand");
 });
+
+// ---- fixes after the team medals review ----
+test("mock: a badge in a family needs a tier, and only real work or thank-yous can be counted", async () => {
+  fresh("sample-manager");
+  const add = (over: R) => rpc("create_badge", { p_name: "Fix badge", p_description: "x", p_icon: "compass", p_family: null, p_tier: null, p_kind: "count", p_rule_key: "payment_recorded", p_threshold: 5, ...over });
+  assert.match((await add({ p_family: "payments", p_tier: null })).error?.message ?? "", /Choose a tier for a badge in a family/);
+  assert.match((await add({ p_rule_key: "use_bookings" })).error?.message ?? "", /what is counted/);
+  assert.match((await add({ p_rule_key: "active_today" })).error?.message ?? "", /what is counted/);
+  assert.equal((await add({ p_rule_key: "thank_you" })).error, null);
+});

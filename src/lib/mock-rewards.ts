@@ -333,9 +333,10 @@ export function rewardsRpc({ db, me, save }: Helpers): Record<string, (a: any) =
       if (d.badges.some((b: Row) => b.name.toLowerCase() === name.toLowerCase())) return fail("A badge with that name already exists");
       if (!["star", "file-plus", "package", "truck", "receipt", "scan", "flame", "compass", "heart", "trophy"].includes(p_icon)) return fail("Choose an icon from the list");
       if (!["count", "streak", "manual"].includes(p_kind)) return fail("Choose how the badge is earned");
-      if (p_kind === "count" && !(p_rule_key === "thank_you" || d.point_rules.some((r: Row) => r.key === p_rule_key))) return fail("Choose what is counted");
+      if (p_kind === "count" && !(p_rule_key === "thank_you" || d.point_rules.some((r: Row) => r.key === p_rule_key && r.kind === "work"))) return fail("Choose what is counted");
       if (p_kind !== "manual" && (p_threshold == null || p_threshold < 1)) return fail("The goal must be more than 0");
       if (p_tier != null && (p_tier < 1 || p_tier > 5)) return fail("The tier must be from 1 to 5");
+      if (family && p_tier == null) return fail("Choose a tier for a badge in a family");
       if (family && p_tier != null && d.badges.some((b: Row) => b.family === family && b.tier === p_tier)) return fail("That tier is already taken in this family");
       const base = name.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "badge";
       let key = base;

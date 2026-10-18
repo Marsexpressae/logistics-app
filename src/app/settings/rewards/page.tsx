@@ -49,7 +49,7 @@ function RewardsSettings() {
           </Card>
           {can("users.manage") && (
             <Card title="Teams and job titles">
-              <p className="mb-3 text-sm text-slate-600">The team decides which badges a person can earn: sales badges for the sales team, pickup badges for the pickup team.</p>
+              <p className="mb-3 text-sm text-slate-600">The team shows on profiles and on the Team page. Every badge is open to everyone.</p>
               <StaffDetailsTable />
             </Card>
           )}
@@ -59,7 +59,7 @@ function RewardsSettings() {
           </Card>
           <Card title="Add a badge">
             <p className="mb-3 text-sm text-slate-600">Make a new badge for the whole team. Badges in a family show as medals of growing colour.</p>
-            <AddBadgeForm rules={(rules.data ?? []).map((r) => ({ key: r.key, label: r.label }))} families={[...new Set((badges.data ?? []).map((b) => b.family).filter((f): f is string => !!f))]} onAdded={badges.reload} />
+            <AddBadgeForm rules={(rules.data ?? []).filter((r) => r.kind === "work").map((r) => ({ key: r.key, label: r.label }))} families={[...new Set((badges.data ?? []).map((b) => b.family).filter((f): f is string => !!f))]} onAdded={badges.reload} />
           </Card>
         </>
       )}

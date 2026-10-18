@@ -47,5 +47,7 @@ export default function FeatureUseTracker() {
 
   const badge = fresh[0];
   if (!badge) return null;
-  return <Celebration badge={badge} onClose={() => setFresh((f) => f.slice(1))} />;
+  // Several badges at once (for example when new medals appear) are one pop-up that says how many more, not one pop-up each.
+  const top = [...fresh].sort((a, b) => (b.tier ?? 0) - (a.tier ?? 0))[0] ?? badge;
+  return <Celebration badge={top} more={fresh.length - 1} onClose={() => setFresh([])} />;
 }

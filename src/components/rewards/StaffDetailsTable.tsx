@@ -67,7 +67,7 @@ function PersonRow({ person, onSaved }: { person: DirectoryPerson; onSaved: () =
   );
 }
 
-/** Each person's team, job title and joined date. The team decides which badges a person can earn (sales and pickup badges). */
+/** Each person's team, job title and joined date. They show on profiles and the Team page; every badge is open to everyone. */
 export default function StaffDetailsTable() {
   const people = useQuery<DirectoryPerson[]>(() => supabase.rpc("people_directory") as never);
   const sort = useSort<DirectoryPerson>(COLUMNS, { prefix: "s" });

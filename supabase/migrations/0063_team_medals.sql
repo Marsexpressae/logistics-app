@@ -135,9 +135,10 @@ begin
   if exists (select 1 from badges where lower(name) = lower(btrim(p_name))) then raise exception 'A badge with that name already exists'; end if;
   if p_icon is null or p_icon not in ('star', 'file-plus', 'package', 'truck', 'receipt', 'scan', 'flame', 'compass', 'heart', 'trophy') then raise exception 'Choose an icon from the list'; end if;
   if p_kind is null or p_kind not in ('count', 'streak', 'manual') then raise exception 'Choose how the badge is earned'; end if;
-  if p_kind = 'count' and (p_rule_key is null or not (p_rule_key = 'thank_you' or exists (select 1 from point_rules where key = p_rule_key))) then raise exception 'Choose what is counted'; end if;
+  if p_kind = 'count' and (p_rule_key is null or not (p_rule_key = 'thank_you' or exists (select 1 from point_rules where key = p_rule_key and kind = 'work'))) then raise exception 'Choose what is counted'; end if;
   if p_kind in ('count', 'streak') and (p_threshold is null or p_threshold < 1) then raise exception 'The goal must be more than 0'; end if;
   if p_tier is not null and (p_tier < 1 or p_tier > 5) then raise exception 'The tier must be from 1 to 5'; end if;
+  if fam is not null and p_tier is null then raise exception 'Choose a tier for a badge in a family'; end if;
   if fam is not null and p_tier is not null and exists (select 1 from badges where family = fam and tier = p_tier) then raise exception 'That tier is already taken in this family'; end if;
   base := trim(both '_' from regexp_replace(lower(btrim(p_name)), '[^a-z0-9]+', '_', 'g'));
   if base = '' then base := 'badge'; end if;
@@ -152,3 +153,23 @@ end $$;
 
 revoke execute on function team_overview(), person_wins(uuid, int), create_badge(text, text, text, text, int, text, text, int) from public, anon;
 grant execute on function team_overview(), person_wins(uuid, int), create_badge(text, text, text, text, int, text, text, int) to authenticated;
+
+-- ---------- the streak check uses a time range, so it can use the index on point_log ----------
+-- (it runs inside the booking, payment and parcel triggers and for every person on the Team page)
+create or replace function streak_of(p_person uuid) returns int
+language plpgsql stable security definer set search_path = public as $$
+declare cur date := dubai_today(); n int := 0;
+begin
+  if not exists (select 1 from point_log l join point_rules r on r.key = l.rule_key and r.kind = 'work'
+                 where l.person_id = p_person
+                   and l.created_at >= cur::timestamp at time zone 'Asia/Dubai' and l.created_at < (cur + 1)::timestamp at time zone 'Asia/Dubai') then
+    cur := cur - 1;
+  end if;
+  while exists (select 1 from point_log l join point_rules r on r.key = l.rule_key and r.kind = 'work'
+                where l.person_id = p_person
+                  and l.created_at >= cur::timestamp at time zone 'Asia/Dubai' and l.created_at < (cur + 1)::timestamp at time zone 'Asia/Dubai') loop
+    n := n + 1;
+    cur := cur - 1;
+  end loop;
+  return n;
+end $$;
