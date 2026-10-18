@@ -8,6 +8,7 @@ import { Card, ErrorMessage, inputClass, Loading } from "@/components/ui/form";
 import { useQuery } from "@/lib/hooks";
 import { isMock, supabase } from "@/lib/supabase";
 import type { AuditEntry } from "@/lib/types";
+import { withoutNoise } from "@/lib/audit-noise";
 
 type ActivityData = { entries: AuditEntry[]; codes: Record<string, string> };
 
@@ -32,6 +33,7 @@ export default function ActivityPage() {
     }
     return { data: { entries, codes }, error: null };
   }, [table]);
+  const shown = withoutNoise(log.data?.entries ?? []); // moves of packing-list items are left out (they stay in the database)
 
   return (
     <>
@@ -63,12 +65,12 @@ export default function ActivityPage() {
       <ErrorMessage message={log.error} />
       {log.loading ? (
         <Loading />
-      ) : !log.data?.entries.length ? (
+      ) : !shown.length ? (
         <EmptyState message="No activity recorded yet." />
       ) : (
         <Card>
-          <AuditList entries={log.data.entries} codes={log.data.codes} />
-          {log.data.entries.length === LIMIT && (
+          <AuditList entries={shown} codes={log.data!.codes} />
+          {log.data?.entries.length === LIMIT && (
             <p className="mt-3 text-sm text-slate-500">Showing the latest {LIMIT} entries.</p>
           )}
         </Card>

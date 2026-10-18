@@ -23,6 +23,7 @@ import { Button, Card, ErrorMessage, StatusBadge, Loading } from "@/components/u
 import { formatDate } from "@/lib/format";
 import { useQuery } from "@/lib/hooks";
 import { usePermissions } from "@/lib/profile-context";
+import { withoutNoise } from "@/lib/audit-noise";
 import { supabase } from "@/lib/supabase";
 import type { AuditEntry, Booking, BookingItem, Payment } from "@/lib/types";
 import BackLink from "@/components/ui/BackLink";
@@ -42,6 +43,7 @@ export default function EditBookingPage() {
       ? supabase.from("audit_log").select("*").eq("booking_id", id).order("id", { ascending: false })
       : Promise.resolve({ data: [], error: null })
   );
+  const historyShown = withoutNoise(history.data ?? []); // moves of packing-list items are left out (they stay in the database)
   const items = useQuery<BookingItem[]>(() =>
     supabase.from("booking_items").select("*").eq("booking_id", id).order("position").order("id")
   );
@@ -157,9 +159,9 @@ export default function EditBookingPage() {
 
       <div className="mt-6 space-y-6">
         <ScheduleHistory bookingId={id} reloadKey={changes} />
-        {canSeeHistory && !!history.data?.length && (
+        {canSeeHistory && !!historyShown.length && (
           <Card title="Activity log" className="max-w-3xl">
-            <AuditList entries={history.data} />
+            <AuditList entries={historyShown} />
           </Card>
         )}
         <DeleteBooking booking={b} />
