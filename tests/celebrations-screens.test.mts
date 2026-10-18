@@ -44,3 +44,25 @@ test("managers choose on/off, the style (with a preview of each) and the events 
   assert.match(page, /can\("settings\.manage"\)/);
   assert.ok(host().includes("CELEBRATIONS_CHANGED"), "the host reloads the setting after a save");
 });
+
+// ---- the four call sites ----
+test("each job celebrates only after it saved: booking created and invoice raised, pickup collected, intake received", () => {
+  const form = readFileSync("src/components/bookings/BookingForm.tsx", "utf8");
+  assert.ok(form.includes('celebrate("booking_created"') && form.includes("invoiceJustRaised("));
+  const errorAt = form.indexOf("return setError(error.message);");
+  const celebrateAt = form.indexOf('celebrate("booking_created"');
+  const savedAt = form.indexOf("onSaved(data.code)");
+  assert.ok(errorAt > 0 && errorAt < celebrateAt && celebrateAt < savedAt, "the celebration comes after the error returns and before the form closes");
+  assert.match(form, /celebrate\("invoice_raised"\)/);
+
+  const pickup = readFileSync("src/app/pickups/[id]/page.tsx", "utf8");
+  assert.match(pickup, /return !error;/, "run reports whether the write worked");
+  assert.match(pickup, /if \(await run\([^]*?\)\) celebrate\("pickup_collected"\)/);
+
+  const split = readFileSync("src/app/warehouse-inventory/split/[bookingId]/page.tsx", "utf8");
+  const splitError = split.indexOf("if (error) return setError(error.message);");
+  const splitCelebrate = split.indexOf('celebrate("intake_received")');
+  assert.ok(splitError > 0 && splitError < splitCelebrate, "intake celebrates after the save worked");
+  assert.match(split, /if \(!received\) celebrate\("intake_received"\)/, "replacing parcels already received is not a new intake");
+  for (const f of [form, pickup, split]) assert.ok(f.includes('from "@/lib/celebrate"'));
+});

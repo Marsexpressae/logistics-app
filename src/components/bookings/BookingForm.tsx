@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { celebrate } from "@/lib/celebrate";
+import { invoiceJustRaised } from "@/lib/celebrations";
 import { Button, Card, ErrorMessage } from "@/components/ui/form";
 import type { CustomerHit, ReceiverEntry } from "@/lib/customers";
 import { formatGeo, parseGeo } from "@/lib/geo";
@@ -147,6 +149,9 @@ export default function BookingForm({ booking, submitLabel, onSaved, numbersOpen
         await supabase.rpc("link_booking_customer", { p_booking_id: data.id, p_customer_id: receiverPick.receiver_id, p_role: "receiver" });
       }
     }
+    // The work saved: a new booking celebrates, and so does the first time an invoice amount is entered (never on an error above).
+    if (!booking) celebrate("booking_created", data.code);
+    else if (invoiceJustRaised(booking.invoice_amount, (fields as { invoice_amount?: number | null }).invoice_amount)) celebrate("invoice_raised");
     onSaved(data.code);
   }
 

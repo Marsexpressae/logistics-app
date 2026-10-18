@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { celebrate } from "@/lib/celebrate";
 import { useParams } from "next/navigation";
 import { PackageCheck, Plus, Printer, Trash2 } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
@@ -76,6 +77,8 @@ export default function ReceivePage() {
     });
     setBusy(false);
     if (error) return setError(error.message);
+    // Only the first receiving is a new intake; replacing parcels already received is a correction.
+    if (!received) celebrate("intake_received");
     setRepack(false);
     setCustom(null);
     booking.reload();

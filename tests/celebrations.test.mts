@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { createMockClient, freshMockData, setMockUser } from "../src/lib/mock-supabase.ts";
 import { celebrate, onCelebrate } from "../src/lib/celebrate.ts";
 import {
-  COOLDOWN_MS, DEFAULT_CELEBRATIONS, DURATION_MS, STYLES, chooseStyle, isLightDevice, messageFor, normalizeCelebrations, shouldCelebrate, spawn,
+  COOLDOWN_MS, DEFAULT_CELEBRATIONS, DURATION_MS, STYLES, chooseStyle, invoiceJustRaised, isLightDevice, messageFor, normalizeCelebrations, shouldCelebrate, spawn,
   type CelebrationEvent, type StyleKey,
 } from "../src/lib/celebrations.ts";
 
@@ -118,4 +118,15 @@ test("mock: the default setting exists and only people who manage settings can s
   await refused({ p_events: [] }, /on or off choice/);
   await refused({ p_enabled: null }, /Choose on or off/);
   assert.equal(((await c.from("app_settings").select("*").eq("key", "celebrations").single()).data as R).value.style, "confetti", "a refused save changes nothing");
+});
+
+test("invoiceJustRaised: only the first time an amount is saved", () => {
+  assert.equal(invoiceJustRaised(null, 100), true);
+  assert.equal(invoiceJustRaised(0, 100), true);
+  assert.equal(invoiceJustRaised(undefined, 50), true);
+  assert.equal(invoiceJustRaised(100, 200), false);
+  assert.equal(invoiceJustRaised(100, null), false);
+  assert.equal(invoiceJustRaised(null, null), false);
+  assert.equal(invoiceJustRaised(null, 0), false);
+  assert.equal(invoiceJustRaised(0, 0), false);
 });

@@ -1,6 +1,7 @@
 "use client";
 
 import BookingLink from "@/components/bookings/BookingLink";
+import { celebrate } from "@/lib/celebrate";
 import { useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -58,11 +59,13 @@ export default function PickupDetailPage() {
     setError(error?.message ?? null);
     booking.reload();
     items.reload();
+    return !error;
   }
 
   // Left as today it is collected now. Pick an earlier day when entering an old pickup: the invoice and receipt show that day.
-  const markCollected = () =>
-    run(supabase.from("bookings").update({ status: "collected", collected_at: dateStamp(collectedOn) }).eq("id", id));
+  const markCollected = async () => {
+    if (await run(supabase.from("bookings").update({ status: "collected", collected_at: dateStamp(collectedOn) }).eq("id", id))) celebrate("pickup_collected");
+  };
 
   return (
     <div className="mx-auto max-w-xl space-y-4">

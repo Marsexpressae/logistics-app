@@ -112,3 +112,6 @@ export function spawn(style: StyleKey, width: number, height: number, random: ()
   }
   return out;
 }
+
+/** True only the first time an invoice amount is saved on a booking: empty or zero before, above zero now. */
+export const invoiceJustRaised = (previous: number | null | undefined, next: number | null | undefined): boolean => (previous ?? 0) <= 0 && (next ?? 0) > 0;
