@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Firework Styles</title>
+<!--
+  The five celebration styles shown to the owner (saved from the shared sample page).
+  Open this file in a browser and press Play under each style.
+  Chosen: 5 (Triple salvo), with 4 (Confetti pop) as the lighter fallback. Plain canvas code, no libraries.
+-->
+<style>
+/* layout: five equal cards, each with its own canvas and a play button; the canvas sits on a dark night-sky panel in both themes */
+:root{--bg:#f6f7f9;--card:#fff;--fg:#1c2430;--mute:#5d6877;--line:#dfe3e9;--accent:#1f5fbf;--sky:#0f1624;--font:"Segoe UI",system-ui,-apple-system,sans-serif}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#12161c;--card:#1a2029;--fg:#e8ecf1;--mute:#98a3b3;--line:#2b3441;--accent:#7fb0f5;--sky:#0a0f19;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#12161c;--card:#1a2029;--fg:#e8ecf1;--mute:#98a3b3;--line:#2b3441;--accent:#7fb0f5;--sky:#0a0f19;color-scheme:dark}
+body{background:var(--bg);color:var(--fg);font-family:var(--font);font-size:15px;line-height:1.5;padding-block:24px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+main{max-width:760px;margin:0 auto;display:grid;gap:16px}
+h1{font-size:22px;margin:0}h2{font-size:16px;margin:0}
+.note{color:var(--mute);font-size:13px;margin:0}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px;display:grid;gap:10px;min-width:0}
+.sky{position:relative;height:200px;border-radius:8px;background:var(--sky);overflow:hidden}
+.sky canvas{position:absolute;inset:0;width:100%;height:100%}
+.row{display:flex;justify-content:space-between;align-items:center;gap:8px}
+button{font:inherit;min-height:44px;padding:0 16px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--fg);cursor:pointer}
+button.main{background:var(--accent);color:var(--bg);border-color:var(--accent)}
+button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+</style>
+</head>
+<body>
+<main>
+<div>
+  <h1>Firework styles</h1>
+  <p class="note">Five options for the daily-goal celebration. Press Play on each, then tell me the number you like. Sample only.</p>
+</div>
+<div class="grid" id="grid"></div>
+</main>
+
+<script>
+var reduce=window.matchMedia&&matchMedia("(prefers-reduced-motion: reduce)").matches;
+var C=["#ff4d4f","#ffa940","#fadb14","#73d13d","#36cfc9","#597ef7","#b37feb","#ff85c0"];
+var styles=[
+ {n:"1. Classic burst",d:"One big round burst of many colours. Closest to the Samsung Health one.",run:classic},
+ {n:"2. Double ring",d:"Two clean rings, one inside the other, in rainbow colours.",run:rings},
+ {n:"3. Golden willow",d:"Gold sparks that rise, then droop down like a weeping willow.",run:willow},
+ {n:"4. Confetti pop",d:"Coloured paper pieces pop up and flutter down. Softer and friendly.",run:confetti},
+ {n:"5. Triple salvo",d:"Three rockets launch one after another and burst in different colours.",run:salvo}
+];
+var grid=document.getElementById("grid");
+styles.forEach(function(s,i){
+  var el=document.createElement("section");el.className="card";
+  el.innerHTML='<div class="sky"><canvas id="c'+i+'" aria-hidden="true"></canvas></div><div><h2>'+s.n+'</h2><p class="note">'+s.d+'</p></div><div class="row"><button type="button" class="main" id="b'+i+'">Play</button></div>';
+  grid.appendChild(el);
+  var cv=el.querySelector("canvas"),ctx=cv.getContext("2d"),W=0,H=0,P=[],raf=0,timers=[];
+  function size(){var r=cv.getBoundingClientRect(),d=window.devicePixelRatio||1;W=r.width;H=r.height;cv.width=W*d;cv.height=H*d;ctx.setTransform(d,0,0,d,0,0)}
+  function add(o){P.push(o);if(!raf)tick()}
+  function tick(){
+    ctx.fillStyle="rgba(10,15,25,.22)";ctx.fillRect(0,0,W,H);
+    P.forEach(function(p){
+      p.x+=p.vx;p.y+=p.vy;p.vx*=p.drag;p.vy=p.vy*p.drag+p.g;p.life-=p.fade;
+      ctx.globalAlpha=Math.max(p.life,0);ctx.fillStyle=p.c;
+      if(p.rect){ctx.save();ctx.translate(p.x,p.y);ctx.rotate(p.rot+=p.vr);ctx.fillRect(-3,-2,6,4);ctx.restore()}
+      else{ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,7);ctx.fill()}
+    });
+    P=P.filter(function(p){return p.life>0});
+    ctx.globalAlpha=1;
+    if(P.length||timers.length){raf=requestAnimationFrame(tick)}else{raf=0;ctx.clearRect(0,0,W,H)}
+  }
+  function later(ms,f){var t=setTimeout(function(){timers=timers.filter(function(x){return x!==t});f()},ms);timers.push(t)}
+  var api={add:add,later:later,get W(){return W},get H(){return H}};
+  function mk(x,y,a,s,c,o){var p={x:x,y:y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,drag:.975,g:.04,life:1,fade:.012,r:2.3,c:c};for(var k in o)p[k]=o[k];return p}
+  api.mk=mk;
+  el.querySelector("button").onclick=function(){
+    size();P=[];ctx.clearRect(0,0,W,H);
+    if(reduce){ctx.fillStyle="#fff";ctx.font="14px sans-serif";ctx.fillText("Reduced motion is on: no animation",12,24);return}
+    s.run(api);
+  };
+  window.addEventListener("resize",size);
+});
+function classic(a){var x=a.W/2,y=a.H*.45,n=110;for(var i=0;i<n;i++)a.add(a.mk(x,y,Math.PI*2*i/n+Math.random()*.1,1.5+Math.random()*3,C[i%C.length],{}))}
+function rings(a){var x=a.W/2,y=a.H*.45,n=48;for(var i=0;i<n;i++){var t=Math.PI*2*i/n;a.add(a.mk(x,y,t,3.6,C[i%C.length],{drag:.965,fade:.011}));a.add(a.mk(x,y,t,2,C[(i+3)%C.length],{drag:.965,fade:.011}))}}
+function willow(a){var x=a.W/2,y=a.H*.4,n=90;for(var i=0;i<n;i++)a.add(a.mk(x,y,Math.PI*2*i/n,1+Math.random()*3.2,i%3?"#ffd666":"#ffc53d",{drag:.97,g:.075,fade:.007,r:1.8}))}
+function confetti(a){var x=a.W/2,y=a.H*.8;for(var i=0;i<70;i++){var t=-Math.PI/2+(Math.random()-.5)*1.5;a.add(a.mk(x,y,t,3+Math.random()*4,C[i%C.length],{rect:1,rot:Math.random()*6,vr:(Math.random()-.5)*.4,drag:.97,g:.09,fade:.008}))}}
+function salvo(a){[[.25,.4,0],[.75,.35,450],[.5,.3,900]].forEach(function(s,k){a.later(s[2],function(){var x=a.W*s[0],y=a.H*s[1];var col=[["#ff4d4f","#ffa940","#fadb14"],["#36cfc9","#597ef7","#b37feb"],["#73d13d","#fadb14","#ff85c0"]][k];for(var i=0;i<70;i++)a.add(a.mk(x,y,Math.PI*2*i/70,1.2+Math.random()*2.8,col[i%3],{}))})})}
+</script>
+</body>
+</html>
