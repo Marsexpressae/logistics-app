@@ -44,7 +44,7 @@ on conflict (key) do nothing;
 
 create or replace function setting_int(p_key text, p_default int) returns int
 language sql stable security definer set search_path = public as $$
-  select coalesce((select (value #>> '{}')::int from app_settings where key = p_key), p_default)
+  select coalesce((select (value #>> '{}')::int from app_settings where key = p_key and jsonb_typeof(value) = 'number'), p_default)
 $$;
 revoke execute on function setting_int(text, int) from public, anon;
 
@@ -110,11 +110,11 @@ revoke all on point_rules, point_log, levels, badges, person_badges from anon, a
 grant select on point_rules, levels, badges to authenticated;
 grant select on point_log, person_badges to authenticated;
 drop policy if exists rules_read on point_rules;
-create policy rules_read on point_rules for select to authenticated using (true);
+create policy rules_read on point_rules for select to authenticated using ((select app_role()) is not null);
 drop policy if exists levels_read on levels;
-create policy levels_read on levels for select to authenticated using (true);
+create policy levels_read on levels for select to authenticated using ((select app_role()) is not null);
 drop policy if exists badges_read on badges;
-create policy badges_read on badges for select to authenticated using (true);
+create policy badges_read on badges for select to authenticated using ((select app_role()) is not null);
 drop policy if exists log_read on point_log;
 create policy log_read on point_log for select to authenticated
   using (person_id = (select auth.uid()) or (select has_perm('rewards.manage')));
@@ -201,7 +201,7 @@ language sql stable security definer set search_path = public as $$
     p.hide_birthday and p.id = (select auth.uid()),
     case when p.id = (select auth.uid()) or has_perm('rewards.manage') then p.phone else null end
   from profiles p
-  where p.active and (select auth.uid()) is not null
+  where p.active and (select app_role()) is not null
 $$;
 
 revoke execute on function update_my_profile(text, int, int, boolean, text, text), set_staff_details(uuid, text, text, date), people_directory() from public, anon;
@@ -212,7 +212,7 @@ insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_typ
 values ('staff-photos', 'staff-photos', false, 5242880, array['image/jpeg', 'image/png', 'image/webp'])
 on conflict (id) do nothing;
 drop policy if exists staff_photos_read on storage.objects;
-create policy staff_photos_read on storage.objects for select to authenticated using (bucket_id = 'staff-photos');
+create policy staff_photos_read on storage.objects for select to authenticated using (bucket_id = 'staff-photos' and (select app_role()) is not null);
 drop policy if exists staff_photos_add on storage.objects;
 create policy staff_photos_add on storage.objects for insert to authenticated
   with check (bucket_id = 'staff-photos' and (storage.foldername(name))[1] = (select auth.uid())::text);
@@ -258,6 +258,7 @@ declare
   day_end timestamptz := (dubai_today() + 1)::timestamp at time zone 'Asia/Dubai';
 begin
   if p_person is null then return 0; end if;
+  perform pg_advisory_xact_lock(hashtextextended(p_person::text, 7));
   if not exists (select 1 from profiles where id = p_person and active) then return 0; end if;
   select * into r from point_rules where key = p_rule and active;
   if not found or r.points = 0 then return 0; end if;
@@ -280,6 +281,7 @@ begin
   end if;
   insert into point_log (person_id, rule_key, points, reason, source_table, source_id) values (p_person, p_rule, r.points, left(p_reason, 200), p_source_table, p_source_id);
   perform check_badges(p_person);
+  if r.kind = 'work' then perform award_points(p_person, 'active_today', 'feature', null, 'Used the app today'); end if;
   return r.points;
 exception when unique_violation then
   return 0;
@@ -325,7 +327,7 @@ begin
 end $$;
 drop trigger if exists rewards_parcel_moved on parcels;
 create trigger rewards_parcel_moved after update of status on parcels for each row
-  when (old.status is distinct from new.status) execute function rewards_on_parcel_moved();
+  when (old.status is distinct from new.status and new.status in ('in_warehouse', 'loaded', 'delivered')) execute function rewards_on_parcel_moved();
 
 -- ---------- trying a feature, and using the app today ----------
 create or replace function record_feature_use(p_key text) returns int
@@ -348,6 +350,7 @@ declare
   used_points int; used_count int;
 begin
   perform require_perm('rewards.give');
+  perform pg_advisory_xact_lock(hashtextextended(uid::text, 8));
   if p_person = uid then raise exception 'You cannot thank yourself'; end if;
   if btrim(coalesce(p_message, '')) = '' then raise exception 'Write a short message to go with the thank-you'; end if;
   if p_points is null or p_points < 1 or p_points > 100 then raise exception 'Give between 1 and 100 points'; end if;
@@ -366,7 +369,7 @@ declare
   tot int; lvl levels; nxt levels;
   day_start timestamptz := dubai_today()::timestamp at time zone 'Asia/Dubai';
 begin
-  if (select auth.uid()) is null then raise exception 'You are not signed in' using errcode = '42501'; end if;
+  if (select app_role()) is null then raise exception 'You are not signed in' using errcode = '42501'; end if;
   if not exists (select 1 from profiles where id = p_person and active) then raise exception 'Person not found'; end if;
   select coalesce(sum(points), 0) into tot from point_log where person_id = p_person;
   select * into lvl from levels where min_points <= tot order by number desc limit 1;
@@ -377,8 +380,8 @@ begin
     'next_level_name', nxt.name, 'next_min', nxt.min_points,
     'streak', streak_of(p_person),
     'today', coalesce((select sum(points) from point_log where person_id = p_person and created_at >= day_start), 0),
-    'recent', coalesce((select jsonb_agg(jsonb_build_object('points', x.points, 'reason', x.reason, 'created_at', x.created_at) order by x.created_at desc, x.id desc)
-                        from (select * from point_log where person_id = p_person order by created_at desc, id desc limit 20) x), '[]'::jsonb)
+    'recent', case when p_person <> (select auth.uid()) and not has_perm('rewards.manage') then '[]'::jsonb else coalesce((select jsonb_agg(jsonb_build_object('points', x.points, 'reason', x.reason, 'created_at', x.created_at) order by x.created_at desc, x.id desc)
+                        from (select * from point_log where person_id = p_person order by created_at desc, id desc limit 20) x), '[]'::jsonb) end
   );
 end $$;
 
@@ -450,7 +453,7 @@ create or replace function person_badges_of(p_person uuid) returns jsonb
 language plpgsql stable security definer set search_path = public as $$
 declare team_of text; out jsonb;
 begin
-  if (select auth.uid()) is null then raise exception 'You are not signed in' using errcode = '42501'; end if;
+  if (select app_role()) is null then raise exception 'You are not signed in' using errcode = '42501'; end if;
   select team into team_of from profiles where id = p_person and active;
   if not found then raise exception 'Person not found'; end if;
   select coalesce(jsonb_agg(x.item order by x.earned desc nulls last, x.name), '[]'::jsonb) into out
@@ -487,7 +490,7 @@ language sql stable security definer set search_path = public as $$
     from point_log l join profiles p on p.id = l.person_id and p.active left join profiles g on g.id = l.given_by
     where l.rule_key = 'thank_you'
   ) w
-  where (select auth.uid()) is not null
+  where (select app_role()) is not null
   order by created_at desc
   limit least(greatest(coalesce(p_limit, 20), 1), 100)
 $$;

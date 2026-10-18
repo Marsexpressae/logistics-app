@@ -70,7 +70,7 @@ export default function SettingsPage() {
           <p className="text-sm text-slate-500">No controls available.</p>
         ) : (
           <ul className="divide-y divide-slate-100">
-            {settings.data.map((s) => (
+            {settings.data.filter((s) => typeof s.value === "boolean").map((s) => (
               <li key={s.key}>
                 {/* The whole row is the tap target, not just the small switch */}
                 <label htmlFor={s.key} className="flex min-h-14 cursor-pointer items-start justify-between gap-4 py-3 text-sm">

@@ -234,6 +234,9 @@ function save() {
   } catch {}
 }
 
+// Moving one parcel pays points; a whole container departing or arriving does not (like the database trigger).
+const PAYING_PARCEL_STATUS = ["in_warehouse", "loaded", "delivered"];
+
 // Tests (and the sample-data screens) can act as another person; everything else is done by the sample super admin.
 let currentUserId = "mock-user";
 export function setMockUser(id: string) { currentUserId = id; }
@@ -462,7 +465,7 @@ class Query implements PromiseLike<any> {
           const wasStatus = r.status;
           Object.assign(r, this.payload, this.table === "bookings" ? { updated_at: now() } : {});
           if (this.table === "bookings" && r.status === "collected" && wasStatus !== "collected") awardPoints(db(), currentUserId, "pickup_collected", "bookings", r.id, `Collected ${r.code}`);
-          if (this.table === "parcels" && r.status !== wasStatus) awardPoints(db(), currentUserId, "parcel_moved", "parcels", `${r.id}:${r.status}`, `Parcel ${r.barcode} ${String(r.status).replace(/_/g, " ")}`);
+          if (this.table === "parcels" && r.status !== wasStatus && PAYING_PARCEL_STATUS.includes(r.status)) awardPoints(db(), currentUserId, "parcel_moved", "parcels", `${r.id}:${r.status}`, `Parcel ${r.barcode} ${String(r.status).replace(/_/g, " ")}`);
           if (this.table === "bookings") {
             if (typeof r.code === "string") r.code = r.code.trim().toUpperCase();
             if (typeof r.invoice_no === "string") r.invoice_no = r.invoice_no.trim().toUpperCase();
@@ -595,7 +598,7 @@ function setParcelStatus(p: Row, status: string) {
   p.status = status;
   p.updated_at = now();
   db().parcel_events.push({ id: uid(), parcel_id: p.id, status, created_at: now() });
-  if (changed) awardPoints(db(), currentUserId, "parcel_moved", "parcels", `${p.id}:${status}`, `Parcel ${p.barcode} ${status.replace(/_/g, " ")}`);
+  if (changed && PAYING_PARCEL_STATUS.includes(status)) awardPoints(db(), currentUserId, "parcel_moved", "parcels", `${p.id}:${status}`, `Parcel ${p.barcode} ${status.replace(/_/g, " ")}`);
 }
 
 // A typed day becomes noon on that day (never in the future); the parcel history then shows that day.

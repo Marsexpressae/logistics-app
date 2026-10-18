@@ -84,7 +84,7 @@ export default function RulesTable({ rules, onSaved }: { rules: PointRule[]; onS
         </thead>
         <tbody>
           {sort.sorted(rules).map((r) => (
-            <RuleRow key={`${r.key}-${r.points}-${r.daily_cap}-${r.active}`} rule={r} onSaved={onSaved} />
+            <RuleRow key={r.key} rule={r} onSaved={onSaved} />
           ))}
         </tbody>
       </table>

@@ -91,7 +91,7 @@ export default function BadgesTable({ badges, onSaved }: { badges: BadgeRow[]; o
         </thead>
         <tbody>
           {sort.sorted(badges).map((b) => (
-            <BadgeLine key={`${b.key}-${b.name}-${b.threshold}-${b.active}`} badge={b} onSaved={onSaved} />
+            <BadgeLine key={b.key} badge={b} onSaved={onSaved} />
           ))}
         </tbody>
       </table>

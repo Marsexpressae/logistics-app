@@ -97,6 +97,7 @@ export function awardPoints(d: Row, person: string | null, rule: string, sourceT
   const id = d.point_log.reduce((n: number, l: Row) => Math.max(n, l.id), 0) + 1;
   d.point_log.push({ id, person_id: person, rule_key: rule, points: r.points, reason: reason.slice(0, 200), source_table: sourceTable, source_id: sourceId, given_by: null, created_at: stamp() });
   checkBadges(d, person);
+  if (r.kind === "work") awardPoints(d, person, "active_today", "feature", null, "Used the app today");
   return r.points;
 }
 
@@ -111,16 +112,19 @@ export function rewardsRpc({ db, me, save }: Helpers): Record<string, (a: any) =
   };
   const need = (perm: string): Result | null => (can(perm) ? null : fail("You do not have permission to do this"));
   const active = (id: string) => db().profiles.some((p: Row) => p.id === id && p.active);
+  const signedIn = () => active(me());
 
   const personRewards = (person: string): Result => {
     const d = db();
+    if (!signedIn()) return fail("You are not signed in");
     if (!active(person)) return fail("Person not found");
     const mine: Row[] = d.point_log.filter((l: Row) => l.person_id === person);
     const total = sum(mine);
     const levels: Row[] = [...d.levels].sort((a, b) => a.number - b.number);
     const lvl = [...levels].reverse().find((l) => l.min_points <= total) ?? levels[0];
     const nxt = levels.find((l) => l.min_points > total) ?? null;
-    const recent = [...mine].sort((a, b) => (a.created_at < b.created_at ? 1 : a.created_at > b.created_at ? -1 : b.id - a.id)).slice(0, 20)
+    const mayRead = person === me() || can("rewards.manage");
+    const recent = !mayRead ? [] : [...mine].sort((a, b) => (a.created_at < b.created_at ? 1 : a.created_at > b.created_at ? -1 : b.id - a.id)).slice(0, 20)
       .map((l) => ({ points: l.points, reason: l.reason, created_at: l.created_at }));
     return ok({
       total, level_number: lvl.number, level_name: lvl.name, level_min: lvl.min_points,
@@ -131,6 +135,7 @@ export function rewardsRpc({ db, me, save }: Helpers): Record<string, (a: any) =
 
   const badgesOf = (person: string): Result => {
     const d = db();
+    if (!signedIn()) return fail("You are not signed in");
     const prof = d.profiles.find((p: Row) => p.id === person && p.active);
     if (!prof) return fail("Person not found");
     const list = d.badges.flatMap((b: Row) => {
@@ -176,6 +181,7 @@ export function rewardsRpc({ db, me, save }: Helpers): Record<string, (a: any) =
     },
 
     people_directory() {
+      if (!signedIn()) return ok([]);
       const seeAll = can("rewards.manage");
       return ok(db().profiles.filter((p: Row) => p.active).map((p: Row) => {
         const hide = !!p.hide_birthday && p.id !== me();
@@ -278,6 +284,7 @@ export function rewardsRpc({ db, me, save }: Helpers): Record<string, (a: any) =
     person_badges_of: ({ p_person }) => badgesOf(p_person),
 
     wins_feed(a) {
+      if (!signedIn()) return ok([]);
       const d = db();
       const limit = Math.min(Math.max(a?.p_limit ?? 20, 1), 100);
       const name = (id: string | null) => d.profiles.find((p: Row) => p.id === id)?.full_name;

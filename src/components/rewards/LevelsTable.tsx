@@ -52,7 +52,7 @@ function LevelRow({ level, onSaved }: { level: Level; onSaved: () => void }) {
   );
 }
 
-/** The levels and the points each needs. Levels only ever go up for a person, so raising a threshold never takes a level away. */
+/** The levels and the points each needs. A person's level follows their total points, so raising a threshold can move people down a level. */
 export default function LevelsTable({ levels, onSaved }: { levels: Level[]; onSaved: () => void }) {
   const sort = useSort<Level>(COLUMNS, { prefix: "l" });
   return (
@@ -70,7 +70,7 @@ export default function LevelsTable({ levels, onSaved }: { levels: Level[]; onSa
         </thead>
         <tbody>
           {sort.sorted(levels).map((l) => (
-            <LevelRow key={`${l.number}-${l.name}-${l.min_points}`} level={l} onSaved={onSaved} />
+            <LevelRow key={l.number} level={l} onSaved={onSaved} />
           ))}
         </tbody>
       </table>

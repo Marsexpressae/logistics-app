@@ -66,3 +66,25 @@ test("the rewards settings page is reachable by the right people and built from 
   assert.ok(readFileSync("src/app/settings/page.tsx", "utf8").includes("/settings/rewards"), "Settings should link to it");
   for (const key of ["rewards.give", "rewards.manage"]) assert.ok(readFileSync("src/config/navigation.ts", "utf8").includes(key));
 });
+
+// ---- fixes after the whole-branch review ----
+test("Settings shows only on/off settings as switches (the rewards limits are numbers)", () => {
+  const code = readFileSync("src/app/settings/page.tsx", "utf8");
+  assert.match(code, /typeof s\.value === "boolean"/);
+});
+
+test("a colleague's page does not show their point reasons, and the saved note is not lost when a row reloads", () => {
+  assert.equal(readFileSync("src/app/people/[id]/page.tsx", "utf8").includes("PointsList"), false);
+  for (const [f, key] of [["RulesTable", "r.key"], ["LevelsTable", "l.number"], ["BadgesTable", "b.key"]]) {
+    const code = readFileSync(`${dir}/${f}.tsx`, "utf8");
+    assert.ok(code.includes(`key={${key}}`), `${f} rows should be keyed by ${key} only`);
+  }
+  assert.equal(readFileSync(`${dir}/LevelsTable.tsx`, "utf8").includes("Nobody ever loses a level"), false);
+  assert.equal(readFileSync("src/app/settings/rewards/page.tsx", "utf8").includes("Nobody ever loses a level"), false);
+});
+
+test("managers can set a person's team, job title and joined date from the rewards settings", () => {
+  const code = readFileSync(`${dir}/StaffDetailsTable.tsx`, "utf8");
+  assert.ok(code.includes("set_staff_details") && code.includes("SortableTh") && code.includes("useSort"));
+  assert.ok(readFileSync("src/app/settings/rewards/page.tsx", "utf8").includes("StaffDetailsTable"));
+});

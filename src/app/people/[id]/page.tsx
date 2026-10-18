@@ -3,7 +3,6 @@
 import { Suspense } from "react";
 import { useParams } from "next/navigation";
 import BadgeGrid from "@/components/rewards/BadgeGrid";
-import PointsList from "@/components/rewards/PointsList";
 import ProfileHeader from "@/components/rewards/ProfileHeader";
 import BackLink from "@/components/ui/BackLink";
 import { Card, ErrorMessage, Loading } from "@/components/ui/form";
@@ -11,7 +10,7 @@ import { useQuery } from "@/lib/hooks";
 import type { BadgeView, DirectoryPerson, Rewards } from "@/lib/rewards";
 import { supabase } from "@/lib/supabase";
 
-/** A colleague's profile, read-only: their points, level and badges. No phone and no hidden birthday (the database leaves those out). */
+/** A colleague's profile, read-only: their points, level and badges. No phone, no hidden birthday and no point reasons (the database leaves those out). */
 function ColleaguePage() {
   const { id } = useParams<{ id: string }>();
   const people = useQuery<DirectoryPerson[]>(() => supabase.rpc("people_directory") as never);
@@ -27,9 +26,6 @@ function ColleaguePage() {
       <ProfileHeader person={person} rewards={rewards.data} />
       <Card title="Badges">
         <BadgeGrid badges={badges.data ?? []} />
-      </Card>
-      <Card title="Recent points">
-        <PointsList lines={rewards.data?.recent ?? []} />
       </Card>
     </div>
   );

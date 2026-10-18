@@ -5,6 +5,7 @@ import BadgesTable, { type BadgeRow } from "@/components/rewards/BadgesTable";
 import GiveForm from "@/components/rewards/GiveForm";
 import LevelsTable from "@/components/rewards/LevelsTable";
 import RulesTable, { type PointRule } from "@/components/rewards/RulesTable";
+import StaffDetailsTable from "@/components/rewards/StaffDetailsTable";
 import BackLink from "@/components/ui/BackLink";
 import PageHeader from "@/components/ui/PageHeader";
 import { Card, ErrorMessage, Loading } from "@/components/ui/form";
@@ -42,9 +43,15 @@ function RewardsSettings() {
             <RulesTable rules={rules.data ?? []} onSaved={rules.reload} />
           </Card>
           <Card title="Levels">
-            <p className="mb-3 text-sm text-slate-600">Each level needs more points than the one before. Nobody ever loses a level.</p>
+            <p className="mb-3 text-sm text-slate-600">Each level needs more points than the one before. A level follows total points, so raising a number can move people down a level.</p>
             <LevelsTable levels={levels.data ?? []} onSaved={levels.reload} />
           </Card>
+          {can("users.manage") && (
+            <Card title="Teams and job titles">
+              <p className="mb-3 text-sm text-slate-600">The team decides which badges a person can earn: sales badges for the sales team, pickup badges for the pickup team.</p>
+              <StaffDetailsTable />
+            </Card>
+          )}
           <Card title="Badges">
             <p className="mb-3 text-sm text-slate-600">A badge that is already earned stays earned, even if you change its goal.</p>
             <BadgesTable badges={badges.data ?? []} onSaved={badges.reload} />

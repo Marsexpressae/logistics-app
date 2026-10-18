@@ -1454,7 +1454,8 @@ const newBookingAs = async (db: Db, uid: string) => {
   await actAs(db, uid, "insert into bookings (sender_name, sender_phone, pickup_area, pickup_address, pickup_date) values ('Rewards Test', '+971500000321', 'Dubai', 'Somewhere', current_date)");
   return (await db.owner("select id, code from bookings where sender_name = 'Rewards Test' order by created_at desc limit 1"))[0] as { id: string; code: string };
 };
-const lines = (db: Db, who: string) => db.owner("select rule_key, points, reason from point_log where person_id = $1 order by id", [who]);
+// the "active today" bonus comes with the first real work of the day, so most tests leave it out of the way
+const lines = (db: Db, who: string) => db.owner("select rule_key, points, reason from point_log where person_id = $1 and rule_key <> 'active_today' order by id", [who]);
 const total = async (db: Db, who: string) => (await db.as(who, "select (my_rewards()->>'total')::int t"))[0].t as number;
 
 test("rewards: a booking pays its creator once, and paying the same record twice pays nothing", { skip }, async () => {
@@ -1698,5 +1699,86 @@ test("rewards: only managers of the rewards system change point values, levels a
     assert.match((await db.error(() => db.as(boss, "select save_badge('bookings_100', 'x', 'x', true, 0)"))) ?? "", /more than 0/);
     assert.match((await db.error(() => db.as(boss, "select save_badge('made_up', 'x', 'x', true, 5)"))) ?? "", /Badge not found/);
     assert.match((await db.error(() => db.as(boss, "select save_badge('bookings_100', ' ', 'x', true, 5)"))) ?? "", /name/i);
+  });
+});
+
+// ---- fixes after the whole-branch review ----
+test("rewards: a broken limit setting cannot stop work points, and the limits are not shown as switches", { skip }, async () => {
+  await inTransaction(async (db) => {
+    await withRewards(db);
+    const me = await db.person([], "limits");
+    await db.owner("update app_settings set value = 'true'::jsonb where key = 'rewards_daily_cap'"); // what a toggled switch would have saved
+    await newBookingAs(db, me);
+    assert.equal((await lines(db, me))[0]?.rule_key, "booking_created");
+    assert.equal((await db.owner("select setting_int('rewards_daily_cap', 77) v"))[0].v, 77);
+  });
+});
+
+test("rewards: other people do not see a colleague's point reasons, the person and managers do", { skip }, async () => {
+  await inTransaction(async (db) => {
+    await withRewards(db);
+    const me = await db.person([], "owner of points");
+    const other = await db.person([], "curious");
+    const boss = await db.person(["rewards.manage"], "boss");
+    await newBookingAs(db, me);
+    const recent = async (who: string) => (await db.as(who, "select person_rewards($1) r", [me]))[0].r;
+    assert.ok((await recent(me)).recent.length >= 1);
+    assert.ok((await recent(boss)).recent.length >= 1);
+    assert.deepEqual((await recent(other)).recent, []);
+    assert.equal((await recent(other)).total, 5 + 2); // the total and level stay visible
+  });
+});
+
+test("rewards: awarding and thank-yous take a per-person lock, so parallel calls cannot pay twice", { skip }, async () => {
+  await inTransaction(async (db) => {
+    await withRewards(db);
+    for (const fn of ["award_points", "give_thank_you"]) {
+      const src = (await db.owner("select pg_get_functiondef(p.oid) d from pg_proc p where p.proname = $1", [fn]))[0].d as string;
+      assert.match(src, /pg_advisory_xact_lock/, `${fn} should lock per person`);
+    }
+  });
+});
+
+test("rewards: only single-parcel moves pay, not a whole container being moved", { skip }, async () => {
+  await inTransaction(async (db) => {
+    await withRewards(db);
+    const me = await db.person([], "mover");
+    const booking = await db.booking({ invoice_no: "T-RW-9" });
+    const wh = (await db.owner("select id from warehouses limit 1"))[0]?.id ?? (await db.owner("insert into warehouses (name) values ('RW') returning id"))[0].id;
+    await db.owner("insert into parcels (booking_id, seq, barcode, weight_kg, warehouse_id) values ($1, 1, $2, 1, $3)", [booking, `RW-${Math.random()}`, wh]);
+    const parcel = (await db.owner("select id from parcels where booking_id = $1", [booking]))[0].id;
+    await actAs(db, me, `update parcels set status = 'in_transit' where id = '${parcel}'`);
+    await actAs(db, me, `update parcels set status = 'arrived' where id = '${parcel}'`);
+    assert.deepEqual((await lines(db, me)).map((l) => l.rule_key), []);
+    await actAs(db, me, `update parcels set status = 'delivered' where id = '${parcel}'`);
+    assert.deepEqual((await lines(db, me)).map((l) => l.rule_key), ["parcel_moved"]);
+  });
+});
+
+test("rewards: doing real work earns the active-today points straight away, once a day", { skip }, async () => {
+  await inTransaction(async (db) => {
+    await withRewards(db);
+    const me = await db.person([], "worker");
+    await newBookingAs(db, me);
+    await newBookingAs(db, me);
+    const got = (await db.owner("select rule_key from point_log where person_id = $1 order by id", [me])).map((r) => r.rule_key);
+    assert.deepEqual(got, ["booking_created", "active_today", "booking_created"]);
+  });
+});
+
+test("rewards: a login with no active profile reads nothing from the rewards functions", { skip }, async () => {
+  await inTransaction(async (db) => {
+    await withRewards(db);
+    const real = await db.person([], "real");
+    const nobody = (await db.owner("insert into auth.users (id) values (gen_random_uuid()) returning id"))[0].id as string;
+    const gone = await db.person([], "gone");
+    await db.owner("update profiles set active = false where id = $1", [gone]);
+    for (const who of [nobody, gone]) {
+      assert.equal((await db.as(who, "select count(*)::int n from people_directory()"))[0].n, 0);
+      assert.equal((await db.as(who, "select count(*)::int n from wins_feed(10)"))[0].n, 0);
+      assert.match((await db.error(() => db.as(who, "select person_rewards($1)", [real]))) ?? "", /not signed in|permission/i);
+      assert.match((await db.error(() => db.as(who, "select person_badges_of($1)", [real]))) ?? "", /not signed in|permission/i);
+      assert.equal((await db.as(who, "select count(*)::int n from levels"))[0].n, 0);
+    }
   });
 });

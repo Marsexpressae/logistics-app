@@ -57,10 +57,11 @@ const mine = async (): Promise<R> => (await rpc("my_rewards")).data;
 test("mock: a booking pays its creator 5 points, once", async () => {
   fresh();
   const { data: b } = await newBooking();
-  assert.equal((await mine()).total, 5);
+  assert.equal((await mine()).total, 7); // 5 for the booking and 2 for being active today
   assert.equal((await mine()).level_name, "Rookie");
-  assert.equal((await c.from("point_log").select("*")).data.length, 1);
-  assert.match((await c.from("point_log").select("*")).data[0].reason, new RegExp(b.code));
+  const booked = ((await c.from("point_log").select("*")).data as R[]).filter((l) => l.rule_key === "booking_created");
+  assert.equal(booked.length, 1);
+  assert.match(booked[0].reason, new RegExp(b.code));
 });
 
 test("mock: nothing is paid to an inactive person", async () => {
@@ -170,4 +171,38 @@ test("mock: only managers of the rewards system change point values, levels and 
   assert.equal((await rpc("save_badge", { p_key: "bookings_100", p_name: "150 bookings", p_description: "Made 150 bookings", p_active: true, p_threshold: 150 })).error, null);
   assert.match((await rpc("save_badge", { p_key: "bookings_100", p_name: "x", p_description: "x", p_active: true, p_threshold: 0 })).error?.message ?? "", /more than 0/);
   assert.match((await rpc("save_badge", { p_key: "made_up", p_name: "x", p_description: "x", p_active: true, p_threshold: 5 })).error?.message ?? "", /Badge not found/);
+});
+
+// ---- fixes after the whole-branch review ----
+test("mock: real work earns the active-today points straight away, once a day", async () => {
+  fresh();
+  await newBooking();
+  await newBooking();
+  assert.deepEqual(((await c.from("point_log").select("*")).data as R[]).map((l) => l.rule_key), ["booking_created", "active_today", "booking_created"]);
+});
+
+test("mock: only single-parcel moves pay, not a whole container being moved", async () => {
+  fresh();
+  const parcel = ((await c.from("parcels").select("*")).data as R[])[0];
+  await c.from("parcels").update({ status: "in_transit" }).eq("id", parcel.id);
+  assert.equal(((await c.from("point_log").select("*")).data as R[]).filter((l) => l.rule_key === "parcel_moved").length, 0);
+  await c.from("parcels").update({ status: "delivered" }).eq("id", parcel.id);
+  assert.equal(((await c.from("point_log").select("*")).data as R[]).filter((l) => l.rule_key === "parcel_moved").length, 1);
+});
+
+test("mock: other people do not see a colleague's point reasons, the person and managers do", async () => {
+  fresh();
+  await newBooking();
+  const recent = async (who: string) => { setMockUser(who); return (await rpc("person_rewards", { p_person: "mock-user" })).data as R; };
+  assert.ok((await recent("mock-user")).recent.length >= 1);
+  assert.ok((await recent("sample-manager")).recent.length >= 1);
+  assert.deepEqual((await recent("sample-staff")).recent, []);
+  assert.equal((await recent("sample-staff")).total, 7);
+});
+
+test("mock: a person with no active profile reads nothing from the rewards functions", async () => {
+  fresh("sample-warehouse"); // inactive
+  assert.deepEqual((await rpc("people_directory")).data, []);
+  assert.deepEqual((await rpc("wins_feed", { p_limit: 5 })).data, []);
+  assert.match((await rpc("person_rewards", { p_person: "mock-user" })).error?.message ?? "", /not signed in/);
 });
