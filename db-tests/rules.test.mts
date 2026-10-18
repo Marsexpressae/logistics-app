@@ -1254,8 +1254,8 @@ test("sales rep: a removed person leaves the old name on old records", { skip },
 });
 
 /** A booking inserted with a rep and a phone; returns the booking id and the customer the app linked or created for it. */
-async function bookingWithRep(db: Db, phone: string, rep: string | null) {
-  const b = (await db.owner("insert into bookings (sender_name, sender_phone, pickup_area, pickup_address, pickup_date, sales_rep_id) values ('Rep Test', $1, 'Dubai', 'Somewhere', current_date, $2) returning id", [phone, rep]))[0].id as string;
+async function bookingWithRep(db: Db, phone: string, rep: string | null, name = "Rep Test") {
+  const b = (await db.owner("insert into bookings (sender_name, sender_phone, pickup_area, pickup_address, pickup_date, sales_rep_id) values ($3, $1, 'Dubai', 'Somewhere', current_date, $2) returning id", [phone, rep, name]))[0].id as string;
   const customer = (await db.owner("select customer_id from booking_contacts where booking_id = $1 and role = 'customer'", [b]))[0].customer_id as string;
   return { booking: b, customer };
 }
@@ -1309,5 +1309,27 @@ test("sales rep: changing a customer's owner leaves their old bookings alone", {
     await db.as(manager, "select set_customer_sales_rep($1, $2)", [customer, beta]);
     assert.equal((await repOf(db, "customers", customer)).sales_rep_id, beta);
     assert.equal((await repOf(db, "bookings", booking)).sales_rep_id, alpha, "the old booking keeps the rep who made that sale");
+  });
+});
+
+test("sales rep: Accounts, global search and customer search carry the rep", { skip }, async () => {
+  await inTransaction(async (db) => {
+    await withSalesRep(db);
+    const rep = await db.person(["bookings.view"], "Rep Delta");
+    const viewer = await db.person(["accounts.view", "bookings.view", "customers.view"], "list-viewer");
+    const withRep = await bookingWithRep(db, "+971500777011", rep, "Zzowner Qxone");
+    const without = await bookingWithRep(db, "+971500777012", null, "Zzowner Qxtwo");
+    await db.owner("update bookings set invoice_no = 'T-SR-INV1' where id = $1", [withRep.booking]);
+    await db.owner("update bookings set invoice_no = 'T-SR-INV2' where id = $1", [without.booking]);
+    // Accounts list
+    const inv = (await db.as(viewer, "select r_invoice_no, r_sales_rep, r_amount from accounts_invoices('all', 'T-SR-INV', 10, 0) order by r_invoice_no")) as { r_invoice_no: string; r_sales_rep: string | null }[];
+    assert.deepEqual(inv.map((r) => [r.r_invoice_no, r.r_sales_rep]), [["T-SR-INV1", "Test Rep Delta"], ["T-SR-INV2", null]]);
+    // global search: booking hits and customer hits
+    const g = (await db.as(viewer, "select global_search('Zzowner', 10) g"))[0].g as { bookings: Row[]; customers: Row[] };
+    assert.deepEqual(g.bookings.map((b) => [b.sender_name, b.sales_rep]).sort(), [["Zzowner Qxone", "Test Rep Delta"], ["Zzowner Qxtwo", null]]);
+    assert.deepEqual(g.customers.map((c) => [c.full_name, c.sales_rep]).sort(), [["Zzowner Qxone", "Test Rep Delta"], ["Zzowner Qxtwo", null]]);
+    // customer search
+    const cs = (await db.as(viewer, "select search_customers('Zzowner', 10) r"))[0].r as { customers: Row[] };
+    assert.deepEqual(cs.customers.map((c) => [c.full_name, c.sales_rep_id, c.sales_rep]).sort(), [["Zzowner Qxone", rep, "Test Rep Delta"], ["Zzowner Qxtwo", null, null]]);
   });
 });
