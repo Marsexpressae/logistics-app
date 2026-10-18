@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { ChevronRight, Award, ShieldCheck, UserCog } from "lucide-react";
+import CelebrationsCard from "@/components/settings/CelebrationsCard";
 import NumberingCard from "@/components/settings/NumberingCard";
 import OrganizationCard from "@/components/settings/OrganizationCard";
 import ProblemsCard from "@/components/settings/ProblemsCard";
@@ -116,6 +117,8 @@ export default function SettingsPage() {
       <WarehousesCard />
 
       <NumberingCard />
+
+      {can("settings.manage") && <CelebrationsCard />}
 
       <ProblemsCard />
 

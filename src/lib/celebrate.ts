@@ -1,5 +1,8 @@
 import type { CelebrationEvent, StyleKey } from "./celebrations.ts";
 
+/** Sent on the window after Settings saves a change, so the app reads the new choice straight away. */
+export const CELEBRATIONS_CHANGED = "mars:celebrations-changed";
+
 type Handler = (event: CelebrationEvent, detail?: string) => void;
 type PreviewHandler = (style: StyleKey) => void;
 

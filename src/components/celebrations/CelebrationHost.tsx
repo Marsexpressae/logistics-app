@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
-import { onCelebrate, onPreview } from "@/lib/celebrate";
+import { CELEBRATIONS_CHANGED, onCelebrate, onPreview } from "@/lib/celebrate";
 import {
   COOLDOWN_MS, DEFAULT_CELEBRATIONS, DURATION_MS, chooseStyle, isLightDevice, messageFor, normalizeCelebrations, shouldCelebrate, spawn,
   type Celebrations, type Dot, type StyleKey,
@@ -38,17 +38,20 @@ export default function CelebrationHost() {
     settingsRef.current = settings;
   }, [settings]);
 
-  // the saved choice, read once; a missing or damaged value means the defaults
+  // the saved choice, read once and again when Settings saves a change; a missing or damaged value means the defaults
   useEffect(() => {
     let cancelled = false;
-    (async () => {
+    const load = async () => {
       try {
         const { data } = await supabase.from("app_settings").select("value").eq("key", "celebrations").maybeSingle();
         if (!cancelled) setSettings(normalizeCelebrations((data as { value?: unknown } | null)?.value));
       } catch {}
-    })();
+    };
+    load();
+    window.addEventListener(CELEBRATIONS_CHANGED, load);
     return () => {
       cancelled = true;
+      window.removeEventListener(CELEBRATIONS_CHANGED, load);
     };
   }, []);
 

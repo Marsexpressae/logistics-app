@@ -30,3 +30,17 @@ test("the device switch is on My profile and keeps its choice in browser storage
   assert.ok(host().includes("celebrations-off"), "the host reads the same key");
   assert.match(toggle, /Celebrations on this device/);
 });
+
+// ---- the manager settings card ----
+test("managers choose on/off, the style (with a preview of each) and the events on the Celebrations card, and the host picks up a saved change", () => {
+  const card = readFileSync("src/components/settings/CelebrationsCard.tsx", "utf8");
+  for (const needle of ["save_celebrations", "STYLES", "previewCelebration", "EVENT_KEYS", "CELEBRATIONS_CHANGED", "normalizeCelebrations"]) assert.ok(card.includes(needle), `the card should use ${needle}`);
+  assert.match(card, /Preview/);
+  assert.match(card, /Saved/);
+  assert.equal(/\bz-\d/.test(card), false);
+  for (const m of card.matchAll(/<button\b[^>]*>/g)) assert.match(m[0], /min-h-11/, "raw buttons need 44px");
+  const page = readFileSync("src/app/settings/page.tsx", "utf8");
+  assert.ok(page.includes("CelebrationsCard"));
+  assert.match(page, /can\("settings\.manage"\)/);
+  assert.ok(host().includes("CELEBRATIONS_CHANGED"), "the host reloads the setting after a save");
+});
