@@ -183,18 +183,17 @@ export default function CelebrationHost() {
   return (
     <>
       <div ref={layer} aria-hidden="true" className="pointer-events-none fixed inset-0 z-(--z-toast) print:hidden" />
-      {message && (
-        <div
-          role="status"
-          aria-live="polite"
-          className="fixed inset-x-3 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-(--z-toast) mx-auto flex max-w-md items-center gap-2 rounded-lg border border-green-600 bg-green-50 py-1 pl-4 pr-1 text-base font-medium text-green-900 print:hidden md:bottom-6"
-        >
-          <span className="flex-1">{message}</span>
-          <button type="button" aria-label="Close" className="flex min-h-11 w-11 shrink-0 items-center justify-center" onClick={() => setMessage(null)}>
-            <X className="h-5 w-5" aria-hidden="true" />
-          </button>
-        </div>
-      )}
+      {/* The live region is always on the page, so screen readers announce the message that appears inside it. */}
+      <div role="status" aria-live="polite" className="pointer-events-none fixed inset-x-3 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-(--z-toast) mx-auto max-w-md print:hidden md:bottom-6">
+        {message && (
+          <div className="pointer-events-auto flex items-center gap-2 rounded-lg border border-green-600 bg-green-50 py-1 pl-4 pr-1 text-base font-medium text-green-900">
+            <span className="flex-1">{message}</span>
+            <button type="button" aria-label="Close" className="flex min-h-11 w-11 shrink-0 items-center justify-center" onClick={() => setMessage(null)}>
+              <X className="h-5 w-5" aria-hidden="true" />
+            </button>
+          </div>
+        )}
+      </div>
     </>
   );
 }

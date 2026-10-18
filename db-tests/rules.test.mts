@@ -1483,8 +1483,10 @@ test("rewards: payments, collected pickups and parcel moves pay the person who d
 test("rewards: nothing is paid when nobody is signed in, to an inactive person, or past the daily cap, and the work still saves", { skip }, async () => {
   await inTransaction(async (db) => {
     const me = await db.person([], "capped");
+    // the real database now holds real points, so compare with what was there before
+    const before = (await db.owner("select count(*)::int n from point_log"))[0].n;
     await db.booking({ invoice_no: "T-RW-2" }); // owner, nobody signed in
-    assert.equal((await db.owner("select count(*)::int n from point_log"))[0].n, 0);
+    assert.equal((await db.owner("select count(*)::int n from point_log"))[0].n, before);
     assert.equal((await db.owner("select award_points(null, 'booking_created', null, null, 'x') p"))[0].p, 0);
     const paid = await db.owner("select count(*) filter (where x > 0)::int n from (select award_points($1, 'parcel_moved', 'parcels', gen_random_uuid(), 'move') x from generate_series(1, 101)) s", [me]);
     assert.equal(paid[0].n, 100); // the rule's cap

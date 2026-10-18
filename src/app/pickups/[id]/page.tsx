@@ -48,23 +48,31 @@ export default function PickupDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [collectedOn, setCollectedOn] = useDay(id);
   const [changes, setChanges] = useState(0); // bumps after a reschedule/cancel so the history refreshes
+  const [collecting, setCollecting] = useState(false);
 
   const b = booking.data;
   if (booking.loading) return <Loading />;
   if (!b) return <ErrorMessage message={booking.error ?? "Booking not found"} />;
 
   // Run a write, surface errors, refresh both queries.
-  async function run(action: PromiseLike<{ error: { message: string } | null }>) {
-    const { error } = await action;
-    setError(error?.message ?? null);
+  // A write that asks for its changed rows back (select) and finds none changed nothing: report it instead of pretending it worked.
+  async function run(action: PromiseLike<{ data?: unknown; error: { message: string } | null }>) {
+    const { data, error } = await action;
+    const unchanged = !error && Array.isArray(data) && data.length === 0;
+    setError(error?.message ?? (unchanged ? "Nothing was changed. Someone else may have updated this pickup." : null));
     booking.reload();
     items.reload();
-    return !error;
+    return !error && !unchanged;
   }
 
   // Left as today it is collected now. Pick an earlier day when entering an old pickup: the invoice and receipt show that day.
+  // Only a pickup that is still booked is updated, so a second tap or another person's change cannot collect it twice.
   const markCollected = async () => {
-    if (await run(supabase.from("bookings").update({ status: "collected", collected_at: dateStamp(collectedOn) }).eq("id", id))) celebrate("pickup_collected");
+    if (collecting) return;
+    setCollecting(true);
+    const ok = await run(supabase.from("bookings").update({ status: "collected", collected_at: dateStamp(collectedOn) }).eq("id", id).eq("status", "booked").select("id"));
+    setCollecting(false);
+    if (ok) celebrate("pickup_collected");
   };
 
   return (
@@ -146,7 +154,7 @@ export default function PickupDetailPage() {
 
       <div className="grid gap-2 pb-6 sm:grid-cols-2">
         {b.status === "booked" && (
-          <Button onClick={markCollected} disabled={!items.data?.length || (needId.data === true && hasId.data !== true)} className="py-3">
+          <Button onClick={markCollected} disabled={collecting || !items.data?.length || (needId.data === true && hasId.data !== true)} className="py-3">
             <CheckCircle2 className="h-4 w-4" /> Mark collected
           </Button>
         )}

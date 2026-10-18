@@ -14,6 +14,7 @@ import { supabase } from "@/lib/supabase";
 export default function CelebrationsCard() {
   const [draft, setDraft] = useState<Celebrations>(DEFAULT_CELEBRATIONS);
   const [loaded, setLoaded] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -21,11 +22,16 @@ export default function CelebrationsCard() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      // Only a saved value that really loaded can be edited and saved: never save defaults the manager did not see.
       try {
-        const { data } = await supabase.from("app_settings").select("value").eq("key", "celebrations").maybeSingle();
-        if (!cancelled) setDraft(normalizeCelebrations((data as { value?: unknown } | null)?.value));
-      } catch {}
-      if (!cancelled) setLoaded(true);
+        const { data, error } = await supabase.from("app_settings").select("value").eq("key", "celebrations").maybeSingle();
+        if (cancelled) return;
+        if (error) return setLoadError(error.message);
+        setDraft(normalizeCelebrations((data as { value?: unknown } | null)?.value));
+        setLoaded(true);
+      } catch {
+        if (!cancelled) setLoadError("Could not load the saved choice.");
+      }
     })();
     return () => {
       cancelled = true;
@@ -53,8 +59,10 @@ export default function CelebrationsCard() {
   return (
     <CollapsibleCard title="Celebrations">
       <p className="mb-3 text-sm text-slate-600">A short firework and a friendly message when the team finishes good work. People can also turn it off on their own device from My profile.</p>
+      <ErrorMessage message={loadError} />
+      <fieldset disabled={!loaded} className="min-w-0">
       <label className="flex min-h-11 items-center gap-3 text-base text-slate-800">
-        <input type="checkbox" checked={draft.enabled} disabled={!loaded} onChange={(e) => change({ ...draft, enabled: e.target.checked })} className="h-6 w-6" />
+        <input type="checkbox" checked={draft.enabled} onChange={(e) => change({ ...draft, enabled: e.target.checked })} className="h-6 w-6" />
         Celebrate good work
       </label>
 
@@ -87,6 +95,7 @@ export default function CelebrationsCard() {
             {EVENT_LABEL[k]}
           </label>
         ))}
+      </fieldset>
       </fieldset>
 
       <ErrorMessage message={error} />

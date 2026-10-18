@@ -56,13 +56,34 @@ test("each job celebrates only after it saved: booking created and invoice raise
   assert.match(form, /celebrate\("invoice_raised"\)/);
 
   const pickup = readFileSync("src/app/pickups/[id]/page.tsx", "utf8");
-  assert.match(pickup, /return !error;/, "run reports whether the write worked");
-  assert.match(pickup, /if \(await run\([^]*?\)\) celebrate\("pickup_collected"\)/);
+  assert.match(pickup, /return !error && !unchanged;/, "run reports whether the write really changed something");
+  assert.match(pickup, /if \(ok\) celebrate\("pickup_collected"\)/, "the pickup celebrates only when the write really changed a row");
 
   const split = readFileSync("src/app/warehouse-inventory/split/[bookingId]/page.tsx", "utf8");
   const splitError = split.indexOf("if (error) return setError(error.message);");
   const splitCelebrate = split.indexOf('celebrate("intake_received")');
   assert.ok(splitError > 0 && splitError < splitCelebrate, "intake celebrates after the save worked");
-  assert.match(split, /if \(!received\) celebrate\("intake_received"\)/, "replacing parcels already received is not a new intake");
+  assert.match(split, /if \(parcels\.data && !received\) celebrate\("intake_received"\)/, "replacing parcels already received is not a new intake");
   for (const f of [form, pickup, split]) assert.ok(f.includes('from "@/lib/celebrate"'));
+});
+
+// ---- fixes after the review ----
+test("a pickup that changed nothing does not celebrate, and a double tap cannot celebrate twice", () => {
+  const pickup = readFileSync("src/app/pickups/[id]/page.tsx", "utf8");
+  assert.match(pickup, /\.eq\("status", "booked"\)\s*\.select\("id"\)/, "only a still-booked pickup is updated, and the changed rows come back");
+  assert.match(pickup, /Nothing was changed/);
+  assert.match(pickup, /collecting/);
+  assert.match(pickup, /disabled=\{collecting/);
+});
+
+test("the Celebrations card never saves defaults it did not load, and the split page does not celebrate while the parcels are unknown", () => {
+  const card = readFileSync("src/components/settings/CelebrationsCard.tsx", "utf8");
+  assert.ok(card.includes("loadError") && card.includes("<fieldset disabled={!loaded}"), "the choices stay locked until the saved value is loaded");
+  assert.match(card, /disabled=\{busy \|\| !loaded\}/);
+  const split = readFileSync("src/app/warehouse-inventory/split/[bookingId]/page.tsx", "utf8");
+  assert.match(split, /if \(parcels\.data && !received\) celebrate\("intake_received"\)/);
+});
+
+test("the message region is always on the page, so screen readers announce what appears in it", () => {
+  assert.match(host(), /<div role="status" aria-live="polite"[^>]*>\s*\{message && \(/);
 });

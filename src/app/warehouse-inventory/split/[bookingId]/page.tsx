@@ -78,7 +78,7 @@ export default function ReceivePage() {
     setBusy(false);
     if (error) return setError(error.message);
     // Only the first receiving is a new intake; replacing parcels already received is a correction.
-    if (!received) celebrate("intake_received");
+    if (parcels.data && !received) celebrate("intake_received");
     setRepack(false);
     setCustom(null);
     booking.reload();
