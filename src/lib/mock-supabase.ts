@@ -17,7 +17,7 @@ type Db = {
   booking_events: Row[]; notifications: Row[]; app_settings: Row[]; returns: Row[]; booking_notes: Row[]; client_errors: Row[]; number_series: Row[]; organization: Row[]; customers: Row[]; booking_contacts: Row[]; customer_notes: Row[]; customer_receivers: Row[]; id_documents: Row[];
 };
 
-const STORAGE_KEY = "logistics-mock-db-v37";
+const STORAGE_KEY = "logistics-mock-db-v38";
 const AUTH_KEY = "logistics-mock-signed-out";
 
 const uid = () => crypto.randomUUID();
@@ -73,6 +73,7 @@ const PERMISSIONS: Row[] = [
   ["items.edit", "Pickups", "Edit package items (before collection)", "Add, change or remove items and weights until the pickup is collected"],
   ["items.edit_after", "Pickups", "Edit package items (after collection)", "Add, change or remove items and weights after the pickup is collected"],
   ["refunds.issue", "Accounts", "Issue refunds and credit notes", "Lower an invoice with a credit note and hand money back with a refund"],
+  ["sales_rep.change", "Customers", "Change the sales rep (owner)", "Choose or change who owns a customer and who made a booking"],
   ["refunds.void", "Accounts", "Void refunds and credit notes", "Cancel a credit note or refund that was made by mistake (the record stays, marked void)"],
 ].map(([key, group_name, label, description], i) => ({ key, group_name, label, description, sort: (i + 1) * 10 }));
 const GRANTS: Record<string, string[]> = {
@@ -80,7 +81,7 @@ const GRANTS: Record<string, string[]> = {
   manager: ["containers.override_payment", "containers.override_departure", "dashboard.view", "bookings.view", "bookings.create", "bookings.edit", "bookings.cancel", "pickups.view_all",
     "pickups.collect", "warehouse.view", "warehouse.manage", "containers.view", "containers.manage", "accounts.view",
     "payments.manage", "drivers.manage", "users.manage", "activity.view", "notifications.view", "bookings.reschedule",
-    "items.edit", "items.edit_after", "notes.write", "numbers.edit", "returns.manage", "customers.view", "customers.edit", "customers.manage", "customers.id_photo", "refunds.issue"],
+    "items.edit", "items.edit_after", "notes.write", "numbers.edit", "returns.manage", "customers.view", "customers.edit", "customers.manage", "customers.id_photo", "refunds.issue", "sales_rep.change"],
   staff: ["dashboard.view", "bookings.view", "bookings.create", "bookings.edit", "bookings.cancel", "pickups.view_all",
     "pickups.collect", "warehouse.view", "containers.view", "accounts.view", "notifications.view", "bookings.reschedule", "items.edit", "items.edit_after", "notes.write", "customers.view", "customers.edit", "customers.id_photo"],
   accounts: ["dashboard.view", "notifications.view", "bookings.view", "customers.view", "accounts.view", "payments.manage"],
@@ -384,6 +385,13 @@ class Query implements PromiseLike<any> {
 
     if (this.op === "insert") {
       const items = Array.isArray(this.payload) ? this.payload : [this.payload];
+      if (this.table === "bookings" || this.table === "customers") {
+        for (const it of items) {
+          const rep = salesRepName(it.sales_rep_id);
+          if (rep.error) return { data: null, error: { message: rep.error }, count: null };
+          it.sales_rep_name = rep.name;
+        }
+      }
       rows = items.map((it: Row) => withDefaults(this.table, it));
       if (this.table === "bookings") {
         for (const r of rows) {
@@ -404,6 +412,12 @@ class Query implements PromiseLike<any> {
     } else {
       const matched = tableRows.filter((r) => this.filters.every((f) => f(r)));
       if (this.op === "update") {
+        // a new rep: only active staff, and the name is copied (the sample user may always change it)
+        if ((this.table === "bookings" || this.table === "customers") && "sales_rep_id" in this.payload) {
+          const rep = salesRepName(this.payload.sales_rep_id);
+          if (rep.error) return { data: null, error: { message: rep.error }, count: null };
+          this.payload.sales_rep_name = rep.name;
+        }
         // bookings carry a version stamp, bumped on every update (like the database trigger)
         if (this.table === "bookings") {
           for (const r of matched) {
@@ -483,7 +497,8 @@ function withDefaults(table: string, it: Row): Row {
         if (!cu) {
           cu = { id: uid(), full_name: String(row.sender_name ?? "").trim().slice(0, 120), phone, whatsapp: row.sender_whatsapp && row.sender_whatsapp !== phone ? row.sender_whatsapp : null,
             address: /^legacy invoice/i.test(row.pickup_address ?? "") ? null : (row.pickup_address ?? null), geo_lat: row.geo_lat ?? null, geo_lng: row.geo_lng ?? null,
-            emirates_id: null, warning_note: null, created_by_name: "Tester (super admin)", created_at: now(), updated_at: now() };
+            emirates_id: null, warning_note: null, created_by_name: "Tester (super admin)", created_at: now(), updated_at: now(),
+            sales_rep_id: row.sales_rep_id ?? null, sales_rep_name: row.sales_rep_name ?? null };
           d.customers.push(cu);
         }
         d.booking_contacts.push({ booking_id: row.id, role: "customer", customer_id: cu.id, created_at: now() });
@@ -534,6 +549,14 @@ function withDefaults(table: string, it: Row): Row {
   return row;
 }
 const stripNull = (o: Row) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== null && v !== undefined));
+
+// ---------------------------------------------------------------- sales rep (mirrors migration 0061)
+/** The rep's name for an id: null for no rep, an error for anyone who is not active staff (the database trigger set_sales_rep_name). */
+function salesRepName(id: string | null | undefined): { name: string | null; error?: string } {
+  if (id == null) return { name: null };
+  const p = db().profiles.find((x) => x.id === id && x.active);
+  return p ? { name: p.full_name } : { name: null, error: "That person is not active staff" };
+}
 
 // ---------------------------------------------------------------- money (mirrors money_of() in migration 0054)
 const dubaiDay = (iso: string) => new Date(Date.parse(iso) + 4 * 3600_000).toISOString().slice(0, 10);
@@ -588,6 +611,7 @@ const linkedBookings = (customerId: string) => {
 function customerRow(c: Row): Row {
   const bs = linkedBookings(c.id).sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
   return { id: c.id, full_name: c.full_name, phone: c.phone, whatsapp: c.whatsapp, address: c.address, geo_lat: c.geo_lat, geo_lng: c.geo_lng, emirates_id: c.emirates_id,
+    sales_rep_id: c.sales_rep_id ?? null, sales_rep: c.sales_rep_name ?? null,
     invoices: bs.length, last_invoice: bs[0] ? (bs[0].invoice_no ?? bs[0].code) : null };
 }
 // Sorting the customer list like the database functions do (a fixed list of columns; anything else means the normal order, by name).
@@ -942,6 +966,7 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
       data: page.map((r) => ({
         r_booking_id: r.b.id, r_invoice_no: r.b.invoice_no, r_code: r.b.code, r_customer: r.b.sender_name, r_amount: r.amount, r_paid: r.paid,
         r_balance: r.balance, r_booking_status: r.b.status, r_pay_status: r.status, r_total: list.length, r_credited: r.credited,
+        r_sales_rep: r.b.sales_rep_name ?? null,
       })),
       error: null,
     };
@@ -1280,7 +1305,8 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
   create_customer(a) {
     try {
       const d = db();
-      const row = { id: uid(), ...customerArgs(a), warning_note: null, created_by_name: "Tester (super admin)", created_at: now(), updated_at: now() };
+      const row = { id: uid(), ...customerArgs(a), warning_note: null, created_by_name: "Tester (super admin)", created_at: now(), updated_at: now(),
+        sales_rep_id: "mock-user", sales_rep_name: "Tester (super admin)" };
       d.customers.push(row);
       save();
       return { data: row.id, error: null };
@@ -1325,11 +1351,27 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
     const id = uid();
     d.customers.push({ id, full_name: String(b.sender_name).slice(0, 120), phone: b.sender_phone ?? null, whatsapp: b.sender_whatsapp ?? null,
       address: /^legacy invoice/i.test(b.pickup_address) ? null : b.pickup_address, geo_lat: b.geo_lat ?? null, geo_lng: b.geo_lng ?? null, emirates_id: null, warning_note: null,
-      created_by_name: "Tester (super admin)", created_at: now(), updated_at: now() });
+      created_by_name: "Tester (super admin)", created_at: now(), updated_at: now(), sales_rep_id: b.sales_rep_id ?? null, sales_rep_name: b.sales_rep_name ?? null });
     d.booking_contacts = d.booking_contacts.filter((l) => !(l.booking_id === b.id && l.role === "customer"));
     d.booking_contacts.push({ booking_id: b.id, role: "customer", customer_id: id, created_at: now() });
     save();
     return { data: id, error: null };
+  },
+
+  // Sales rep (owner): the same rules and messages as migration 0061.
+  set_customer_sales_rep({ p_customer_id, p_sales_rep_id }) {
+    const cu = db().customers.find((x) => x.id === p_customer_id);
+    if (!cu) return fail("Customer not found");
+    const rep = salesRepName(p_sales_rep_id);
+    if (rep.error) return fail(rep.error);
+    Object.assign(cu, { sales_rep_id: p_sales_rep_id ?? null, sales_rep_name: rep.name, updated_at: now() });
+    save();
+    return { data: null, error: null };
+  },
+
+  sales_rep_choices() {
+    const list = db().profiles.filter((p) => p.active).map((p) => ({ id: p.id, name: p.full_name })).sort((a, b) => a.name.localeCompare(b.name));
+    return { data: list, error: null };
   },
 
   search_customers({ p_query, p_limit = 10, p_sort = null, p_dir = null }) {
@@ -1402,7 +1444,7 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
     return {
       data: {
         bookings: hits.slice(0, lim).map((b) => ({ id: b.id, code: b.code, invoice_no: b.invoice_no ?? null, sender_name: b.sender_name, receiver_name: b.receiver_name ?? null,
-          sender_phone: b.sender_phone ?? null, status: stageOf(b), pickup_date: b.pickup_date, pickup_area: b.pickup_area, pay_status: pay(b) })),
+          sender_phone: b.sender_phone ?? null, status: stageOf(b), pickup_date: b.pickup_date, pickup_area: b.pickup_area, pay_status: pay(b), sales_rep: b.sales_rep_name ?? null })),
         parcels: parcelHits.slice(0, lim).map(({ p, b, w }) => ({ id: p.id, barcode: p.barcode, description: p.description ?? null, weight_kg: p.weight_kg, status: p.status,
           position: p.position ?? null, booking_id: p.booking_id, invoice_no: b?.invoice_no ?? null, booking_code: b?.code, sender_name: b?.sender_name, place: w?.name ?? null })),
         containers: containerHits.slice(0, lim).map((c) => ({ id: c.id, code: c.code, destination: c.destination ?? null, status: c.status })),

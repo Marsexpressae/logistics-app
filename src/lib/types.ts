@@ -80,6 +80,8 @@ export type BookingItem = {
 };
 
 export type Booking = {
+  sales_rep_id?: string | null; // who made this sale (see the sales rep rules, migration 0061)
+  sales_rep_name?: string | null;
   id: string;
   code: string;
   invoice_no: string | null; // issued when the pickup is collected

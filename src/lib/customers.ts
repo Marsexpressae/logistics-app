@@ -8,6 +8,8 @@ export type Customer = {
   geo_lng: number | null;
   emirates_id: string | null;
   warning_note: string | null;
+  sales_rep_id?: string | null; // the owner of this customer (the sales rep)
+  sales_rep_name?: string | null;
   created_by_name: string | null;
   created_at: string;
   updated_at: string;
@@ -23,6 +25,8 @@ export type CustomerHit = {
   geo_lat?: number | null;
   geo_lng?: number | null;
   emirates_id?: string | null;
+  sales_rep_id?: string | null; // the owner
+  sales_rep?: string | null; // the owner's name
   invoices: number;
   last_invoice: string | null;
 };
