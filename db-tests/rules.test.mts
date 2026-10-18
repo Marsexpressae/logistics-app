@@ -1381,13 +1381,10 @@ test("sales rep: merging customers keeps an owner, even for people who may merge
 });
 
 // ---------------- staff rewards (migration 0062) ----------------
-// Until the migration is live, each test applies the file inside its own rolled-back transaction.
-const REWARDS_MIGRATION = "supabase/migrations/0062_staff_rewards.sql";
-const withRewards = (db: Db) => db.owner(readFileSync(REWARDS_MIGRATION, "utf8"));
+// The migration is live: these tests run against the real structure, inside rolled-back transactions.
 
 test("rewards: the tables exist, browser roles cannot write them, and the seed is there", { skip }, async () => {
   await inTransaction(async (db) => {
-    await withRewards(db);
     const staff = await db.person([], "plain staff");
     assert.match((await db.error(() => db.as(staff, "insert into point_log (person_id, rule_key, points, reason) values ($1, 'x', 1, 'x')", [staff]))) ?? "", /permission denied|row-level security/);
     assert.match((await db.error(() => db.as(staff, "insert into person_badges (person_id, badge_key) values ($1, 'x')", [staff]))) ?? "", /permission denied|row-level security/);
@@ -1402,7 +1399,6 @@ test("rewards: the tables exist, browser roles cannot write them, and the seed i
 
 test("rewards: update_my_profile changes only the caller's own row and checks the about line", { skip }, async () => {
   await inTransaction(async (db) => {
-    await withRewards(db);
     const me = await db.person([], "me");
     const other = await db.person([], "other");
     await db.as(me, "select update_my_profile(null, 14, 3, true, 'Loves forklifts', '+971500000001')");
@@ -1419,7 +1415,6 @@ test("rewards: update_my_profile changes only the caller's own row and checks th
 
 test("rewards: team, job title and joined date are changed only by people who manage users", { skip }, async () => {
   await inTransaction(async (db) => {
-    await withRewards(db);
     const staff = await db.person([], "staff");
     const boss = await db.person(["users.manage"], "boss");
     assert.match((await db.error(() => db.as(staff, "select set_staff_details($1, 'sales', 'Rep', '2024-03-01')", [staff]))) ?? "", /permission/i);
@@ -1432,7 +1427,6 @@ test("rewards: team, job title and joined date are changed only by people who ma
 
 test("rewards: the people directory hides a hidden birthday and other people's phone", { skip }, async () => {
   await inTransaction(async (db) => {
-    await withRewards(db);
     const a = await db.person([], "a");
     const b = await db.person([], "b");
     const manager = await db.person(["rewards.manage"], "mgr");
@@ -1460,7 +1454,6 @@ const total = async (db: Db, who: string) => (await db.as(who, "select (my_rewar
 
 test("rewards: a booking pays its creator once, and paying the same record twice pays nothing", { skip }, async () => {
   await inTransaction(async (db) => {
-    await withRewards(db);
     const me = await db.person([], "creator");
     const b = await newBookingAs(db, me);
     const got = await lines(db, me);
@@ -1475,7 +1468,6 @@ test("rewards: a booking pays its creator once, and paying the same record twice
 
 test("rewards: payments, collected pickups and parcel moves pay the person who did them", { skip }, async () => {
   await inTransaction(async (db) => {
-    await withRewards(db);
     const me = await db.person([], "worker");
     const booking = await db.booking({ invoice_no: "T-RW-1" });
     await actAs(db, me, `insert into payments (booking_id, amount, method) values ('${booking}', 10, 'cash')`);
@@ -1490,7 +1482,6 @@ test("rewards: payments, collected pickups and parcel moves pay the person who d
 
 test("rewards: nothing is paid when nobody is signed in, to an inactive person, or past the daily cap, and the work still saves", { skip }, async () => {
   await inTransaction(async (db) => {
-    await withRewards(db);
     const me = await db.person([], "capped");
     await db.booking({ invoice_no: "T-RW-2" }); // owner, nobody signed in
     assert.equal((await db.owner("select count(*)::int n from point_log"))[0].n, 0);
@@ -1508,7 +1499,6 @@ test("rewards: nothing is paid when nobody is signed in, to an inactive person, 
 
 test("rewards: trying a feature pays once, an unknown feature is refused, and active-today needs real work", { skip }, async () => {
   await inTransaction(async (db) => {
-    await withRewards(db);
     const me = await db.person([], "explorer");
     assert.equal((await db.as(me, "select record_feature_use('use_bookings') p"))[0].p, 10);
     assert.equal((await db.as(me, "select record_feature_use('use_bookings') p"))[0].p, 0);
@@ -1525,7 +1515,6 @@ test("rewards: trying a feature pays once, an unknown feature is refused, and ac
 
 test("rewards: thank-yous need the permission, a message, another person, and stay within the monthly limits", { skip }, async () => {
   await inTransaction(async (db) => {
-    await withRewards(db);
     const boss = await db.person(["rewards.give"], "boss");
     const staff = await db.person([], "staff");
     const gone = await db.person([], "gone");
@@ -1550,7 +1539,6 @@ test("rewards: thank-yous need the permission, a message, another person, and st
 
 test("rewards: the streak counts days in a row, ends today or yesterday, and the level follows lifetime points", { skip }, async () => {
   await inTransaction(async (db) => {
-    await withRewards(db);
     const a = await db.person([], "streak a");
     const b = await db.person([], "streak b");
     const add = (who: string, daysAgo: number, pts: number) => db.owner("insert into point_log (person_id, rule_key, points, reason, created_at) values ($1, 'booking_created', $2, 'x', now() - ($3 || ' days')::interval)", [who, pts, String(daysAgo)]);
@@ -1581,7 +1569,6 @@ const badgeKeys = async (db: Db, who: string) => (await db.owner("select badge_k
 
 test("rewards: count badges are earned at the threshold, only for the badge's team, and are never taken away", { skip }, async () => {
   await inTransaction(async (db) => {
-    await withRewards(db);
     const rep = await db.person([], "sales rep");
     const driver = await db.person([], "pickup driver");
     await db.owner("update profiles set team = 'sales' where id = $1", [rep]);
@@ -1603,7 +1590,6 @@ test("rewards: count badges are earned at the threshold, only for the badge's te
 
 test("rewards: the streak badge and the explorer badge", { skip }, async () => {
   await inTransaction(async (db) => {
-    await withRewards(db);
     const a = await db.person([], "streaker");
     for (const d of [1, 2, 3, 4, 5, 6]) await db.owner("insert into point_log (person_id, rule_key, points, reason, created_at) values ($1, 'booking_created', 1, 'x', now() - ($2 || ' days')::interval)", [a, String(d)]);
     assert.deepEqual(await badgeKeys(db, a), []);
@@ -1620,7 +1606,6 @@ test("rewards: the streak badge and the explorer badge", { skip }, async () => {
 
 test("rewards: badges by hand need the permission, another person, a manual badge, and only once", { skip }, async () => {
   await inTransaction(async (db) => {
-    await withRewards(db);
     const boss = await db.person(["rewards.give"], "boss");
     const staff = await db.person([], "staff");
     assert.match((await db.error(() => db.as(staff, "select give_badge($1, 'team_player', 'Thanks')", [boss]))) ?? "", /permission/i);
@@ -1635,7 +1620,6 @@ test("rewards: badges by hand need the permission, another person, a manual badg
 
 test("rewards: my_badges shows earned badges, and locked badges with their progress, for the person's own team only", { skip }, async () => {
   await inTransaction(async (db) => {
-    await withRewards(db);
     const driver = await db.person([], "driver");
     await db.owner("update profiles set team = 'pickup' where id = $1", [driver]);
     await oldLines(db, driver, "pickup_collected", 40);
@@ -1654,7 +1638,6 @@ test("rewards: my_badges shows earned badges, and locked badges with their progr
 
 test("rewards: the wins feed shows badges and thank-yous of active people, with no points or private fields", { skip }, async () => {
   await inTransaction(async (db) => {
-    await withRewards(db);
     const boss = await db.person(["rewards.give"], "boss");
     const happy = await db.person([], "happy");
     const gone = await db.person([], "gone");
@@ -1672,7 +1655,6 @@ test("rewards: the wins feed shows badges and thank-yous of active people, with 
 
 test("rewards: only managers of the rewards system change point values, levels and badges, and the values are checked", { skip }, async () => {
   await inTransaction(async (db) => {
-    await withRewards(db);
     const staff = await db.person([], "staff");
     const boss = await db.person(["rewards.manage"], "boss");
     for (const sql of ["select save_point_rule('booking_created', 7, 50, true)", "select save_level(2, 'Helper', 100)", "select save_badge('team_player', 'Team player', 'x', true, null)"]) {
@@ -1705,7 +1687,6 @@ test("rewards: only managers of the rewards system change point values, levels a
 // ---- fixes after the whole-branch review ----
 test("rewards: a broken limit setting cannot stop work points, and the limits are not shown as switches", { skip }, async () => {
   await inTransaction(async (db) => {
-    await withRewards(db);
     const me = await db.person([], "limits");
     await db.owner("update app_settings set value = 'true'::jsonb where key = 'rewards_daily_cap'"); // what a toggled switch would have saved
     await newBookingAs(db, me);
@@ -1716,7 +1697,6 @@ test("rewards: a broken limit setting cannot stop work points, and the limits ar
 
 test("rewards: other people do not see a colleague's point reasons, the person and managers do", { skip }, async () => {
   await inTransaction(async (db) => {
-    await withRewards(db);
     const me = await db.person([], "owner of points");
     const other = await db.person([], "curious");
     const boss = await db.person(["rewards.manage"], "boss");
@@ -1731,7 +1711,6 @@ test("rewards: other people do not see a colleague's point reasons, the person a
 
 test("rewards: awarding and thank-yous take a per-person lock, so parallel calls cannot pay twice", { skip }, async () => {
   await inTransaction(async (db) => {
-    await withRewards(db);
     for (const fn of ["award_points", "give_thank_you"]) {
       const src = (await db.owner("select pg_get_functiondef(p.oid) d from pg_proc p where p.proname = $1", [fn]))[0].d as string;
       assert.match(src, /pg_advisory_xact_lock/, `${fn} should lock per person`);
@@ -1741,7 +1720,6 @@ test("rewards: awarding and thank-yous take a per-person lock, so parallel calls
 
 test("rewards: only single-parcel moves pay, not a whole container being moved", { skip }, async () => {
   await inTransaction(async (db) => {
-    await withRewards(db);
     const me = await db.person([], "mover");
     const booking = await db.booking({ invoice_no: "T-RW-9" });
     const wh = (await db.owner("select id from warehouses limit 1"))[0]?.id ?? (await db.owner("insert into warehouses (name) values ('RW') returning id"))[0].id;
@@ -1757,7 +1735,6 @@ test("rewards: only single-parcel moves pay, not a whole container being moved",
 
 test("rewards: doing real work earns the active-today points straight away, once a day", { skip }, async () => {
   await inTransaction(async (db) => {
-    await withRewards(db);
     const me = await db.person([], "worker");
     await newBookingAs(db, me);
     await newBookingAs(db, me);
@@ -1768,7 +1745,6 @@ test("rewards: doing real work earns the active-today points straight away, once
 
 test("rewards: a login with no active profile reads nothing from the rewards functions", { skip }, async () => {
   await inTransaction(async (db) => {
-    await withRewards(db);
     const real = await db.person([], "real");
     const nobody = (await db.owner("insert into auth.users (id) values (gen_random_uuid()) returning id"))[0].id as string;
     const gone = await db.person([], "gone");
