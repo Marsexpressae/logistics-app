@@ -322,7 +322,7 @@ declare
   whole_eid text := null;
   res jsonb;
   total bigint;
-  v_sort text := case when p_sort in ('name', 'phone', 'address', 'invoices', 'last_invoice') then p_sort else 'name' end;
+  v_sort text := case when p_sort in ('name', 'phone', 'address', 'owner', 'invoices', 'last_invoice') then p_sort else 'name' end;
   v_desc boolean := lower(coalesce(p_dir, 'asc')) = 'desc';
 begin
   if length(regexp_replace(q, '\s', '', 'g')) < 2 then return jsonb_build_object('customers', '[]'::jsonb, 'total', 0); end if;
@@ -341,6 +341,8 @@ begin
                case when v_sort = 'phone' and v_desc then s.phone end desc nulls last,
                case when v_sort = 'address' and not v_desc then s.address end asc nulls last,
                case when v_sort = 'address' and v_desc then s.address end desc nulls last,
+               case when v_sort = 'owner' and not v_desc then s.sales_rep end asc nulls last,
+               case when v_sort = 'owner' and v_desc then s.sales_rep end desc nulls last,
                case when v_sort = 'invoices' and not v_desc then s.invoices end asc,
                case when v_sort = 'invoices' and v_desc then s.invoices end desc,
                case when v_sort = 'last_invoice' and not v_desc then s.last_invoice_at end asc nulls last,

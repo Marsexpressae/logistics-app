@@ -79,6 +79,7 @@ export default function CustomerPicker({
                     <span className="block text-xs text-slate-600">
                       {h.invoices} {h.invoices === 1 ? "invoice" : "invoices"}
                       {h.last_invoice ? ` · last ${h.last_invoice}` : ""}
+                      {h.sales_rep ? ` · owner ${h.sales_rep}` : ""}
                     </span>
                   </span>
                 </button>

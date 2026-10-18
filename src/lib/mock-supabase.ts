@@ -621,6 +621,7 @@ function sortCustomers(list: Row[], sort: string | null | undefined, dir: string
     name: { key: "name", label: "Name", value: (c) => c.full_name },
     phone: { key: "phone", label: "Phone", value: (c) => c.phone },
     address: { key: "address", label: "Address", value: (c) => c.address },
+    owner: { key: "owner", label: "Owner", value: (c) => c.sales_rep_name ?? null },
     invoices: { key: "invoices", label: "Invoices", kind: "number", value: (c) => linkedBookings(c.id).length },
     last_invoice: { key: "last_invoice", label: "Last invoice", kind: "date", value: latest },
   };

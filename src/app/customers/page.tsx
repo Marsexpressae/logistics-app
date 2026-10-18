@@ -28,6 +28,7 @@ const COLUMNS: Record<string, SortColumn<CustomerHit>> = {
   name: { key: "name", label: "Name" },
   phone: { key: "phone", label: "Phone" },
   address: { key: "address", label: "Address" },
+  owner: { key: "owner", label: "Owner" },
   invoices: { key: "invoices", label: "Invoices", kind: "number" },
   last_invoice: { key: "last_invoice", label: "Last invoice", kind: "date", hint: "Sorts by the date of the latest invoice" },
 };
@@ -120,6 +121,7 @@ function CustomersContent() {
                   <span className="block text-lg font-semibold text-brand-700">{c.full_name}</span>
                   <span className="block text-base text-slate-900">{formatPhone(c.phone) || "No phone"}</span>
                   {c.address && <span className="block text-base text-slate-700">{c.address}</span>}
+                  {c.sales_rep && <span className="block text-sm text-slate-600">Owner: {c.sales_rep}</span>}
                   <span className="mt-1 block text-sm text-slate-600">
                     {c.invoices} {c.invoices === 1 ? "invoice" : "invoices"}
                     {c.last_invoice ? ` · last ${c.last_invoice}` : ""}
@@ -134,6 +136,7 @@ function CustomersContent() {
                     <SortableTh column={COLUMNS.name} sort={sort} />
                     <SortableTh column={COLUMNS.phone} sort={sort} />
                     <SortableTh column={COLUMNS.address} sort={sort} />
+                    <SortableTh column={COLUMNS.owner} sort={sort} />
                     <SortableTh column={COLUMNS.invoices} sort={sort} align="right" />
                     <SortableTh column={COLUMNS.last_invoice} sort={sort} />
                   </tr>
@@ -148,6 +151,7 @@ function CustomersContent() {
                       </td>
                       <td className="whitespace-nowrap px-4 py-3">{formatPhone(c.phone)}</td>
                       <td className="max-w-xs truncate px-4 py-3 text-slate-600">{c.address ?? "—"}</td>
+                      <td className="whitespace-nowrap px-4 py-3 text-slate-600">{c.sales_rep ?? "—"}</td>
                       <td className="px-4 py-3 text-right">{c.invoices}</td>
                       <td className="px-4 py-3 font-mono text-xs">{c.last_invoice ?? "—"}</td>
                     </tr>

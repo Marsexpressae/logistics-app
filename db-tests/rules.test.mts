@@ -1331,5 +1331,11 @@ test("sales rep: Accounts, global search and customer search carry the rep", { s
     // customer search
     const cs = (await db.as(viewer, "select search_customers('Zzowner', 10) r"))[0].r as { customers: Row[] };
     assert.deepEqual(cs.customers.map((c) => [c.full_name, c.sales_rep_id, c.sales_rep]).sort(), [["Zzowner Qxone", rep, "Test Rep Delta"], ["Zzowner Qxtwo", null, null]]);
+    // sorting by the owner (the customers list has a sortable Owner column); people with no owner go last either way
+    const alpha = await db.person(["bookings.view"], "Alpha Rep");
+    await bookingWithRep(db, "+971500777013", alpha, "Zzowner Qxthree");
+    const order = async (dir: string) => ((await db.as(viewer, "select search_customers('Zzowner', 10, 'owner', $1) r", [dir]))[0].r as { customers: Row[] }).customers.map((c) => c.full_name);
+    assert.deepEqual(await order("asc"), ["Zzowner Qxthree", "Zzowner Qxone", "Zzowner Qxtwo"]);
+    assert.deepEqual(await order("desc"), ["Zzowner Qxone", "Zzowner Qxthree", "Zzowner Qxtwo"]);
   });
 });

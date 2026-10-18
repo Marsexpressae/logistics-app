@@ -15,6 +15,7 @@ import { formatDate, formatDay } from "@/lib/format";
 import { useQuery } from "@/lib/hooks";
 import { formatPhone } from "@/lib/phone";
 import { usePermissions } from "@/lib/profile-context";
+import SalesRepEditor from "@/components/people/SalesRepEditor";
 import { supabase } from "@/lib/supabase";
 import { confirmAction } from "@/lib/ask";
 import BackLink from "@/components/ui/BackLink";
@@ -116,6 +117,11 @@ export default function CustomerPage() {
           <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" /> {c.warning_note}
         </p>
       )}
+
+      <Card title="Owner">
+        <SalesRepEditor table="customers" id={c.id} currentId={c.sales_rep_id ?? null} currentName={c.sales_rep_name ?? null} label="Owner" canChange={can("sales_rep.change")} onSaved={() => { customer.reload(); timeline.reload(); }} />
+        <p className="mt-2 text-sm text-slate-500">The sales rep who owns this customer. Old bookings keep the rep who made that sale.</p>
+      </Card>
 
       <Card title="Details">
         {canEdit && !editing && (

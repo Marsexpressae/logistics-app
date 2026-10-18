@@ -126,3 +126,23 @@ test("the Bookings list shows the Sales rep, not the driver", () => {
   assert.ok(!list.includes('label: "Driver"') && !list.includes("driver: {"), "no driver column");
   assert.ok(list.includes("b.sales_rep_name"));
 });
+
+test("the customer page shows the Owner, editable with sales_rep.change", () => {
+  const page = read("src/app/customers/[id]/page.tsx");
+  assert.ok(page.includes("<SalesRepEditor") && page.includes('table="customers"') && page.includes('label="Owner"') && page.includes('can("sales_rep.change")'));
+});
+
+test("the customers list and the picker show the owner", () => {
+  const list = read("src/app/customers/page.tsx");
+  assert.ok(list.includes("c.sales_rep") && list.includes("COLUMNS.owner"), "list rows and a sortable header");
+  assert.ok(read("src/components/customers/CustomerPicker.tsx").includes("h.sales_rep"));
+});
+
+test("the customer search sorts by the owner, people with no owner last", async () => {
+  await newBooking("+971500888020", "Zzsort Bravo", "sample-staff");
+  await newBooking("+971500888021", "Zzsort Alpha", "sample-manager");
+  await newBooking("+971500888022", "Zzsort Charlie", null);
+  const order = async (dir: string) => ((await c.rpc("search_customers", { p_query: "Zzsort", p_sort: "owner", p_dir: dir })).data.customers as R[]).map((x) => x.full_name);
+  assert.deepEqual(await order("asc"), ["Zzsort Alpha", "Zzsort Bravo", "Zzsort Charlie"]); // Mona, Sam, none
+  assert.deepEqual(await order("desc"), ["Zzsort Bravo", "Zzsort Alpha", "Zzsort Charlie"]); // Sam, Mona, none
+});
