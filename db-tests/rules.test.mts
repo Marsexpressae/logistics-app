@@ -1907,3 +1907,37 @@ test("team medals: a badge in a family needs a tier, and an explore rule cannot 
     assert.match((await db.error(() => db.as(boss, "select create_badge('Daily count', 'x', 'compass', null, null, 'count', 'active_today', 5)"))) ?? "", /what is counted/);
   });
 });
+
+// ---------------- celebrations (migration 0064) ----------------
+// Until the migration is live, each test applies the file inside its own rolled-back transaction.
+const CELEBRATIONS_MIGRATION = "supabase/migrations/0064_celebrations.sql";
+const withCelebrations = (db: Db) => db.owner(readFileSync(CELEBRATIONS_MIGRATION, "utf8"));
+const EVENTS_OK = `'{"booking_created": true, "pickup_collected": false, "intake_received": true, "invoice_raised": true}'::jsonb`;
+
+test("celebrations: the default setting exists, is on, uses the triple salvo, and is not a plain on/off switch", { skip }, async () => {
+  await inTransaction(async (db) => {
+    await withCelebrations(db);
+    const row = (await db.owner("select value, jsonb_typeof(value) t from app_settings where key = 'celebrations'"))[0];
+    assert.equal(row.t, "object");
+    assert.deepEqual(row.value, { enabled: true, style: "salvo", events: { booking_created: true, pickup_collected: true, intake_received: true, invoice_raised: true } });
+  });
+});
+
+test("celebrations: only people who manage settings can save, and the choices are checked", { skip }, async () => {
+  await inTransaction(async (db) => {
+    await withCelebrations(db);
+    const staff = await db.person([], "staff");
+    const boss = await db.person(["settings.manage"], "boss");
+    assert.match((await db.error(() => db.as(staff, `select save_celebrations(true, 'confetti', ${EVENTS_OK})`))) ?? "", /permission/i);
+    await db.as(boss, `select save_celebrations(false, 'confetti', ${EVENTS_OK})`);
+    assert.deepEqual((await db.owner("select value from app_settings where key = 'celebrations'"))[0].value, { enabled: false, style: "confetti", events: { booking_created: true, pickup_collected: false, intake_received: true, invoice_raised: true } });
+    const refused = (sql: string, re: RegExp) => db.error(() => db.as(boss, sql)).then((m) => assert.match(m ?? "", re));
+    await refused(`select save_celebrations(true, 'disco', ${EVENTS_OK})`, /Choose a style from the list/);
+    await refused(`select save_celebrations(true, 'salvo', '{"booking_created": true, "pickup_collected": true, "intake_received": true}'::jsonb)`, /on or off choice/);
+    await refused(`select save_celebrations(true, 'salvo', '{"booking_created": true, "pickup_collected": true, "intake_received": true, "invoice_raised": true, "extra": true}'::jsonb)`, /on or off choice/);
+    await refused(`select save_celebrations(true, 'salvo', '{"booking_created": "yes", "pickup_collected": true, "intake_received": true, "invoice_raised": true}'::jsonb)`, /on or off choice/);
+    await refused(`select save_celebrations(true, 'salvo', '[]'::jsonb)`, /on or off choice/);
+    await refused(`select save_celebrations(null, 'salvo', ${EVENTS_OK})`, /Choose on or off/);
+    assert.equal((await db.owner("select (value->>'style') s from app_settings where key = 'celebrations'"))[0].s, "confetti", "a refused save changes nothing");
+  });
+});
