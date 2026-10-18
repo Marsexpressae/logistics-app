@@ -88,3 +88,24 @@ test("managers can set a person's team, job title and joined date from the rewar
   assert.ok(code.includes("set_staff_details") && code.includes("SortableTh") && code.includes("useSort"));
   assert.ok(readFileSync("src/app/settings/rewards/page.tsx", "utf8").includes("StaffDetailsTable"));
 });
+
+// ---- team medals: the look ----
+test("the medal pieces exist, the wall groups badges into families, and the header shows the emblem and flame", () => {
+  for (const f of ["Medal", "LevelEmblem", "StreakFlame"]) assert.ok(existsSync(`${dir}/${f}.tsx`), `${f} is missing`);
+  const wall = readFileSync(`${dir}/BadgeGrid.tsx`, "utf8");
+  assert.ok(wall.includes("groupBadges") && wall.includes("Medal"), "the wall is built from the family groups and medals");
+  const header = readFileSync(`${dir}/ProfileHeader.tsx`, "utf8");
+  assert.ok(header.includes("LevelEmblem") && header.includes("StreakFlame"));
+  const medal = readFileSync(`${dir}/Medal.tsx`, "utf8");
+  assert.match(medal, /role="img"/);
+  assert.match(medal, /aria-label/);
+  assert.ok(medal.includes("medalColors"));
+});
+
+test("the medal pieces are flat: no gradients, shadows or raw z-index", () => {
+  for (const f of ["Medal", "LevelEmblem", "StreakFlame", "BadgeGrid"]) {
+    const code = readFileSync(`${dir}/${f}.tsx`, "utf8");
+    assert.equal(/gradient|shadow-/.test(code), false, `${f} should use flat colours`);
+    assert.equal(/\bz-\d/.test(code), false);
+  }
+});

@@ -17,7 +17,7 @@ export default function LevelBar({ rewards }: { rewards: Rewards }) {
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={percent}
-        className="mt-1 h-2 overflow-hidden rounded-full bg-slate-200"
+        className="mt-1 h-3 overflow-hidden rounded-full bg-slate-200"
       >
         <div className="h-full bg-brand-600" style={{ width: `${percent}%` }} />
       </div>

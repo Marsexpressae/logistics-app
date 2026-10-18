@@ -1,7 +1,8 @@
 "use client";
 
-import { Flame } from "lucide-react";
 import LevelBar from "@/components/rewards/LevelBar";
+import LevelEmblem from "@/components/rewards/LevelEmblem";
+import StreakFlame from "@/components/rewards/StreakFlame";
 import { formatDay } from "@/lib/format";
 import { useQuery } from "@/lib/hooks";
 import { birthdayLabel, TEAM_LABEL, type DirectoryPerson, type Rewards } from "@/lib/rewards";
@@ -48,22 +49,17 @@ export default function ProfileHeader({ person, rewards }: { person: DirectoryPe
           {facts.length > 0 && <p className="text-sm text-slate-600">{facts.join(" · ")}</p>}
           {person.about && <p className="mt-1 text-base text-slate-800">{person.about}</p>}
         </div>
-        {rewards && (
-          <div className="text-right">
-            <p className="text-2xl font-semibold text-slate-900">{rewards.total.toLocaleString()}</p>
-            <p className="text-sm text-slate-600">points</p>
-            {rewards.streak > 0 && (
-              <p className="mt-1 inline-flex items-center gap-1 text-sm font-medium text-amber-700">
-                <Flame className="h-4 w-4" aria-hidden="true" />
-                {rewards.streak} {rewards.streak === 1 ? "day" : "days"} in a row
-              </p>
-            )}
-          </div>
-        )}
+        {rewards && <LevelEmblem level={rewards.level_number} name={rewards.level_name} />}
+        {rewards && <StreakFlame days={rewards.streak} />}
       </div>
       {rewards && (
-        <div className="mt-4">
-          <LevelBar rewards={rewards} />
+        <div className="mt-4 flex flex-wrap items-end justify-between gap-2">
+          <div className="min-w-48 flex-1">
+            <LevelBar rewards={rewards} />
+          </div>
+          <p className="text-right">
+            <span className="text-2xl font-semibold text-slate-900">{rewards.total.toLocaleString()}</span> <span className="text-sm text-slate-600">points</span>
+          </p>
         </div>
       )}
     </div>
