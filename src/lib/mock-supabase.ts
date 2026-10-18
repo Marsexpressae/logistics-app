@@ -18,7 +18,7 @@ type Db = {
   booking_events: Row[]; notifications: Row[]; app_settings: Row[]; returns: Row[]; booking_notes: Row[]; client_errors: Row[]; number_series: Row[]; organization: Row[]; customers: Row[]; booking_contacts: Row[]; customer_notes: Row[]; customer_receivers: Row[]; id_documents: Row[];
 };
 
-const STORAGE_KEY = "logistics-mock-db-v40";
+const STORAGE_KEY = "logistics-mock-db-v41";
 const AUTH_KEY = "logistics-mock-signed-out";
 
 const uid = () => crypto.randomUUID();
@@ -179,7 +179,9 @@ function seed(): Db {
     { key: "require_id_before_collected", value: false, label: "Require the Emirates ID before marking a pickup collected",
       description: "When on, the driver must enter the customer's Emirates ID number before a pickup can be marked collected.", updated_at: now() },
     { key: "show_tracking_menu", value: true, label: "Show Tracking in the menu",
-      description: "When off, the Tracking link is hidden from the left menu for everyone. The page itself still works if someone opens its address.", updated_at: now() }],
+      description: "When off, the Tracking link is hidden from the left menu for everyone. The page itself still works if someone opens its address.", updated_at: now() },
+    { key: "celebrations", label: "Celebrations", description: "Fireworks when good work is done. Change them on the Celebrations card.", updated_at: now(),
+      value: { enabled: true, style: "salvo", events: { booking_created: true, pickup_collected: true, intake_received: true, invoice_raised: true } } }],
     notifications: [],
     profiles: [
       { id: "mock-user", full_name: "Tester (super admin)", role: "super_admin", active: true, email: "tester@example.test" },

@@ -347,6 +347,23 @@ export function rewardsRpc({ db, me, save }: Helpers): Record<string, (a: any) =
       return ok(key);
     },
 
+    // Celebrations (migration 0064): the same checks and messages as the database function.
+    save_celebrations({ p_enabled, p_style, p_events }) {
+      const denied = need("settings.manage");
+      if (denied) return denied;
+      if (p_enabled == null) return fail("Choose on or off");
+      if (!["salvo", "confetti", "classic", "rings", "willow"].includes(p_style)) return fail("Choose a style from the list");
+      const keys = ["booking_created", "pickup_collected", "intake_received", "invoice_raised"];
+      const isObject = p_events && typeof p_events === "object" && !Array.isArray(p_events);
+      if (!isObject || Object.keys(p_events).length !== 4 || !keys.every((k) => typeof p_events[k] === "boolean")) return fail("Each celebration needs an on or off choice");
+      const row = db().app_settings.find((s: Row) => s.key === "celebrations");
+      const value = { enabled: p_enabled, style: p_style, events: Object.fromEntries(keys.map((k) => [k, p_events[k]])) };
+      if (row) Object.assign(row, { value, updated_at: new Date().toISOString() });
+      else db().app_settings.push({ key: "celebrations", value, label: "Celebrations", description: "Fireworks when good work is done. Change them on the Celebrations card.", updated_at: new Date().toISOString() });
+      save();
+      return ok();
+    },
+
     my_rewards: () => personRewards(me()),
     person_rewards: ({ p_person }) => personRewards(p_person),
     my_badges: () => badgesOf(me()),
