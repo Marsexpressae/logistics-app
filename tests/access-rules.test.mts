@@ -60,3 +60,12 @@ test("the rewards settings page is for people who give or manage rewards", () =>
   assert.equal(canAccess(["rewards.manage"], "/settings/rewards"), true);
   assert.equal(canAccess(["rewards.give"], "/settings"), true); // Settings opens for them, to reach this page
 });
+
+test("the Team page is open to everyone signed in, and sits after Tracking in the menu", async () => {
+  const { navItems } = await import("../src/config/navigation.ts");
+  assert.equal(canAccess([], "/team"), true);
+  assert.equal(canAccess(["pickups.view_own"], "/team"), true);
+  const labels = navItems.map((i) => i.label);
+  assert.equal(labels[labels.indexOf("Tracking") + 1], "Team");
+  assert.deepEqual(navItems.find((i) => i.label === "Team")!.anyOf, ["*"]);
+});

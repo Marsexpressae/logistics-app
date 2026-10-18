@@ -30,6 +30,6 @@ export function usePermissions() {
   return {
     permissions,
     can: (permission: string) => permissions.includes(permission),
-    canAny: (...list: string[]) => list.some((p) => permissions.includes(p)),
+    canAny: (...list: string[]) => list.some((p) => p === "*" || permissions.includes(p)),
   };
 }

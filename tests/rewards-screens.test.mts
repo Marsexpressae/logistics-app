@@ -109,3 +109,16 @@ test("the medal pieces are flat: no gradients, shadows or raw z-index", () => {
     assert.equal(/\bz-\d/.test(code), false);
   }
 });
+
+// ---- team medals: the Team page ----
+test("the Team page shows colleagues as cards that open their profile, with no points", () => {
+  for (const f of ["src/app/team/page.tsx", `${dir}/TeamCard.tsx`, `${dir}/AchievementsList.tsx`]) assert.ok(existsSync(f), `${f} is missing`);
+  const card = readFileSync(`${dir}/TeamCard.tsx`, "utf8");
+  assert.ok(card.includes("/people/") && card.includes("LevelEmblem") && card.includes("StreakFlame") === false);
+  const page = readFileSync("src/app/team/page.tsx", "utf8");
+  assert.ok(page.includes("team_overview") && page.includes("TeamCard"));
+  for (const code of [card, page]) assert.equal(/\.total\b|points/i.test(code.replace(/\/\/.*$/gm, "")), false, "the Team page never shows points");
+  const colleague = readFileSync("src/app/people/[id]/page.tsx", "utf8");
+  assert.ok(colleague.includes("AchievementsList") && !colleague.includes("PointsList") && !colleague.includes("ProfileEditor"));
+  assert.match(readFileSync("src/lib/profile-context.tsx", "utf8"), /p === "\*"/, "menu checks understand the everyone rule");
+});

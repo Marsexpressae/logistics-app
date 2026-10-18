@@ -2,6 +2,7 @@
 
 import { Suspense } from "react";
 import { useParams } from "next/navigation";
+import AchievementsList from "@/components/rewards/AchievementsList";
 import BadgeGrid from "@/components/rewards/BadgeGrid";
 import ProfileHeader from "@/components/rewards/ProfileHeader";
 import BackLink from "@/components/ui/BackLink";
@@ -24,8 +25,11 @@ function ColleaguePage() {
     <div className="max-w-2xl space-y-4">
       <BackLink href="/">Back to the dashboard</BackLink>
       <ProfileHeader person={person} rewards={rewards.data} />
-      <Card title="Badges">
+      <Card title="Medals">
         <BadgeGrid badges={badges.data ?? []} />
+      </Card>
+      <Card title="Recent achievements">
+        <AchievementsList personId={id} />
       </Card>
     </div>
   );
