@@ -1446,3 +1446,130 @@ test("rewards: the people directory hides a hidden birthday and other people's p
     assert.deepEqual(await look(manager, a), { birthday_day: null, birthday_month: null, phone: "+971500000111" }); // the hidden birthday stays hidden even from managers
   });
 });
+
+// Run a statement as a signed-in person but with the owner's rights (so the test needs no permission setup); triggers see auth.uid().
+const actAs = (db: Db, uid: string, sql: string) =>
+  db.owner(`select set_config('request.jwt.claim.sub', '${uid}', true), set_config('request.jwt.claims', '{"sub":"${uid}","role":"authenticated"}', true); ${sql}`);
+const newBookingAs = async (db: Db, uid: string) => {
+  await actAs(db, uid, "insert into bookings (sender_name, sender_phone, pickup_area, pickup_address, pickup_date) values ('Rewards Test', '+971500000321', 'Dubai', 'Somewhere', current_date)");
+  return (await db.owner("select id, code from bookings where sender_name = 'Rewards Test' order by created_at desc limit 1"))[0] as { id: string; code: string };
+};
+const lines = (db: Db, who: string) => db.owner("select rule_key, points, reason from point_log where person_id = $1 order by id", [who]);
+const total = async (db: Db, who: string) => (await db.as(who, "select (my_rewards()->>'total')::int t"))[0].t as number;
+
+test("rewards: a booking pays its creator once, and paying the same record twice pays nothing", { skip }, async () => {
+  await inTransaction(async (db) => {
+    await withRewards(db);
+    const me = await db.person([], "creator");
+    const b = await newBookingAs(db, me);
+    const got = await lines(db, me);
+    assert.equal(got.length, 1);
+    assert.equal(got[0].rule_key, "booking_created");
+    assert.equal(got[0].points, 5);
+    assert.match(got[0].reason, new RegExp(b.code));
+    assert.equal((await db.owner("select award_points($1, 'booking_created', 'bookings', $2, 'again') p", [me, b.id]))[0].p, 0);
+    assert.equal((await lines(db, me)).length, 1);
+  });
+});
+
+test("rewards: payments, collected pickups and parcel moves pay the person who did them", { skip }, async () => {
+  await inTransaction(async (db) => {
+    await withRewards(db);
+    const me = await db.person([], "worker");
+    const booking = await db.booking({ invoice_no: "T-RW-1" });
+    await actAs(db, me, `insert into payments (booking_id, amount, method) values ('${booking}', 10, 'cash')`);
+    await actAs(db, me, `update bookings set status = 'collected' where id = '${booking}'`);
+    const wh = (await db.owner("select id from warehouses limit 1"))[0]?.id ?? (await db.owner("insert into warehouses (name) values ('RW') returning id"))[0].id;
+    await db.owner("insert into parcels (booking_id, seq, barcode, weight_kg, warehouse_id) values ($1, 1, $2, 1, $3)", [booking, `RW-${Math.random()}`, wh]);
+    const parcel = (await db.owner("select id from parcels where booking_id = $1", [booking]))[0].id;
+    await actAs(db, me, `update parcels set status = 'loaded' where id = '${parcel}'`);
+    assert.deepEqual((await lines(db, me)).map((l) => [l.rule_key, l.points]), [["payment_recorded", 3], ["pickup_collected", 5], ["parcel_moved", 1]]);
+  });
+});
+
+test("rewards: nothing is paid when nobody is signed in, to an inactive person, or past the daily cap, and the work still saves", { skip }, async () => {
+  await inTransaction(async (db) => {
+    await withRewards(db);
+    const me = await db.person([], "capped");
+    await db.booking({ invoice_no: "T-RW-2" }); // owner, nobody signed in
+    assert.equal((await db.owner("select count(*)::int n from point_log"))[0].n, 0);
+    assert.equal((await db.owner("select award_points(null, 'booking_created', null, null, 'x') p"))[0].p, 0);
+    const paid = await db.owner("select count(*) filter (where x > 0)::int n from (select award_points($1, 'parcel_moved', 'parcels', gen_random_uuid(), 'move') x from generate_series(1, 101)) s", [me]);
+    assert.equal(paid[0].n, 100); // the rule's cap
+    assert.equal((await db.owner("select award_points($1, 'booking_created', 'bookings', gen_random_uuid(), 'x') p", [me]))[0].p, 0); // the total daily cap for work
+    const gone = await db.person([], "gone");
+    await db.owner("update profiles set active = false where id = $1", [gone]);
+    const b = await newBookingAs(db, gone);
+    assert.ok(b.id, "the booking saved");
+    assert.equal((await lines(db, gone)).length, 0);
+  });
+});
+
+test("rewards: trying a feature pays once, an unknown feature is refused, and active-today needs real work", { skip }, async () => {
+  await inTransaction(async (db) => {
+    await withRewards(db);
+    const me = await db.person([], "explorer");
+    assert.equal((await db.as(me, "select record_feature_use('use_bookings') p"))[0].p, 10);
+    assert.equal((await db.as(me, "select record_feature_use('use_bookings') p"))[0].p, 0);
+    assert.equal(await total(db, me), 10); // no real work yet: no active-today points
+    assert.match((await db.error(() => db.as(me, "select record_feature_use('booking_created')"))) ?? "", /Unknown feature/);
+    assert.match((await db.error(() => db.as(me, "select record_feature_use('made_up')"))) ?? "", /Unknown feature/);
+    await newBookingAs(db, me); // +5
+    await db.as(me, "select record_feature_use('use_scan')"); // +10, then active-today +2
+    assert.equal(await total(db, me), 27);
+    await db.as(me, "select record_feature_use('use_scan')");
+    assert.equal(await total(db, me), 27);
+  });
+});
+
+test("rewards: thank-yous need the permission, a message, another person, and stay within the monthly limits", { skip }, async () => {
+  await inTransaction(async (db) => {
+    await withRewards(db);
+    const boss = await db.person(["rewards.give"], "boss");
+    const staff = await db.person([], "staff");
+    const gone = await db.person([], "gone");
+    await db.owner("update profiles set active = false where id = $1", [gone]);
+    await db.as(boss, "select give_thank_you($1, 20, 'Great job on the late rush')", [staff]);
+    assert.equal(await total(db, staff), 20);
+    assert.deepEqual((await lines(db, staff)).map((l) => [l.rule_key, l.points, l.reason]), [["thank_you", 20, "Great job on the late rush"]]);
+    assert.match((await db.error(() => db.as(staff, "select give_thank_you($1, 5, 'hi')", [boss]))) ?? "", /permission/i);
+    assert.match((await db.error(() => db.as(boss, "select give_thank_you($1, 5, 'me')", [boss]))) ?? "", /yourself/);
+    assert.match((await db.error(() => db.as(boss, "select give_thank_you($1, 5, '  ')", [staff]))) ?? "", /message/i);
+    assert.match((await db.error(() => db.as(boss, "select give_thank_you($1, 0, 'x')", [staff]))) ?? "", /between 1 and 100/);
+    assert.match((await db.error(() => db.as(boss, "select give_thank_you($1, 101, 'x')", [staff]))) ?? "", /between 1 and 100/);
+    assert.match((await db.error(() => db.as(boss, "select give_thank_you($1, 5, 'x')", [gone]))) ?? "", /not active/);
+    await db.owner("update app_settings set value = '2'::jsonb where key = 'rewards_thank_you_monthly_count'");
+    await db.as(boss, "select give_thank_you($1, 5, 'second')", [staff]);
+    assert.match((await db.error(() => db.as(boss, "select give_thank_you($1, 5, 'third')", [staff]))) ?? "", /thank-yous for this month/);
+    await db.owner("update app_settings set value = '10'::jsonb where key = 'rewards_thank_you_monthly_count'");
+    await db.owner("update app_settings set value = '30'::jsonb where key = 'rewards_thank_you_monthly_points'");
+    assert.match((await db.error(() => db.as(boss, "select give_thank_you($1, 20, 'too much')", [staff]))) ?? "", /points for this month/);
+  });
+});
+
+test("rewards: the streak counts days in a row, ends today or yesterday, and the level follows lifetime points", { skip }, async () => {
+  await inTransaction(async (db) => {
+    await withRewards(db);
+    const a = await db.person([], "streak a");
+    const b = await db.person([], "streak b");
+    const add = (who: string, daysAgo: number, pts: number) => db.owner("insert into point_log (person_id, rule_key, points, reason, created_at) values ($1, 'booking_created', $2, 'x', now() - ($3 || ' days')::interval)", [who, pts, String(daysAgo)]);
+    await add(a, 0, 5); await add(a, 1, 5); await add(a, 2, 5); // today, yesterday, the day before
+    await add(b, 0, 5); await add(b, 3, 5); // a gap
+    const r = async (who: string) => (await db.as(who, "select my_rewards() r"))[0].r;
+    assert.equal((await r(a)).streak, 3);
+    assert.equal((await r(b)).streak, 1);
+    const c = await db.person([], "streak c");
+    await add(c, 1, 5); // only yesterday: the streak is still alive
+    assert.equal((await r(c)).streak, 1);
+    const d = await db.person([], "streak d");
+    await add(d, 0, 120);
+    const rd = await r(d);
+    assert.equal(rd.total, 120);
+    assert.equal(rd.level_name, "Helper");
+    assert.equal(rd.next_level_name, "Handler");
+    assert.equal(rd.next_min, 300);
+    const pr = (await db.as(a, "select person_rewards($1) r", [d]))[0].r;
+    assert.equal(pr.total, 120);
+    assert.ok(Array.isArray(pr.recent));
+  });
+});

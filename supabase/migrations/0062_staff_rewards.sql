@@ -37,7 +37,7 @@ exception when duplicate_object then null; end $$;
 
 -- ---------- limits live in the existing settings table ----------
 insert into app_settings (key, value, label, description) values
-  ('rewards_daily_cap', '50'::jsonb, 'Most points one person can earn from work in a day', 'Points over this are not recorded'),
+  ('rewards_daily_cap', '100'::jsonb, 'Most points one person can earn from work in a day', 'Points over this are not recorded'),
   ('rewards_thank_you_monthly_points', '200'::jsonb, 'Most points a manager can give as thank-yous in a month', null),
   ('rewards_thank_you_monthly_count', '10'::jsonb, 'Most thank-yous a manager can give in a month', null)
 on conflict (key) do nothing;
@@ -221,3 +221,177 @@ create policy staff_photos_change on storage.objects for update to authenticated
 drop policy if exists staff_photos_remove on storage.objects;
 create policy staff_photos_remove on storage.objects for delete to authenticated
   using (bucket_id = 'staff-photos' and (storage.foldername(name))[1] = (select auth.uid())::text);
+
+-- ======================================================================================================================
+-- Points engine
+-- ======================================================================================================================
+
+-- "Today" always means today in Dubai, wherever the server runs.
+create or replace function dubai_today() returns date
+language sql stable as $$ select (now() at time zone 'Asia/Dubai')::date $$;
+
+-- The number of days in a row (ending today or yesterday) on which the person did real work in the app.
+create or replace function streak_of(p_person uuid) returns int
+language plpgsql stable security definer set search_path = public as $$
+declare cur date := dubai_today(); n int := 0;
+begin
+  if not exists (select 1 from point_log l join point_rules r on r.key = l.rule_key and r.kind = 'work'
+                 where l.person_id = p_person and (l.created_at at time zone 'Asia/Dubai')::date = cur) then
+    cur := cur - 1;
+  end if;
+  while exists (select 1 from point_log l join point_rules r on r.key = l.rule_key and r.kind = 'work'
+                where l.person_id = p_person and (l.created_at at time zone 'Asia/Dubai')::date = cur) loop
+    n := n + 1;
+    cur := cur - 1;
+  end loop;
+  return n;
+end $$;
+
+-- Badges are added in a later step of this file; until then this does nothing.
+create or replace function check_badges(p_person uuid) returns int
+language plpgsql security definer set search_path = public as $$
+begin
+  return 0;
+end $$;
+
+-- Pay points for one rule, once per record, within the caps. Returns the points paid (0 when nothing was paid).
+-- Not callable from the browser: it is used by the triggers and the functions below.
+create or replace function award_points(p_person uuid, p_rule text, p_source_table text, p_source_id uuid, p_reason text) returns int
+language plpgsql security definer set search_path = public as $$
+declare
+  r point_rules;
+  day_start timestamptz := dubai_today()::timestamp at time zone 'Asia/Dubai';
+  day_end timestamptz := (dubai_today() + 1)::timestamp at time zone 'Asia/Dubai';
+begin
+  if p_person is null then return 0; end if;
+  if not exists (select 1 from profiles where id = p_person and active) then return 0; end if;
+  select * into r from point_rules where key = p_rule and active;
+  if not found or r.points = 0 then return 0; end if;
+  if r.once_per_person and exists (select 1 from point_log where person_id = p_person and rule_key = p_rule) then return 0; end if;
+  if p_source_id is not null and exists (select 1 from point_log where person_id = p_person and rule_key = p_rule and source_table is not distinct from p_source_table and source_id = p_source_id) then return 0; end if;
+  if r.kind = 'daily' then
+    if exists (select 1 from point_log where person_id = p_person and rule_key = p_rule and created_at >= day_start and created_at < day_end) then return 0; end if;
+    -- "active today" is for people who did real work today, not for opening the app
+    if not exists (select 1 from point_log l join point_rules w on w.key = l.rule_key and w.kind = 'work'
+                   where l.person_id = p_person and l.created_at >= day_start and l.created_at < day_end) then return 0; end if;
+  end if;
+  if r.daily_cap is not null
+     and coalesce((select sum(points) from point_log where person_id = p_person and rule_key = p_rule and created_at >= day_start and created_at < day_end), 0) + r.points > r.daily_cap then
+    return 0;
+  end if;
+  if r.kind = 'work'
+     and coalesce((select sum(l.points) from point_log l join point_rules w on w.key = l.rule_key and w.kind = 'work'
+                   where l.person_id = p_person and l.created_at >= day_start and l.created_at < day_end), 0) + r.points > setting_int('rewards_daily_cap', 100) then
+    return 0;
+  end if;
+  insert into point_log (person_id, rule_key, points, reason, source_table, source_id) values (p_person, p_rule, r.points, left(p_reason, 200), p_source_table, p_source_id);
+  perform check_badges(p_person);
+  return r.points;
+exception when unique_violation then
+  return 0;
+end $$;
+revoke execute on function award_points(uuid, text, text, uuid, text), check_badges(uuid), streak_of(uuid), dubai_today() from public, anon, authenticated;
+
+-- ---------- work actions are counted when the real record is saved ----------
+-- A rewards problem must never stop a booking, a payment or a scan: every award is wrapped so it can only fail quietly.
+create or replace function rewards_on_booking_created() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  begin perform award_points((select auth.uid()), 'booking_created', 'bookings', new.id, 'Booking ' || new.code); exception when others then null; end;
+  return null;
+end $$;
+drop trigger if exists rewards_booking_created on bookings;
+create trigger rewards_booking_created after insert on bookings for each row execute function rewards_on_booking_created();
+
+create or replace function rewards_on_pickup_collected() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  begin perform award_points((select auth.uid()), 'pickup_collected', 'bookings', new.id, 'Collected ' || new.code); exception when others then null; end;
+  return null;
+end $$;
+drop trigger if exists rewards_pickup_collected on bookings;
+create trigger rewards_pickup_collected after update of status on bookings for each row
+  when (old.status is distinct from new.status and new.status = 'collected') execute function rewards_on_pickup_collected();
+
+create or replace function rewards_on_payment_recorded() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  begin perform award_points((select auth.uid()), 'payment_recorded', 'payments', new.id, 'Payment for ' || coalesce((select code from bookings where id = new.booking_id), 'a booking')); exception when others then null; end;
+  return null;
+end $$;
+drop trigger if exists rewards_payment_recorded on payments;
+create trigger rewards_payment_recorded after insert on payments for each row execute function rewards_on_payment_recorded();
+
+-- One payment per parcel and status per person, so moving the same parcel to the same place twice pays once.
+create or replace function rewards_on_parcel_moved() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  begin perform award_points((select auth.uid()), 'parcel_moved', 'parcels', md5(new.id::text || new.status)::uuid, 'Parcel ' || new.barcode || ' ' || replace(new.status, '_', ' ')); exception when others then null; end;
+  return null;
+end $$;
+drop trigger if exists rewards_parcel_moved on parcels;
+create trigger rewards_parcel_moved after update of status on parcels for each row
+  when (old.status is distinct from new.status) execute function rewards_on_parcel_moved();
+
+-- ---------- trying a feature, and using the app today ----------
+create or replace function record_feature_use(p_key text) returns int
+language plpgsql security definer set search_path = public as $$
+declare uid uuid := (select auth.uid()); r point_rules; paid int;
+begin
+  select * into r from point_rules where key = p_key and kind in ('explore', 'daily') and active;
+  if not found then raise exception 'Unknown feature'; end if;
+  paid := award_points(uid, p_key, 'feature', null, r.label);
+  if p_key <> 'active_today' then perform award_points(uid, 'active_today', 'feature', null, 'Used the app today'); end if;
+  return paid;
+end $$;
+
+-- ---------- thank-yous from managers ----------
+create or replace function give_thank_you(p_person uuid, p_points int, p_message text) returns void
+language plpgsql security definer set search_path = public as $$
+declare
+  uid uuid := (select auth.uid());
+  month_start timestamptz := date_trunc('month', dubai_today())::timestamp at time zone 'Asia/Dubai';
+  used_points int; used_count int;
+begin
+  perform require_perm('rewards.give');
+  if p_person = uid then raise exception 'You cannot thank yourself'; end if;
+  if btrim(coalesce(p_message, '')) = '' then raise exception 'Write a short message to go with the thank-you'; end if;
+  if p_points is null or p_points < 1 or p_points > 100 then raise exception 'Give between 1 and 100 points'; end if;
+  if not exists (select 1 from profiles where id = p_person and active) then raise exception 'That person is not active'; end if;
+  select coalesce(sum(points), 0), count(*) into used_points, used_count from point_log where given_by = uid and rule_key = 'thank_you' and created_at >= month_start;
+  if used_count >= setting_int('rewards_thank_you_monthly_count', 10) then raise exception 'You have used your thank-yous for this month'; end if;
+  if used_points + p_points > setting_int('rewards_thank_you_monthly_points', 200) then raise exception 'That is more than your points for this month'; end if;
+  insert into point_log (person_id, rule_key, points, reason, source_table, given_by) values (p_person, 'thank_you', p_points, left(btrim(p_message), 200), 'thank_you', uid);
+  perform check_badges(p_person);
+end $$;
+
+-- ---------- reading a person's progress ----------
+create or replace function person_rewards(p_person uuid) returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare
+  tot int; lvl levels; nxt levels;
+  day_start timestamptz := dubai_today()::timestamp at time zone 'Asia/Dubai';
+begin
+  if (select auth.uid()) is null then raise exception 'You are not signed in' using errcode = '42501'; end if;
+  if not exists (select 1 from profiles where id = p_person and active) then raise exception 'Person not found'; end if;
+  select coalesce(sum(points), 0) into tot from point_log where person_id = p_person;
+  select * into lvl from levels where min_points <= tot order by number desc limit 1;
+  select * into nxt from levels where min_points > tot order by number limit 1;
+  return jsonb_build_object(
+    'total', tot,
+    'level_number', lvl.number, 'level_name', lvl.name, 'level_min', lvl.min_points,
+    'next_level_name', nxt.name, 'next_min', nxt.min_points,
+    'streak', streak_of(p_person),
+    'today', coalesce((select sum(points) from point_log where person_id = p_person and created_at >= day_start), 0),
+    'recent', coalesce((select jsonb_agg(jsonb_build_object('points', x.points, 'reason', x.reason, 'created_at', x.created_at) order by x.created_at desc, x.id desc)
+                        from (select * from point_log where person_id = p_person order by created_at desc, id desc limit 20) x), '[]'::jsonb)
+  );
+end $$;
+
+create or replace function my_rewards() returns jsonb
+language sql stable security definer set search_path = public as $$
+  select person_rewards((select auth.uid()))
+$$;
+
+revoke execute on function record_feature_use(text), give_thank_you(uuid, int, text), person_rewards(uuid), my_rewards() from public, anon;
+grant execute on function record_feature_use(text), give_thank_you(uuid, int, text), person_rewards(uuid), my_rewards() to authenticated;
