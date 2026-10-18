@@ -1252,3 +1252,62 @@ test("sales rep: a removed person leaves the old name on old records", { skip },
     assert.deepEqual(await repOf(db, "bookings", booking), { sales_rep_id: null, sales_rep_name: "Test Leaver" });
   });
 });
+
+/** A booking inserted with a rep and a phone; returns the booking id and the customer the app linked or created for it. */
+async function bookingWithRep(db: Db, phone: string, rep: string | null) {
+  const b = (await db.owner("insert into bookings (sender_name, sender_phone, pickup_area, pickup_address, pickup_date, sales_rep_id) values ('Rep Test', $1, 'Dubai', 'Somewhere', current_date, $2) returning id", [phone, rep]))[0].id as string;
+  const customer = (await db.owner("select customer_id from booking_contacts where booking_id = $1 and role = 'customer'", [b]))[0].customer_id as string;
+  return { booking: b, customer };
+}
+
+test("sales rep: a booking for a new customer gives the customer the same owner", { skip }, async () => {
+  await inTransaction(async (db) => {
+    await withSalesRep(db);
+    const rep = await db.person(["bookings.view"], "Rep Alpha");
+    const { customer } = await bookingWithRep(db, "+971500777001", rep);
+    assert.deepEqual(await repOf(db, "customers", customer), { sales_rep_id: rep, sales_rep_name: "Test Rep Alpha" });
+  });
+});
+
+test("sales rep: a booking for an existing customer leaves their owner alone", { skip }, async () => {
+  await inTransaction(async (db) => {
+    await withSalesRep(db);
+    const alpha = await db.person(["bookings.view"], "Rep Alpha");
+    const beta = await db.person(["bookings.view"], "Rep Beta");
+    const first = await bookingWithRep(db, "+971500777002", alpha);
+    const second = await bookingWithRep(db, "+971500777002", beta); // same phone: the same customer
+    assert.equal(second.customer, first.customer);
+    assert.equal((await repOf(db, "customers", first.customer)).sales_rep_id, alpha, "the owner is unchanged");
+    assert.equal((await repOf(db, "bookings", second.booking)).sales_rep_id, beta, "the booking keeps its own rep");
+    // a customer with no owner is not given one by a later booking
+    const { customer } = await bookingWithRep(db, "+971500777003", null);
+    await bookingWithRep(db, "+971500777003", alpha);
+    assert.equal((await repOf(db, "customers", customer)).sales_rep_id, null);
+  });
+});
+
+test("sales rep: a customer added by hand, or made from a booking, gets an owner", { skip }, async () => {
+  await inTransaction(async (db) => {
+    await withSalesRep(db);
+    const creator = await db.person(["customers.view", "customers.edit"], "Creator");
+    const made = (await db.as(creator, "select create_customer('By Hand', '+971500777004', null, null, null, null, null) id"))[0].id as string;
+    assert.deepEqual(await repOf(db, "customers", made), { sales_rep_id: creator, sales_rep_name: "Test Creator" });
+    const rep = await db.person(["bookings.view"], "Rep Gamma");
+    const { booking } = await bookingWithRep(db, "+971500777005", rep);
+    const fresh = (await db.as(creator, "select create_customer_from_booking($1) id", [booking]))[0].id as string;
+    assert.equal((await repOf(db, "customers", fresh)).sales_rep_id, rep, "copied from the booking");
+  });
+});
+
+test("sales rep: changing a customer's owner leaves their old bookings alone", { skip }, async () => {
+  await inTransaction(async (db) => {
+    await withSalesRep(db);
+    const alpha = await db.person(["bookings.view"], "Rep Alpha");
+    const beta = await db.person(["bookings.view"], "Rep Beta");
+    const manager = await db.person(["customers.view", "sales_rep.change"], "Boss");
+    const { booking, customer } = await bookingWithRep(db, "+971500777006", alpha);
+    await db.as(manager, "select set_customer_sales_rep($1, $2)", [customer, beta]);
+    assert.equal((await repOf(db, "customers", customer)).sales_rep_id, beta);
+    assert.equal((await repOf(db, "bookings", booking)).sales_rep_id, alpha, "the old booking keeps the rep who made that sale");
+  });
+});

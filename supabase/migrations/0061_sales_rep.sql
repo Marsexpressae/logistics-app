@@ -82,3 +82,72 @@ begin
 end $$;
 revoke execute on function sales_rep_choices() from public, anon;
 grant execute on function sales_rep_choices() to authenticated;
+
+
+-- ---------- a new customer gets an owner ----------
+-- A customer created from a new booking (or from a booking by hand) gets that booking's rep; a customer added by hand gets the person adding
+-- them. A customer who already exists is never changed by a later booking.
+create or replace function booking_ensure_customer()
+ RETURNS trigger
+ language plpgsql security definer set search_path = public as $$
+declare cid uuid; ph text;
+begin
+  if exists (select 1 from booking_contacts where booking_id = new.id and role = 'customer') then return new; end if;
+  ph := case when new.sender_phone ~ '^\+[1-9][0-9]{6,14}$' then new.sender_phone end;
+  if ph is not null then select id into cid from customers where phone = ph order by created_at limit 1; end if;
+  if cid is null then
+    insert into customers (full_name, phone, whatsapp, address, geo_lat, geo_lng, created_by_name, sales_rep_id)
+    values (btrim(left(new.sender_name, 120)), ph,
+            case when new.sender_whatsapp ~ '^\+[1-9][0-9]{6,14}$' and new.sender_whatsapp is distinct from ph then new.sender_whatsapp end,
+            case when new.pickup_address ilike 'Legacy invoice%' then null else left(new.pickup_address, 300) end,
+            new.geo_lat, new.geo_lng,
+            coalesce((select full_name from profiles where id = auth.uid()), 'Automatic, from a new booking'), new.sales_rep_id)
+    returning id into cid;
+  end if;
+  insert into booking_contacts (booking_id, role, customer_id) values (new.id, 'customer', cid)
+  on conflict (booking_id, role) do nothing;
+  return new;
+end $$;
+
+create or replace function create_customer_from_booking(p_booking_id uuid)
+ RETURNS uuid
+ language plpgsql security definer set search_path = public as $$
+declare
+  b bookings;
+  new_id uuid;
+  actor uuid := auth.uid();
+begin
+  perform require_perm('customers.edit');
+  select * into b from bookings where id = p_booking_id;
+  if not found then raise exception 'Booking not found'; end if;
+  insert into customers (full_name, phone, whatsapp, address, geo_lat, geo_lng, created_by_name, sales_rep_id)
+  values (btrim(left(b.sender_name, 120)),
+          case when b.sender_phone ~ '^\+[1-9][0-9]{6,14}$' then b.sender_phone end,
+          case when b.sender_whatsapp ~ '^\+[1-9][0-9]{6,14}$' then b.sender_whatsapp end,
+          case when b.pickup_address ilike 'Legacy invoice%' then null else left(b.pickup_address, 300) end,
+          b.geo_lat, b.geo_lng, (select full_name from profiles where id = actor), b.sales_rep_id)
+  returning id into new_id;
+  insert into booking_contacts (booking_id, role, customer_id) values (b.id, 'customer', new_id)
+  on conflict (booking_id, role) do update set customer_id = excluded.customer_id, created_at = now();
+  return new_id;
+end $$;
+
+create or replace function create_customer(p_name text, p_phone text, p_whatsapp text, p_address text, p_lat double precision, p_lng double precision, p_eid text)
+ RETURNS uuid
+ language plpgsql security definer set search_path = public as $$
+declare
+  nm text := btrim(coalesce(p_name, ''));
+  ph text := customer_clean_phone(p_phone, 'phone number');
+  wa text := customer_clean_phone(p_whatsapp, 'WhatsApp number');
+  actor uuid := auth.uid();
+  new_id uuid;
+begin
+  perform require_perm('customers.edit');
+  if length(nm) not between 1 and 120 then raise exception 'Enter the name'; end if;
+  if wa is not null and wa = ph then wa := null; end if;
+  insert into customers (full_name, phone, whatsapp, address, geo_lat, geo_lng, emirates_id, created_by_name, sales_rep_id)
+  values (nm, ph, wa, nullif(btrim(coalesce(p_address, '')), ''), p_lat, p_lng, customer_clean_eid(p_eid), (select full_name from profiles where id = actor), actor)
+  returning id into new_id;
+  return new_id;
+end $$;
+
