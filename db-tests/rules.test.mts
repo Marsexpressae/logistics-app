@@ -1379,3 +1379,70 @@ test("sales rep: merging customers keeps an owner, even for people who may merge
     assert.match((await db.error(() => db.as(merger, "select set_customer_sales_rep($1, $2)", [target, sara]))) ?? "NOT REFUSED", /Only managers can change the sales rep/);
   });
 });
+
+// ---------------- staff rewards (migration 0062) ----------------
+// Until the migration is live, each test applies the file inside its own rolled-back transaction.
+const REWARDS_MIGRATION = "supabase/migrations/0062_staff_rewards.sql";
+const withRewards = (db: Db) => db.owner(readFileSync(REWARDS_MIGRATION, "utf8"));
+
+test("rewards: the tables exist, browser roles cannot write them, and the seed is there", { skip }, async () => {
+  await inTransaction(async (db) => {
+    await withRewards(db);
+    const staff = await db.person([], "plain staff");
+    assert.match((await db.error(() => db.as(staff, "insert into point_log (person_id, rule_key, points, reason) values ($1, 'x', 1, 'x')", [staff]))) ?? "", /permission denied|row-level security/);
+    assert.match((await db.error(() => db.as(staff, "insert into person_badges (person_id, badge_key) values ($1, 'x')", [staff]))) ?? "", /permission denied|row-level security/);
+    assert.match((await db.error(() => db.as(staff, "update point_rules set points = 999"))) ?? "", /permission denied|row-level security/);
+    assert.equal((await db.owner("select count(*)::int n from levels"))[0].n, 8);
+    assert.equal((await db.owner("select count(*)::int n from point_rules"))[0].n, 13);
+    assert.equal((await db.owner("select count(*)::int n from badges where kind = 'manual'"))[0].n, 1);
+    assert.deepEqual((await db.owner("select key from permissions where key like 'rewards.%' order by key")).map((r) => r.key), ["rewards.give", "rewards.manage"]);
+    assert.deepEqual((await db.owner("select role from role_permissions where permission = 'rewards.give' order by role")).map((r) => r.role), ["manager", "super_admin"]);
+  });
+});
+
+test("rewards: update_my_profile changes only the caller's own row and checks the about line", { skip }, async () => {
+  await inTransaction(async (db) => {
+    await withRewards(db);
+    const me = await db.person([], "me");
+    const other = await db.person([], "other");
+    await db.as(me, "select update_my_profile(null, 14, 3, true, 'Loves forklifts', '+971500000001')");
+    const mine = (await db.owner("select about, phone, birthday_day, birthday_month, hide_birthday from profiles where id = $1", [me]))[0];
+    assert.deepEqual(mine, { about: "Loves forklifts", phone: "+971500000001", birthday_day: 14, birthday_month: 3, hide_birthday: true });
+    assert.equal((await db.owner("select about from profiles where id = $1", [other]))[0].about, null);
+    assert.match((await db.error(() => db.as(me, "select update_my_profile(null, null, null, false, $1, null)", ["x".repeat(201)]))) ?? "", /200/);
+    assert.match((await db.error(() => db.as(me, "select update_my_profile(null, 31, 2, false, null, null)"))) ?? "", /birthday/i);
+    // a photo path must be inside the caller's own folder
+    assert.match((await db.error(() => db.as(me, "select update_my_profile($1, null, null, false, null, null)", [`${other}/me.jpg`]))) ?? "", /your own folder/);
+    assert.equal(await db.error(() => db.as(me, "select update_my_profile($1, null, null, false, null, null)", [`${me}/me.jpg`])), null);
+  });
+});
+
+test("rewards: team, job title and joined date are changed only by people who manage users", { skip }, async () => {
+  await inTransaction(async (db) => {
+    await withRewards(db);
+    const staff = await db.person([], "staff");
+    const boss = await db.person(["users.manage"], "boss");
+    assert.match((await db.error(() => db.as(staff, "select set_staff_details($1, 'sales', 'Rep', '2024-03-01')", [staff]))) ?? "", /permission/i);
+    await db.as(boss, "select set_staff_details($1, 'sales', 'Sales rep', '2024-03-01')", [staff]);
+    const row = (await db.owner("select team, job_title, joined_on::text from profiles where id = $1", [staff]))[0];
+    assert.deepEqual(row, { team: "sales", job_title: "Sales rep", joined_on: "2024-03-01" });
+    assert.match((await db.error(() => db.as(boss, "select set_staff_details($1, 'pirates', null, null)", [staff]))) ?? "", /team/i);
+  });
+});
+
+test("rewards: the people directory hides a hidden birthday and other people's phone", { skip }, async () => {
+  await inTransaction(async (db) => {
+    await withRewards(db);
+    const a = await db.person([], "a");
+    const b = await db.person([], "b");
+    const manager = await db.person(["rewards.manage"], "mgr");
+    await db.as(a, "select update_my_profile(null, 5, 6, true, null, '+971500000111')");
+    await db.as(b, "select update_my_profile(null, 7, 8, false, null, '+971500000222')");
+    const look = async (who: string, id: string) => (await db.as(who, "select birthday_day, birthday_month, phone from people_directory() where id = $1", [id]))[0];
+    assert.deepEqual(await look(b, a), { birthday_day: null, birthday_month: null, phone: null }); // hidden birthday, someone else's phone
+    assert.deepEqual(await look(a, b), { birthday_day: 7, birthday_month: 8, phone: null }); // shown birthday, someone else's phone
+    assert.deepEqual(await look(a, a), { birthday_day: 5, birthday_month: 6, phone: "+971500000111" }); // my own, hidden from others but not from me
+    assert.equal((await look(manager, b)).phone, "+971500000222"); // managers see phones
+    assert.deepEqual(await look(manager, a), { birthday_day: null, birthday_month: null, phone: "+971500000111" }); // the hidden birthday stays hidden even from managers
+  });
+});
