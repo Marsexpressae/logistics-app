@@ -3,18 +3,19 @@
 import { useState } from "react";
 import { Button, ErrorMessage } from "@/components/ui/form";
 import { SortableTh } from "@/components/ui/Sortable";
-import { TEAM_LABEL } from "@/lib/rewards";
+import { FAMILY_LABEL } from "@/lib/rewards";
 import type { SortColumn } from "@/lib/sort";
 import { supabase } from "@/lib/supabase";
 import { useSort } from "@/lib/use-sort";
 
-export type BadgeRow = { key: string; name: string; description: string; team: string | null; kind: "count" | "streak" | "manual"; threshold: number | null; active: boolean };
+export type BadgeRow = { key: string; name: string; description: string; team: string | null; family: string | null; tier: number | null; kind: "count" | "streak" | "manual"; threshold: number | null; active: boolean };
 
 const KIND: Record<BadgeRow["kind"], string> = { count: "Reach a number", streak: "Days in a row", manual: "Given by a manager" };
 
 const COLUMNS: SortColumn<BadgeRow>[] = [
   { key: "name", label: "Badge", value: (b) => b.name },
-  { key: "team", label: "For", value: (b) => (b.team ? TEAM_LABEL[b.team] : "Everyone") },
+  { key: "family", label: "Family", value: (b) => (b.family ? (FAMILY_LABEL[b.family] ?? b.family) : null) },
+  { key: "tier", label: "Tier", kind: "number", firstDir: "asc", value: (b) => b.tier },
   { key: "kind", label: "How it is earned", value: (b) => KIND[b.kind] },
   { key: "goal", label: "Goal", kind: "number", value: (b) => b.threshold },
   { key: "active", label: "On", value: (b) => (b.active ? "On" : "Off") },
@@ -47,7 +48,8 @@ function BadgeLine({ badge, onSaved }: { badge: BadgeRow; onSaved: () => void })
         <input aria-label={`Name of the ${badge.name} badge`} value={name} onChange={(e) => setName(e.target.value)} className="min-h-11 w-40 rounded-md border border-slate-500 bg-white px-2 text-sm" />
         <input aria-label={`Description of the ${badge.name} badge`} value={description} onChange={(e) => setDescription(e.target.value)} className="mt-1 min-h-11 w-56 rounded-md border border-slate-500 bg-white px-2 text-sm" />
       </td>
-      <td className="px-2 py-2 text-slate-600">{badge.team ? TEAM_LABEL[badge.team] : "Everyone"}</td>
+      <td className="px-2 py-2 text-slate-600">{badge.family ? (FAMILY_LABEL[badge.family] ?? badge.family) : "One-off"}</td>
+      <td className="px-2 py-2 text-slate-600">{badge.tier ?? "—"}</td>
       <td className="px-2 py-2 text-slate-600">{KIND[badge.kind]}</td>
       <td className="px-2 py-2">
         {hasGoal ? (

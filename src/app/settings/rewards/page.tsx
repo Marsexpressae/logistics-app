@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense } from "react";
+import AddBadgeForm from "@/components/rewards/AddBadgeForm";
 import BadgesTable, { type BadgeRow } from "@/components/rewards/BadgesTable";
 import GiveForm from "@/components/rewards/GiveForm";
 import LevelsTable from "@/components/rewards/LevelsTable";
@@ -55,6 +56,10 @@ function RewardsSettings() {
           <Card title="Badges">
             <p className="mb-3 text-sm text-slate-600">A badge that is already earned stays earned, even if you change its goal.</p>
             <BadgesTable badges={badges.data ?? []} onSaved={badges.reload} />
+          </Card>
+          <Card title="Add a badge">
+            <p className="mb-3 text-sm text-slate-600">Make a new badge for the whole team. Badges in a family show as medals of growing colour.</p>
+            <AddBadgeForm rules={(rules.data ?? []).map((r) => ({ key: r.key, label: r.label }))} families={[...new Set((badges.data ?? []).map((b) => b.family).filter((f): f is string => !!f))]} onAdded={badges.reload} />
           </Card>
         </>
       )}

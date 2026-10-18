@@ -135,3 +135,15 @@ test("the celebration is a large medal card with confetti that stays off for red
   assert.ok(block, "the confetti keyframes live inside a no-preference block");
   assert.match(css, /\.confetti-piece\s*\{[^}]*display:\s*none/, "confetti is hidden unless motion is allowed");
 });
+
+// ---- team medals: adding a badge ----
+test("managers can add a badge from the rewards settings, and the badge table shows family and tier", () => {
+  const form = readFileSync(`${dir}/AddBadgeForm.tsx`, "utf8");
+  assert.ok(form.includes("create_badge") && form.includes("BADGE_ICONS"));
+  const page = readFileSync("src/app/settings/rewards/page.tsx", "utf8");
+  assert.ok(page.includes("AddBadgeForm"));
+  assert.match(page, /can\("rewards\.manage"\)/);
+  const table = readFileSync(`${dir}/BadgesTable.tsx`, "utf8");
+  assert.ok(table.includes('key: "family"') && table.includes('key: "tier"'), "family and tier are sortable columns");
+  assert.equal(/<th className="px-4 py-3/.test(table), false);
+});
