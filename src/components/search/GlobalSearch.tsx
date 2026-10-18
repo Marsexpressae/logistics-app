@@ -185,7 +185,7 @@ export default function GlobalSearch({ autoFocus = false, onDone, className = ""
                             <span className="font-medium text-brand-700">{c.full_name}</span>
                           </span>
                           <span className="block truncate text-xs text-slate-600">
-                            {[formatPhone(c.phone), c.address].filter(Boolean).join(" · ")}
+                            {[formatPhone(c.phone), c.address, c.sales_rep ? `owner ${c.sales_rep}` : null].filter(Boolean).join(" · ")}
                           </span>
                         </span>
                       )
@@ -210,6 +210,7 @@ export default function GlobalSearch({ autoFocus = false, onDone, className = ""
                             </span>
                             <span className="block truncate text-xs text-slate-600">
                               {b.sender_name} → {b.receiver_name ?? "receiver not set"}
+                              {b.sales_rep ? ` · ${b.sales_rep}` : ""}
                             </span>
                           </span>
                           <StatusBadge status={b.status} />

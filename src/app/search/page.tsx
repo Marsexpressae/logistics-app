@@ -78,6 +78,7 @@ function SearchResults({ initial }: { initial: string }) {
                     </span>
                     <span className="block text-xs text-slate-500">
                       {formatPhone(b.sender_phone)} · {b.pickup_area} · {formatDay(b.pickup_date)}
+                      {b.sales_rep ? ` · ${b.sales_rep}` : ""}
                     </span>
                   </span>
                   <span className="flex flex-col items-end gap-1">
@@ -144,7 +145,7 @@ function SearchResults({ initial }: { initial: string }) {
                 <Link href={`/customers/${c.id}`} className="flex items-center justify-between gap-2 py-3 active:bg-slate-50">
                   <span>
                     <span className="font-medium text-brand-700">{c.full_name}</span>
-                    <span className="block text-xs text-slate-600">{[formatPhone(c.phone), c.address].filter(Boolean).join(" · ")}</span>
+                    <span className="block text-xs text-slate-600">{[formatPhone(c.phone), c.address, c.sales_rep ? `owner ${c.sales_rep}` : null].filter(Boolean).join(" · ")}</span>
                   </span>
                   <span className="text-xs text-slate-500">{c.invoices} {c.invoices === 1 ? "invoice" : "invoices"}</span>
                 </Link>

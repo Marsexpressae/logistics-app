@@ -954,6 +954,7 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
     const cols: Record<string, SortColumn<R>> = {
       invoice: { key: "invoice", label: "Invoice", kind: "number", value: tail },
       customer: { key: "customer", label: "Customer", value: (r) => r.b.sender_name },
+      salesrep: { key: "salesrep", label: "Sales rep", value: (r) => r.b.sales_rep_name ?? null },
       amount: { key: "amount", label: "Amount", kind: "number", value: (r) => r.amount },
       paid: { key: "paid", label: "Paid", kind: "number", value: (r) => r.paid },
       balance: { key: "balance", label: "Balance", kind: "number", value: (r) => r.balance },

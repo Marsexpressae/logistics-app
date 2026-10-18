@@ -21,6 +21,7 @@ export type SearchBooking = {
   pickup_date: string;
   pickup_area: string;
   pay_status: "not_invoiced" | "unpaid" | "partial" | "paid" | null;
+  sales_rep?: string | null;
 };
 export type SearchParcel = {
   id: string;
@@ -36,7 +37,7 @@ export type SearchParcel = {
   place: string | null;
 };
 export type SearchContainer = { id: string; code: string; destination: string | null; status: string };
-export type SearchCustomer = { id: string; full_name: string; phone: string | null; address: string | null; invoices: number; last_invoice: string | null };
+export type SearchCustomer = { id: string; full_name: string; phone: string | null; address: string | null; sales_rep?: string | null; invoices: number; last_invoice: string | null };
 export type SearchResult = {
   bookings: SearchBooking[];
   parcels: SearchParcel[];

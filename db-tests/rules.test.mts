@@ -1324,6 +1324,10 @@ test("sales rep: Accounts, global search and customer search carry the rep", { s
     // Accounts list
     const inv = (await db.as(viewer, "select r_invoice_no, r_sales_rep, r_amount from accounts_invoices('all', 'T-SR-INV', 10, 0) order by r_invoice_no")) as { r_invoice_no: string; r_sales_rep: string | null }[];
     assert.deepEqual(inv.map((r) => [r.r_invoice_no, r.r_sales_rep]), [["T-SR-INV1", "Test Rep Delta"], ["T-SR-INV2", null]]);
+    // the Accounts list sorts by the rep too, people with none last either way
+    const byRep = async (dir: string) => ((await db.as(viewer, "select r_invoice_no from accounts_invoices('all', 'T-SR-INV', 10, 0, 'salesrep', $1)", [dir])) as { r_invoice_no: string }[]).map((r) => r.r_invoice_no);
+    assert.deepEqual(await byRep("asc"), ["T-SR-INV1", "T-SR-INV2"]);
+    assert.deepEqual(await byRep("desc"), ["T-SR-INV1", "T-SR-INV2"]);
     // global search: booking hits and customer hits
     const g = (await db.as(viewer, "select global_search('Zzowner', 10) g"))[0].g as { bookings: Row[]; customers: Row[] };
     assert.deepEqual(g.bookings.map((b) => [b.sender_name, b.sales_rep]).sort(), [["Zzowner Qxone", "Test Rep Delta"], ["Zzowner Qxtwo", null]]);

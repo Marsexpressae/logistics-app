@@ -79,6 +79,7 @@ export default function PickupDetailPage() {
           <StatusBadge status={b.stage ?? b.status} />
         </div>
         <p className="mt-2 font-medium">{b.sender_name}</p>
+        {b.sales_rep_name && <p className="text-sm text-slate-600">Sales rep: {b.sales_rep_name}</p>}
         <p className="mt-1 flex items-center gap-1.5 text-sm text-slate-700">
           <CalendarDays className="h-4 w-4" /> {formatDay(b.pickup_date)}
         </p>

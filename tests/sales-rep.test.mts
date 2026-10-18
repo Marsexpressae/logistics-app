@@ -146,3 +146,26 @@ test("the customer search sorts by the owner, people with no owner last", async 
   assert.deepEqual(await order("asc"), ["Zzsort Alpha", "Zzsort Bravo", "Zzsort Charlie"]); // Mona, Sam, none
   assert.deepEqual(await order("desc"), ["Zzsort Bravo", "Zzsort Alpha", "Zzsort Charlie"]); // Sam, Mona, none
 });
+
+test("pickups, Accounts and search show the rep, and the assigned driver stays", () => {
+  const pickups = read("src/app/pickups/page.tsx");
+  assert.ok(pickups.includes("b.sales_rep_name") && pickups.includes('b.driver?.name ?? "Unassigned"'));
+  const pickup = read("src/app/pickups/[id]/page.tsx");
+  assert.ok(pickup.includes("b.sales_rep_name") && pickup.includes("Sales rep"));
+  const acc = read("src/app/accounts/page.tsx");
+  assert.ok(acc.includes("r_sales_rep") && acc.includes('salesrep: { key: "salesrep"') && acc.includes("INVOICE_COLUMNS.salesrep"));
+  assert.ok(read("src/components/search/GlobalSearch.tsx").includes("b.sales_rep") && read("src/components/search/GlobalSearch.tsx").includes("c.sales_rep"));
+  const search = read("src/app/search/page.tsx");
+  assert.ok(search.includes("b.sales_rep") && search.includes("c.sales_rep"));
+});
+
+test("the Accounts list sorts by the sales rep, people with none last", async () => {
+  await newBooking("+971500888030", "Zzacc Rep Bravo", "sample-staff");
+  await newBooking("+971500888031", "Zzacc Rep Alpha", "sample-manager");
+  const ids = ((await c.from("bookings").select("*").in("sender_name", ["Zzacc Rep Bravo", "Zzacc Rep Alpha"])).data as R[]);
+  let n = 9100;
+  for (const b of ids) await c.from("bookings").update({ invoice_no: `INV-${n++}` }).eq("id", b.id);
+  const order = async (dir: string) => ((await c.rpc("accounts_invoices", { p_search: "Zzacc", p_sort: "salesrep", p_dir: dir })).data as R[]).map((r) => r.r_customer);
+  assert.deepEqual(await order("asc"), ["Zzacc Rep Alpha", "Zzacc Rep Bravo"]); // Mona, Sam
+  assert.deepEqual(await order("desc"), ["Zzacc Rep Bravo", "Zzacc Rep Alpha"]);
+});

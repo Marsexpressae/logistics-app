@@ -42,6 +42,7 @@ type InvoiceRow = {
   r_pay_status: PayStatus;
   r_total: number;
   r_credited: number;
+  r_sales_rep: string | null;
 };
 
 const PAGE = 25;
@@ -51,6 +52,7 @@ const PAGE = 25;
 const INVOICE_COLUMNS: Record<string, SortColumn<InvoiceRow>> = {
   invoice: { key: "invoice", label: "Invoice", kind: "number", hint: "Sorts by the invoice number" },
   customer: { key: "customer", label: "Customer" },
+  salesrep: { key: "salesrep", label: "Sales rep", hint: "Sorts by the sales rep's name" },
   amount: { key: "amount", label: "Amount", kind: "number" },
   paid: { key: "paid", label: "Paid", kind: "number" },
   balance: { key: "balance", label: "Balance", kind: "number", hint: "Sorts by the amount still to pay" },
@@ -196,6 +198,7 @@ function AccountsContent() {
                   <span>
                     <span className="block font-mono text-lg font-semibold text-brand-700">{r.r_invoice_no}</span>
                     <span className="block text-base text-slate-900">{r.r_customer}</span>
+                    {r.r_sales_rep && <span className="block text-sm text-slate-600">Sales rep: {r.r_sales_rep}</span>}
                   </span>
                   <span className="flex flex-col items-end gap-1">
                     <StatusBadge large status={r.r_pay_status} />
@@ -226,6 +229,7 @@ function AccountsContent() {
                 <tr>
                   <SortableTh column={INVOICE_COLUMNS.invoice} sort={sort} />
                   <SortableTh column={INVOICE_COLUMNS.customer} sort={sort} />
+                  <SortableTh column={INVOICE_COLUMNS.salesrep} sort={sort} />
                   <SortableTh column={INVOICE_COLUMNS.amount} sort={sort} align="right" />
                   <SortableTh column={INVOICE_COLUMNS.paid} sort={sort} align="right" />
                   <SortableTh column={INVOICE_COLUMNS.balance} sort={sort} align="right" />
@@ -242,6 +246,7 @@ function AccountsContent() {
                       <span className="block font-mono text-xs text-slate-500">{r.r_code}</span>
                     </td>
                     <td className="px-4 py-3">{r.r_customer}</td>
+                    <td className="px-4 py-3 text-slate-600">{r.r_sales_rep ?? "—"}</td>
                     <td className="px-4 py-3 text-right">
                       {r.r_amount === null ? "—" : money(Number(r.r_amount))}
                       {Number(r.r_credited) > 0 && <span className="block text-xs text-slate-500">credited {money(Number(r.r_credited))}</span>}

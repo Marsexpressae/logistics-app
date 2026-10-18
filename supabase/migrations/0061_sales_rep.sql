@@ -165,7 +165,7 @@ create or replace function accounts_invoices(p_status text DEFAULT 'all'::text, 
 AS $$
 declare
   q text := nullif(btrim(coalesce(p_search, '')), '');
-  v_sort text := case when p_sort in ('invoice', 'customer', 'amount', 'paid', 'balance', 'status') then p_sort else null end;
+  v_sort text := case when p_sort in ('invoice', 'customer', 'salesrep', 'amount', 'paid', 'balance', 'status') then p_sort else null end;
   v_desc boolean := case when v_sort is null then true else lower(coalesce(p_dir, 'asc')) = 'desc' end;
 begin
   if not (has_perm('accounts.view') or has_perm('payments.manage')) then
@@ -196,6 +196,8 @@ begin
   order by
     case when v_sort = 'customer' and not v_desc then y.sender_name end asc nulls last,
     case when v_sort = 'customer' and v_desc then y.sender_name end desc nulls last,
+    case when v_sort = 'salesrep' and not v_desc then y.sales_rep_name end asc nulls last,
+    case when v_sort = 'salesrep' and v_desc then y.sales_rep_name end desc nulls last,
     case when v_sort = 'amount' and not v_desc then y.invoice_now end asc nulls last,
     case when v_sort = 'amount' and v_desc then y.invoice_now end desc nulls last,
     case when v_sort = 'paid' and not v_desc then y.paid end asc nulls last,

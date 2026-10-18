@@ -162,6 +162,7 @@ function PickupsContent() {
                 <p className="mt-1 flex items-center gap-1.5 text-sm text-slate-500">
                   <User className="h-4 w-4" /> {b.driver?.name ?? "Unassigned"}
                 </p>
+                {b.sales_rep_name && <p className="mt-1 text-sm text-slate-500">Sales rep: {b.sales_rep_name}</p>}
                 {b.geo_lat !== null && (
                   <span className="mt-1 inline-flex items-center gap-1.5 text-sm font-medium text-brand-700">
                     <Navigation className="h-4 w-4" /> Pin saved
