@@ -1825,3 +1825,74 @@ test("team medals: thank-yous received earn the Appreciated medals, with progres
     assert.deepEqual([manual.family, manual.tier], [null, null]);
   });
 });
+
+test("team medals: the team overview lists active colleagues with level, streak and badge count, and nothing private", { skip }, async () => {
+  await inTransaction(async (db) => {
+    await withTeamMedals(db);
+    const me = await db.person([], "viewer");
+    const a = await db.person([], "alpha");
+    const gone = await db.person([], "gone");
+    await db.owner("update profiles set active = false where id = $1", [gone]);
+    await db.owner("insert into point_log (person_id, rule_key, points, reason) values ($1, 'booking_created', 120, 'work')", [a]);
+    await db.owner("insert into person_badges (person_id, badge_key) values ($1, 'first_booking')", [a]);
+    const rows = await db.as(me, "select * from team_overview()");
+    assert.deepEqual(Object.keys(rows[0]).sort(), ["badge_count", "full_name", "id", "job_title", "level_name", "level_number", "photo_path", "streak", "team"]);
+    assert.ok(rows.some((r) => r.id === a) && !rows.some((r) => r.id === gone));
+    const alpha = rows.find((r) => r.id === a)!;
+    assert.deepEqual([alpha.level_name, alpha.level_number, alpha.badge_count], ["Helper", 2, 1]);
+    const names = rows.map((r) => r.full_name as string);
+    assert.deepEqual(names, [...names].sort((x, y) => x.localeCompare(y)), "sorted by name");
+    const nobody = (await db.owner("insert into auth.users (id) values (gen_random_uuid()) returning id"))[0].id as string;
+    assert.equal((await db.as(nobody, "select count(*)::int n from team_overview()"))[0].n, 0);
+    assert.equal((await db.as(gone, "select count(*)::int n from team_overview()"))[0].n, 0);
+  });
+});
+
+test("team medals: a person's achievements are badges and thank-yous, with no work reasons and no points", { skip }, async () => {
+  await inTransaction(async (db) => {
+    await withTeamMedals(db);
+    const boss = await db.person(["rewards.give"], "boss");
+    const star = await db.person([], "star");
+    const viewer = await db.person([], "viewer");
+    await newBookingAs(db, star); // a work line that names a booking: it must not show
+    await db.as(boss, "select give_badge($1, 'team_player', 'Stayed late')", [star]);
+    await db.as(boss, "select give_thank_you($1, 10, 'Thanks for the help')", [star]);
+    const wins = (await db.as(viewer, "select * from person_wins($1, 20)", [star])) as Row[];
+    assert.deepEqual(Object.keys(wins[0]).sort(), ["created_at", "kind", "message", "title"]);
+    assert.ok(wins.some((w) => w.kind === "badge" && w.title === "Team player" && w.message === "Stayed late"));
+    assert.ok(wins.some((w) => w.kind === "thank_you" && /Test boss/.test(w.title) && w.message === "Thanks for the help"));
+    assert.ok(!wins.some((w) => /^Booking /.test(w.message)), "work reasons stay private");
+    const gone = await db.person([], "gone");
+    await db.owner("update profiles set active = false where id = $1", [gone]);
+    assert.equal((await db.as(viewer, "select count(*)::int n from person_wins($1, 20)", [gone]))[0].n, 0);
+    assert.equal((await db.as(gone, "select count(*)::int n from person_wins($1, 20)", [star]))[0].n, 0);
+  });
+});
+
+test("team medals: managers add a badge, it is earned at its goal, and the inputs are checked", { skip }, async () => {
+  await inTransaction(async (db) => {
+    await withTeamMedals(db);
+    const staff = await db.person([], "staff");
+    const boss = await db.person(["rewards.manage"], "boss");
+    const add = (name: string, over: Partial<Record<string, unknown>> = {}) => {
+      const a = { icon: "receipt", family: "payments", tier: 4, kind: "count", rule: "payment_recorded", goal: 7, ...over };
+      return db.as(boss, "select create_badge($1, 'Seven payments recorded', $2, $3, $4, $5, $6, $7) k", [name, a.icon, a.family, a.tier, a.kind, a.rule, a.goal]);
+    };
+    assert.match((await db.error(() => db.as(staff, "select create_badge('X', 'x', 'star', null, null, 'manual', null, null)"))) ?? "", /permission/i);
+    const key = (await add("Seven payments"))[0].k as string;
+    assert.equal(key, "seven_payments");
+    assert.deepEqual((await db.owner("select family, tier, threshold, rule_key from badges where key = $1", [key]))[0], { family: "payments", tier: 4, threshold: 7, rule_key: "payment_recorded" });
+    const worker = await db.person([], "worker");
+    await oldLines(db, worker, "payment_recorded", 6);
+    await db.owner("select award_points($1, 'payment_recorded', 'payments', gen_random_uuid(), 'x')", [worker]);
+    assert.ok((await badgeKeys(db, worker)).includes("seven_payments"));
+    assert.match((await db.error(() => add("seven PAYMENTS", { tier: 5 }))) ?? "", /already exists/);
+    assert.match((await db.error(() => add("Odd icon", { icon: "skull" }))) ?? "", /icon from the list/);
+    assert.match((await db.error(() => add("No goal", { goal: 0 }))) ?? "", /more than 0/);
+    assert.match((await db.error(() => add("Unknown rule", { rule: "made_up" }))) ?? "", /what is counted/);
+    assert.match((await db.error(() => add("Taken tier", { tier: 4 }))) ?? "", /tier is already taken/);
+    assert.match((await db.error(() => add("Bad tier", { tier: 9 }))) ?? "", /from 1 to 5/);
+    assert.match((await db.error(() => add("Bad kind", { kind: "magic" }))) ?? "", /how the badge is earned/);
+    assert.equal((await add("Seven payments by hand", { family: null, tier: null, kind: "manual", rule: null, goal: null }))[0].k, "seven_payments_by_hand");
+  });
+});

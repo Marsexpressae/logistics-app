@@ -85,3 +85,70 @@ begin
   ) x;
   return out;
 end $$;
+
+-- ---------- the Team page: every active colleague, with level, streak and badge count (no points, nothing private) ----------
+create or replace function team_overview() returns table (
+  id uuid, full_name text, photo_path text, job_title text, team text,
+  level_number int, level_name text, streak int, badge_count int
+)
+language sql stable security definer set search_path = public as $$
+  select p.id, p.full_name, p.photo_path, p.job_title, p.team, lv.number, lv.name, streak_of(p.id),
+    (select count(*)::int from person_badges pb where pb.person_id = p.id)
+  from profiles p
+  left join lateral (
+    select l.number, l.name from levels l
+    where l.min_points <= coalesce((select sum(x.points) from point_log x where x.person_id = p.id), 0)
+    order by l.number desc limit 1
+  ) lv on true
+  where p.active and (select app_role()) is not null
+  order by p.full_name
+$$;
+
+-- ---------- a person's achievements: badges earned and thank-yous received (no work reasons, no points) ----------
+create or replace function person_wins(p_person uuid, p_limit int default 20) returns table (
+  kind text, title text, message text, created_at timestamptz
+)
+language sql stable security definer set search_path = public as $$
+  select w.kind, w.title, w.message, w.created_at from (
+    select 'badge'::text as kind, b.name as title, coalesce(pb.message, '') as message, pb.earned_at as created_at
+    from person_badges pb join badges b on b.key = pb.badge_key
+    where pb.person_id = p_person
+    union all
+    select 'thank_you', 'Thanked by ' || coalesce(g.full_name, 'a colleague'), l.reason, l.created_at
+    from point_log l left join profiles g on g.id = l.given_by
+    where l.person_id = p_person and l.rule_key = 'thank_you'
+  ) w
+  where (select app_role()) is not null and exists (select 1 from profiles where id = p_person and active)
+  order by w.created_at desc
+  limit least(greatest(coalesce(p_limit, 20), 1), 100)
+$$;
+
+-- ---------- adding a badge ----------
+create or replace function create_badge(p_name text, p_description text, p_icon text, p_family text, p_tier int, p_kind text, p_rule_key text, p_threshold int) returns text
+language plpgsql security definer set search_path = public as $$
+declare
+  fam text := nullif(btrim(coalesce(p_family, '')), '');
+  base text; k text; n int := 1;
+begin
+  perform require_perm('rewards.manage');
+  if btrim(coalesce(p_name, '')) = '' then raise exception 'Give the badge a name'; end if;
+  if exists (select 1 from badges where lower(name) = lower(btrim(p_name))) then raise exception 'A badge with that name already exists'; end if;
+  if p_icon is null or p_icon not in ('star', 'file-plus', 'package', 'truck', 'receipt', 'scan', 'flame', 'compass', 'heart', 'trophy') then raise exception 'Choose an icon from the list'; end if;
+  if p_kind is null or p_kind not in ('count', 'streak', 'manual') then raise exception 'Choose how the badge is earned'; end if;
+  if p_kind = 'count' and (p_rule_key is null or not (p_rule_key = 'thank_you' or exists (select 1 from point_rules where key = p_rule_key))) then raise exception 'Choose what is counted'; end if;
+  if p_kind in ('count', 'streak') and (p_threshold is null or p_threshold < 1) then raise exception 'The goal must be more than 0'; end if;
+  if p_tier is not null and (p_tier < 1 or p_tier > 5) then raise exception 'The tier must be from 1 to 5'; end if;
+  if fam is not null and p_tier is not null and exists (select 1 from badges where family = fam and tier = p_tier) then raise exception 'That tier is already taken in this family'; end if;
+  base := trim(both '_' from regexp_replace(lower(btrim(p_name)), '[^a-z0-9]+', '_', 'g'));
+  if base = '' then base := 'badge'; end if;
+  k := base;
+  while exists (select 1 from badges where key = k) loop n := n + 1; k := base || '_' || n; end loop;
+  insert into badges (key, name, description, icon, team, kind, rule_key, threshold, family, tier)
+  values (k, btrim(p_name), coalesce(btrim(p_description), ''), p_icon, null, p_kind,
+          case when p_kind = 'count' then p_rule_key end, case when p_kind = 'manual' then null else p_threshold end,
+          fam, case when fam is null then null else p_tier end);
+  return k;
+end $$;
+
+revoke execute on function team_overview(), person_wins(uuid, int), create_badge(text, text, text, text, int, text, text, int) from public, anon;
+grant execute on function team_overview(), person_wins(uuid, int), create_badge(text, text, text, text, int, text, text, int) to authenticated;
