@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ChevronRight, ShieldCheck, UserCog } from "lucide-react";
+import { ChevronRight, Award, ShieldCheck, UserCog } from "lucide-react";
 import NumberingCard from "@/components/settings/NumberingCard";
 import OrganizationCard from "@/components/settings/OrganizationCard";
 import ProblemsCard from "@/components/settings/ProblemsCard";
@@ -145,8 +145,20 @@ export default function SettingsPage() {
               </Link>
             </li>
           )}
+          {(can("rewards.give") || can("rewards.manage")) && (
+            <li>
+              <Link href="/settings/rewards" className="flex items-center gap-3 py-3 text-sm">
+                <Award className="h-5 w-5 text-slate-500" />
+                <span className="flex-1">
+                  <span className="block font-medium text-slate-900">Rewards</span>
+                  <span className="text-slate-500">Thank colleagues, and set points, levels and badges</span>
+                </span>
+                <ChevronRight className="h-4 w-4 text-slate-400" />
+              </Link>
+            </li>
+          )}
         </ul>
-        {!can("users.manage") && !can("roles.manage") && <p className="text-sm text-slate-500">Nothing here for your role.</p>}
+        {!can("users.manage") && !can("roles.manage") && !can("rewards.give") && !can("rewards.manage") && <p className="text-sm text-slate-500">Nothing here for your role.</p>}
       </CollapsibleCard>
     </div>
   );

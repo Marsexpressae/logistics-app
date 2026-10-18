@@ -231,6 +231,47 @@ export function rewardsRpc({ db, me, save }: Helpers): Record<string, (a: any) =
       return ok();
     },
 
+    save_point_rule({ p_key, p_points, p_daily_cap, p_active }) {
+      const denied = need("rewards.manage");
+      if (denied) return denied;
+      if (p_points == null || p_points < 0 || p_points > 1000) return fail("Points must be between 0 and 1000");
+      if (p_daily_cap != null && p_daily_cap < 0) return fail("The daily limit cannot be negative");
+      const r = db().point_rules.find((x: Row) => x.key === p_key);
+      if (!r) return fail("Rule not found");
+      Object.assign(r, { points: p_points, daily_cap: p_daily_cap ?? null, active: p_active ?? r.active });
+      save();
+      return ok();
+    },
+
+    save_level({ p_number, p_name, p_min_points }) {
+      const denied = need("rewards.manage");
+      if (denied) return denied;
+      const d = db();
+      if (!String(p_name ?? "").trim()) return fail("Give the level a name");
+      if (p_number == null || p_number < 1) return fail("Level numbers start at 1");
+      if (p_min_points == null || p_min_points < 0) return fail("Points cannot be negative");
+      if (p_number === 1 && p_min_points !== 0) return fail("The first level starts at 0 points");
+      if (d.levels.some((l: Row) => l.number < p_number && l.min_points >= p_min_points)) return fail("Each level needs more points than the one before it");
+      if (d.levels.some((l: Row) => l.number > p_number && l.min_points <= p_min_points)) return fail("Each level needs fewer points than the one after it");
+      const row = d.levels.find((l: Row) => l.number === p_number);
+      if (row) Object.assign(row, { name: String(p_name).trim(), min_points: p_min_points });
+      else d.levels.push({ number: p_number, name: String(p_name).trim(), min_points: p_min_points });
+      save();
+      return ok();
+    },
+
+    save_badge({ p_key, p_name, p_description, p_active, p_threshold }) {
+      const denied = need("rewards.manage");
+      if (denied) return denied;
+      if (!String(p_name ?? "").trim()) return fail("Give the badge a name");
+      if (p_threshold != null && p_threshold < 1) return fail("The goal must be more than 0");
+      const b = db().badges.find((x: Row) => x.key === p_key);
+      if (!b) return fail("Badge not found");
+      Object.assign(b, { name: String(p_name).trim(), description: String(p_description ?? "").trim(), active: p_active ?? b.active, threshold: b.kind === "manual" ? null : (p_threshold ?? b.threshold) });
+      save();
+      return ok();
+    },
+
     my_rewards: () => personRewards(me()),
     person_rewards: ({ p_person }) => personRewards(p_person),
     my_badges: () => badgesOf(me()),

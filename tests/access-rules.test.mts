@@ -53,3 +53,10 @@ test("Tracking sits right after Accounts in the menu, and Settings can hide it",
   assert.equal(labels[labels.indexOf("Accounts") + 1], "Tracking");
   assert.equal(navItems.find((i) => i.label === "Tracking")!.setting, "show_tracking_menu");
 });
+
+test("the rewards settings page is for people who give or manage rewards", () => {
+  assert.equal(canAccess(["bookings.view"], "/settings/rewards"), false);
+  assert.equal(canAccess(["rewards.give"], "/settings/rewards"), true);
+  assert.equal(canAccess(["rewards.manage"], "/settings/rewards"), true);
+  assert.equal(canAccess(["rewards.give"], "/settings"), true); // Settings opens for them, to reach this page
+});

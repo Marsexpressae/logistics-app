@@ -1668,3 +1668,35 @@ test("rewards: the wins feed shows badges and thank-yous of active people, with 
     assert.match(feed.find((f) => f.kind === "thank_you")!.title, /Test boss/);
   });
 });
+
+test("rewards: only managers of the rewards system change point values, levels and badges, and the values are checked", { skip }, async () => {
+  await inTransaction(async (db) => {
+    await withRewards(db);
+    const staff = await db.person([], "staff");
+    const boss = await db.person(["rewards.manage"], "boss");
+    for (const sql of ["select save_point_rule('booking_created', 7, 50, true)", "select save_level(2, 'Helper', 100)", "select save_badge('team_player', 'Team player', 'x', true, null)"]) {
+      assert.match((await db.error(() => db.as(staff, sql))) ?? "", /permission/i);
+    }
+    await db.as(boss, "select save_point_rule('booking_created', 7, 40, true)");
+    assert.deepEqual((await db.owner("select points, daily_cap from point_rules where key = 'booking_created'"))[0], { points: 7, daily_cap: 40 });
+    assert.match((await db.error(() => db.as(boss, "select save_point_rule('booking_created', 1001, 40, true)"))) ?? "", /between 0 and 1000/);
+    assert.match((await db.error(() => db.as(boss, "select save_point_rule('booking_created', -1, 40, true)"))) ?? "", /between 0 and 1000/);
+    assert.match((await db.error(() => db.as(boss, "select save_point_rule('booking_created', 5, -1, true)"))) ?? "", /cannot be negative/);
+    assert.match((await db.error(() => db.as(boss, "select save_point_rule('made_up', 5, null, true)"))) ?? "", /Rule not found/);
+    // levels keep increasing, and the first starts at zero
+    await db.as(boss, "select save_level(3, 'Handler', 350)");
+    assert.equal((await db.owner("select min_points from levels where number = 3"))[0].min_points, 350);
+    assert.match((await db.error(() => db.as(boss, "select save_level(3, 'Handler', 100)"))) ?? "", /more points than the one before/);
+    assert.match((await db.error(() => db.as(boss, "select save_level(3, 'Handler', 700)"))) ?? "", /fewer points than the one after/);
+    assert.match((await db.error(() => db.as(boss, "select save_level(1, 'Rookie', 5)"))) ?? "", /starts at 0/);
+    assert.match((await db.error(() => db.as(boss, "select save_level(3, '  ', 350)"))) ?? "", /name/i);
+    await db.as(boss, "select save_level(9, 'Mythic', 20000)"); // a new top level
+    assert.equal((await db.owner("select count(*)::int n from levels"))[0].n, 9);
+    // badges
+    await db.as(boss, "select save_badge('bookings_100', '150 bookings', 'Made 150 bookings', true, 150)");
+    assert.deepEqual((await db.owner("select name, threshold from badges where key = 'bookings_100'"))[0], { name: "150 bookings", threshold: 150 });
+    assert.match((await db.error(() => db.as(boss, "select save_badge('bookings_100', 'x', 'x', true, 0)"))) ?? "", /more than 0/);
+    assert.match((await db.error(() => db.as(boss, "select save_badge('made_up', 'x', 'x', true, 5)"))) ?? "", /Badge not found/);
+    assert.match((await db.error(() => db.as(boss, "select save_badge('bookings_100', ' ', 'x', true, 5)"))) ?? "", /name/i);
+  });
+});

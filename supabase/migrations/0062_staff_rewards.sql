@@ -495,3 +495,46 @@ $$;
 revoke execute on function badge_progress(uuid, badges), check_badges(uuid) from public, anon, authenticated;
 revoke execute on function give_badge(uuid, text, text), person_badges_of(uuid), my_badges(), wins_feed(int) from public, anon;
 grant execute on function give_badge(uuid, text, text), person_badges_of(uuid), my_badges(), wins_feed(int) to authenticated;
+
+-- ======================================================================================================================
+-- Manager settings: point values, levels and badges
+-- ======================================================================================================================
+create or replace function save_point_rule(p_key text, p_points int, p_daily_cap int, p_active boolean) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  perform require_perm('rewards.manage');
+  if p_points is null or p_points < 0 or p_points > 1000 then raise exception 'Points must be between 0 and 1000'; end if;
+  if p_daily_cap is not null and p_daily_cap < 0 then raise exception 'The daily limit cannot be negative'; end if;
+  update point_rules set points = p_points, daily_cap = p_daily_cap, active = coalesce(p_active, active) where key = p_key;
+  if not found then raise exception 'Rule not found'; end if;
+end $$;
+
+-- Levels keep their order: each needs more points than the one before and fewer than the one after. The first starts at 0.
+create or replace function save_level(p_number int, p_name text, p_min_points int) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  perform require_perm('rewards.manage');
+  if btrim(coalesce(p_name, '')) = '' then raise exception 'Give the level a name'; end if;
+  if p_number is null or p_number < 1 then raise exception 'Level numbers start at 1'; end if;
+  if p_min_points is null or p_min_points < 0 then raise exception 'Points cannot be negative'; end if;
+  if p_number = 1 and p_min_points <> 0 then raise exception 'The first level starts at 0 points'; end if;
+  if exists (select 1 from levels where number < p_number and min_points >= p_min_points) then raise exception 'Each level needs more points than the one before it'; end if;
+  if exists (select 1 from levels where number > p_number and min_points <= p_min_points) then raise exception 'Each level needs fewer points than the one after it'; end if;
+  insert into levels (number, name, min_points) values (p_number, btrim(p_name), p_min_points)
+  on conflict (number) do update set name = excluded.name, min_points = excluded.min_points;
+end $$;
+
+create or replace function save_badge(p_key text, p_name text, p_description text, p_active boolean, p_threshold int) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  perform require_perm('rewards.manage');
+  if btrim(coalesce(p_name, '')) = '' then raise exception 'Give the badge a name'; end if;
+  if p_threshold is not null and p_threshold < 1 then raise exception 'The goal must be more than 0'; end if;
+  update badges set name = btrim(p_name), description = coalesce(btrim(p_description), ''), active = coalesce(p_active, active),
+    threshold = case when kind = 'manual' then null else coalesce(p_threshold, threshold) end
+  where key = p_key;
+  if not found then raise exception 'Badge not found'; end if;
+end $$;
+
+revoke execute on function save_point_rule(text, int, int, boolean), save_level(int, text, int), save_badge(text, text, text, boolean, int) from public, anon;
+grant execute on function save_point_rule(text, int, int, boolean), save_level(int, text, int), save_badge(text, text, text, boolean, int) to authenticated;

@@ -54,3 +54,15 @@ test("feature tracking is mounted once in the app shell, scanning counts when a 
   assert.match(toast, /localStorage/);
   assert.match(toast, /try \{/, "browser storage is wrapped in try/catch");
 });
+
+test("the rewards settings page is reachable by the right people and built from sortable tables and one give form", () => {
+  assert.ok(existsSync("src/app/settings/rewards/page.tsx"), "the settings page is missing");
+  for (const f of ["RulesTable", "LevelsTable", "BadgesTable", "GiveForm"]) assert.ok(existsSync(`${dir}/${f}.tsx`), `${f} is missing`);
+  for (const f of ["RulesTable", "LevelsTable", "BadgesTable"]) {
+    const code = readFileSync(`${dir}/${f}.tsx`, "utf8");
+    assert.ok(code.includes("SortableTh") && code.includes("useSort"), `${f} needs sortable headings`);
+    assert.equal(/<th className="px-4 py-3/.test(code), false, `${f} has a heading that cannot be sorted`);
+  }
+  assert.ok(readFileSync("src/app/settings/page.tsx", "utf8").includes("/settings/rewards"), "Settings should link to it");
+  for (const key of ["rewards.give", "rewards.manage"]) assert.ok(readFileSync("src/config/navigation.ts", "utf8").includes(key));
+});

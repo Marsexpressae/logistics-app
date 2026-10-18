@@ -35,7 +35,7 @@ export const navItems: NavItem[] = [
   { label: "Tracking", shortLabel: "Tracking", href: "/tracking", icon: MapPinned, setting: "show_tracking_menu", anyOf: ["bookings.view", "warehouse.view", "pickups.view_all", "pickups.view_own"] },
   { label: "Activity", shortLabel: "Activity", href: "/activity", icon: History, anyOf: ["activity.view"] },
   { label: "Notifications", shortLabel: "Alerts", href: "/notifications", icon: Bell, anyOf: ["notifications.view"] },
-  { label: "Settings", shortLabel: "Settings", href: "/settings", icon: Settings, anyOf: ["settings.manage", "users.manage", "roles.manage"] },
+  { label: "Settings", shortLabel: "Settings", href: "/settings", icon: Settings, anyOf: ["settings.manage", "users.manage", "roles.manage", "rewards.give", "rewards.manage"] },
 ];
 
 // Pages that are not in the sidebar but need tighter rules than their parent.
@@ -47,6 +47,7 @@ const extraRules: { prefix: string; anyOf: string[] }[] = [
   { prefix: "/warehouse-inventory/returns", anyOf: ["warehouse.manage"] },
   { prefix: "/settings/users", anyOf: ["users.manage"] },
   { prefix: "/settings/roles", anyOf: ["roles.manage"] },
+  { prefix: "/settings/rewards", anyOf: ["rewards.give", "rewards.manage"] },
   // Everyone who is signed in: their own account and password.
   { prefix: "/account", anyOf: ["*"] },
   // A colleague's profile (points, level, badges): everyone who is signed in.

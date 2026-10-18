@@ -148,3 +148,26 @@ test("newBadges: the first visit announces nothing, later visits announce only b
   assert.deepEqual([later.fresh.map((x) => x.key), later.seenKeys.sort()], [["b"], ["a", "b"]]);
   assert.deepEqual(newBadges(["a", "b"], [b("a", true)]).fresh, []);
 });
+
+test("mock: only managers of the rewards system change point values, levels and badges, and the values are checked", async () => {
+  fresh("sample-staff");
+  for (const [name, args] of [["save_point_rule", { p_key: "booking_created", p_points: 7, p_daily_cap: 40, p_active: true }], ["save_level", { p_number: 2, p_name: "Helper", p_min_points: 100 }], ["save_badge", { p_key: "team_player", p_name: "x", p_description: "x", p_active: true, p_threshold: null }]] as const) {
+    assert.match((await rpc(name, args as R)).error?.message ?? "", /permission/i);
+  }
+  setMockUser("sample-manager");
+  assert.equal((await rpc("save_point_rule", { p_key: "booking_created", p_points: 7, p_daily_cap: 40, p_active: true })).error, null);
+  assert.equal(((await c.from("point_rules").select("*").eq("key", "booking_created").single()).data as R).points, 7);
+  assert.match((await rpc("save_point_rule", { p_key: "booking_created", p_points: 1001, p_daily_cap: 40, p_active: true })).error?.message ?? "", /between 0 and 1000/);
+  assert.match((await rpc("save_point_rule", { p_key: "booking_created", p_points: 5, p_daily_cap: -1, p_active: true })).error?.message ?? "", /cannot be negative/);
+  assert.match((await rpc("save_point_rule", { p_key: "made_up", p_points: 5, p_daily_cap: null, p_active: true })).error?.message ?? "", /Rule not found/);
+  assert.equal((await rpc("save_level", { p_number: 3, p_name: "Handler", p_min_points: 350 })).error, null);
+  assert.match((await rpc("save_level", { p_number: 3, p_name: "Handler", p_min_points: 100 })).error?.message ?? "", /more points than the one before/);
+  assert.match((await rpc("save_level", { p_number: 3, p_name: "Handler", p_min_points: 700 })).error?.message ?? "", /fewer points than the one after/);
+  assert.match((await rpc("save_level", { p_number: 1, p_name: "Rookie", p_min_points: 5 })).error?.message ?? "", /starts at 0/);
+  assert.match((await rpc("save_level", { p_number: 3, p_name: "  ", p_min_points: 350 })).error?.message ?? "", /name/i);
+  assert.equal((await rpc("save_level", { p_number: 9, p_name: "Mythic", p_min_points: 20000 })).error, null);
+  assert.equal(((await c.from("levels").select("*")).data as R[]).length, 9);
+  assert.equal((await rpc("save_badge", { p_key: "bookings_100", p_name: "150 bookings", p_description: "Made 150 bookings", p_active: true, p_threshold: 150 })).error, null);
+  assert.match((await rpc("save_badge", { p_key: "bookings_100", p_name: "x", p_description: "x", p_active: true, p_threshold: 0 })).error?.message ?? "", /more than 0/);
+  assert.match((await rpc("save_badge", { p_key: "made_up", p_name: "x", p_description: "x", p_active: true, p_threshold: 5 })).error?.message ?? "", /Badge not found/);
+});
