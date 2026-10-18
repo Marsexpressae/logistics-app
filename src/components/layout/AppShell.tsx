@@ -8,6 +8,7 @@ import Sidebar from "./Sidebar";
 import BottomNav from "./BottomNav";
 import BrandMark from "@/components/brand/BrandMark";
 import NotificationToast from "@/components/notifications/NotificationToast";
+import FeatureUseTracker from "@/components/rewards/FeatureUseTracker";
 import GlobalSearch from "@/components/search/GlobalSearch";
 import AskHost from "@/components/ui/AskHost";
 import ErrorReporter from "@/components/system/ErrorReporter";
@@ -123,6 +124,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
         <ErrorReporter />
         <AskHost />
         <NotificationToast />
+        <FeatureUseTracker />
         <Sidebar />
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         {/* Desktop top bar: search from any screen. (On phones it is the magnifier in the header.) */}

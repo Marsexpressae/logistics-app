@@ -44,3 +44,13 @@ test("buttons on the rewards screens use the shared Button (44px) or carry a 44p
     for (const m of code.matchAll(/<button\b[^>]*>/g)) assert.match(m[0], /min-h-11|min-h-12/, `${f}: ${m[0].slice(0, 80)} is under 44px`);
   }
 });
+
+test("feature tracking is mounted once in the app shell, scanning counts when a parcel is looked up, and the feed is on the dashboard", () => {
+  assert.ok(readFileSync("src/components/layout/AppShell.tsx", "utf8").includes("FeatureUseTracker"));
+  assert.ok(readFileSync("src/components/scan/ScanParcel.tsx", "utf8").includes('recordFeature("use_scan")'));
+  assert.ok(readFileSync("src/app/page.tsx", "utf8").includes("WinsFeed"));
+  const toast = readFileSync(`${dir}/FeatureUseTracker.tsx`, "utf8");
+  assert.ok(toast.includes("z-(--z-toast)"), "the badge toast sits on the named toast layer");
+  assert.match(toast, /localStorage/);
+  assert.match(toast, /try \{/, "browser storage is wrapped in try/catch");
+});

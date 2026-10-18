@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { Boxes, ChevronRight, Container, Package, PackageCheck, Ship, Truck, Undo2, type LucideIcon } from "lucide-react";
+import WinsFeed from "@/components/rewards/WinsFeed";
 import PageHeader from "@/components/ui/PageHeader";
 import { ErrorMessage } from "@/components/ui/form";
 import { canAccess } from "@/config/navigation";
@@ -98,6 +99,9 @@ export default function DashboardPage() {
             linked={canAccess(permissions, t.href.split(/[?#]/)[0])}
           />
         ))}
+      </div>
+      <div className="mt-6">
+        <WinsFeed />
       </div>
     </>
   );

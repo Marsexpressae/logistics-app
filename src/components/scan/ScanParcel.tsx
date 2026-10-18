@@ -9,6 +9,7 @@ import { Button, Card, StatusBadge } from "@/components/ui/form";
 import { jobHref } from "@/lib/job-link";
 import { kg } from "@/lib/format";
 import { usePermissions } from "@/lib/profile-context";
+import { recordFeature } from "@/lib/feature-use";
 import { supabase } from "@/lib/supabase";
 
 type Found = {
@@ -39,6 +40,7 @@ export default function ScanParcel() {
       .eq("barcode", code)
       .maybeSingle();
     setResult({ code, parcel: (data as Found | null) ?? null, failed: !!error });
+    if (!error) void recordFeature("use_scan");
   }
 
   const p = result?.parcel;

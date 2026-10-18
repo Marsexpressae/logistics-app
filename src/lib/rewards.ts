@@ -97,3 +97,13 @@ export type DirectoryPerson = {
 };
 
 export const TEAM_LABEL: Record<string, string> = { sales: "Sales", pickup: "Pickup", warehouse: "Warehouse", office: "Office" };
+
+/**
+ * Which earned badges are new since the person last looked. The first visit announces nothing (they would all look new),
+ * it only remembers what is already earned. `seenKeys` is what to remember afterwards.
+ */
+export function newBadges(seen: string[] | null, current: BadgeView[]): { fresh: BadgeView[]; seenKeys: string[] } {
+  const earned = current.filter((b) => b.earned_at);
+  const known = new Set(seen ?? []);
+  return { fresh: seen === null ? [] : earned.filter((b) => !known.has(b.key)), seenKeys: [...new Set([...known, ...earned.map((b) => b.key)])] };
+}

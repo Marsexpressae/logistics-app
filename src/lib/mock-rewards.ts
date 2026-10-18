@@ -27,7 +27,9 @@ export function seedRewards(): Row {
       rule("payment_recorded", "Record a payment", "work", 3, 50, false),
       rule("parcel_moved", "Scan or move a parcel", "work", 1, 100, false),
       rule("active_today", "Use the app today", "daily", 2, null, false),
-      ...["bookings", "warehouse", "scan", "accounts", "customers", "pickups", "activity", "search"].map((k) => rule(`use_${k}`, `Try ${k}`, "explore", 10, null, true)),
+      ...([["bookings", "Try the Bookings page"], ["warehouse", "Try the Warehouse page"], ["scan", "Try scanning"], ["accounts", "Try the Accounts page"],
+        ["customers", "Try the Customers page"], ["pickups", "Try the Pickups page"], ["activity", "Try the Activity page"], ["search", "Try the search"]] as const)
+        .map(([k, label]) => rule(`use_${k}`, label, "explore", 10, null, true)),
     ],
     point_log: [],
     levels: [["Rookie", 0], ["Helper", 100], ["Handler", 300], ["Pro handler", 700], ["Specialist", 1500], ["Expert", 3000], ["Master", 6000], ["Legend", 12000]]

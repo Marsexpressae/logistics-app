@@ -4,7 +4,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createMockClient, freshMockData, setMockUser } from "../src/lib/mock-supabase.ts";
-import { birthdayLabel, featureKeyFor, levelFor, streakOf, type Level } from "../src/lib/rewards.ts";
+import { birthdayLabel, featureKeyFor, levelFor, newBadges, streakOf, type Level } from "../src/lib/rewards.ts";
 
 const LEVELS: Level[] = [
   { number: 1, name: "Rookie", min_points: 0 },
@@ -138,4 +138,13 @@ test("mock: profiles - own fields only, a hidden birthday and other people's pho
   assert.match((await rpc("set_staff_details", { p_person_id: "sample-staff", p_team: "sales", p_job_title: "x", p_joined_on: null })).error?.message ?? "", /permission/i);
   setMockUser("sample-manager");
   assert.match((await rpc("set_staff_details", { p_person_id: "sample-staff", p_team: "pirates", p_job_title: null, p_joined_on: null })).error?.message ?? "", /team/i);
+});
+
+test("newBadges: the first visit announces nothing, later visits announce only badges not seen before", () => {
+  const b = (key: string, earned: boolean) => ({ key, name: key, description: "", icon: "star", earned_at: earned ? "2026-10-18T10:00:00Z" : null, message: null, progress: null, goal: null });
+  const first = newBadges(null, [b("a", true), b("b", false)]);
+  assert.deepEqual([first.fresh, first.seenKeys], [[], ["a"]]);
+  const later = newBadges(["a"], [b("a", true), b("b", true), b("c", false)]);
+  assert.deepEqual([later.fresh.map((x) => x.key), later.seenKeys.sort()], [["b"], ["a", "b"]]);
+  assert.deepEqual(newBadges(["a", "b"], [b("a", true)]).fresh, []);
 });
