@@ -6,6 +6,7 @@ import { matchesSearch } from "./search.ts";
 import { bookingStage } from "./booking-stage.ts";
 import { sortRows, type SortColumn } from "./sort.ts";
 import { moneyOf } from "./money.ts";
+import { awardPoints, rewardsRpc, seedRewards } from "./mock-rewards.ts";
 
 type Row = Record<string, any>;
 type Db = {
@@ -17,7 +18,7 @@ type Db = {
   booking_events: Row[]; notifications: Row[]; app_settings: Row[]; returns: Row[]; booking_notes: Row[]; client_errors: Row[]; number_series: Row[]; organization: Row[]; customers: Row[]; booking_contacts: Row[]; customer_notes: Row[]; customer_receivers: Row[]; id_documents: Row[];
 };
 
-const STORAGE_KEY = "logistics-mock-db-v38";
+const STORAGE_KEY = "logistics-mock-db-v39";
 const AUTH_KEY = "logistics-mock-signed-out";
 
 const uid = () => crypto.randomUUID();
@@ -74,6 +75,8 @@ const PERMISSIONS: Row[] = [
   ["items.edit_after", "Pickups", "Edit package items (after collection)", "Add, change or remove items and weights after the pickup is collected"],
   ["refunds.issue", "Accounts", "Issue refunds and credit notes", "Lower an invoice with a credit note and hand money back with a refund"],
   ["sales_rep.change", "Customers", "Change the sales rep (owner)", "Choose or change who owns a customer and who made a booking"],
+  ["rewards.give", "Rewards", "Give thank-yous and badges", "Thank a colleague with points and a message, and give badges by hand"],
+  ["rewards.manage", "Rewards", "Manage the rewards system", "Change point values, levels and badges, and see colleagues' phone numbers"],
   ["refunds.void", "Accounts", "Void refunds and credit notes", "Cancel a credit note or refund that was made by mistake (the record stays, marked void)"],
 ].map(([key, group_name, label, description], i) => ({ key, group_name, label, description, sort: (i + 1) * 10 }));
 const GRANTS: Record<string, string[]> = {
@@ -81,7 +84,7 @@ const GRANTS: Record<string, string[]> = {
   manager: ["containers.override_payment", "containers.override_departure", "dashboard.view", "bookings.view", "bookings.create", "bookings.edit", "bookings.cancel", "pickups.view_all",
     "pickups.collect", "warehouse.view", "warehouse.manage", "containers.view", "containers.manage", "accounts.view",
     "payments.manage", "drivers.manage", "users.manage", "activity.view", "notifications.view", "bookings.reschedule",
-    "items.edit", "items.edit_after", "notes.write", "numbers.edit", "returns.manage", "customers.view", "customers.edit", "customers.manage", "customers.id_photo", "refunds.issue", "sales_rep.change"],
+    "items.edit", "items.edit_after", "notes.write", "numbers.edit", "returns.manage", "customers.view", "customers.edit", "customers.manage", "customers.id_photo", "refunds.issue", "sales_rep.change", "rewards.give", "rewards.manage"],
   staff: ["dashboard.view", "bookings.view", "bookings.create", "bookings.edit", "bookings.cancel", "pickups.view_all",
     "pickups.collect", "warehouse.view", "containers.view", "accounts.view", "notifications.view", "bookings.reschedule", "items.edit", "items.edit_after", "notes.write", "customers.view", "customers.edit", "customers.id_photo"],
   accounts: ["dashboard.view", "notifications.view", "bookings.view", "customers.view", "accounts.view", "payments.manage"],
@@ -189,6 +192,7 @@ function seed(): Db {
     permissions: PERMISSIONS,
     role_permissions: ROLE_PERMISSIONS,
     customers: [], booking_contacts: [], customer_notes: [], customer_receivers: [], id_documents: [],
+    ...seedRewards(),
   } as Db);
 }
 
@@ -230,7 +234,18 @@ function save() {
   } catch {}
 }
 
+// Tests (and the sample-data screens) can act as another person; everything else is done by the sample super admin.
+let currentUserId = "mock-user";
+export function setMockUser(id: string) { currentUserId = id; }
+
+/** A clean copy of the sample data without reloading the page (for tests). */
+export function freshMockData() {
+  currentUserId = "mock-user";
+  memory = seed();
+}
+
 export function resetMockData() {
+  currentUserId = "mock-user";
   memory = seed();
   save();
   location.reload();
@@ -409,6 +424,8 @@ class Query implements PromiseLike<any> {
         }
       }
       tableRows.push(...rows);
+      if (this.table === "bookings") for (const r of rows) awardPoints(db(), currentUserId, "booking_created", "bookings", r.id, `Booking ${r.code}`);
+      if (this.table === "payments") for (const r of rows) awardPoints(db(), currentUserId, "payment_recorded", "payments", r.id, `Payment for ${db().bookings.find((b) => b.id === r.booking_id)?.code ?? "a booking"}`);
     } else {
       const matched = tableRows.filter((r) => this.filters.every((f) => f(r)));
       if (this.op === "update") {
@@ -442,7 +459,10 @@ class Query implements PromiseLike<any> {
         }
         matched.forEach((r) => {
           const before = r.invoice_no;
+          const wasStatus = r.status;
           Object.assign(r, this.payload, this.table === "bookings" ? { updated_at: now() } : {});
+          if (this.table === "bookings" && r.status === "collected" && wasStatus !== "collected") awardPoints(db(), currentUserId, "pickup_collected", "bookings", r.id, `Collected ${r.code}`);
+          if (this.table === "parcels" && r.status !== wasStatus) awardPoints(db(), currentUserId, "parcel_moved", "parcels", `${r.id}:${r.status}`, `Parcel ${r.barcode} ${String(r.status).replace(/_/g, " ")}`);
           if (this.table === "bookings") {
             if (typeof r.code === "string") r.code = r.code.trim().toUpperCase();
             if (typeof r.invoice_no === "string") r.invoice_no = r.invoice_no.trim().toUpperCase();
@@ -571,9 +591,11 @@ function moneyFor(d: Db, b: Row) {
 
 // ---------------------------------------------------------------- RPC (mirrors the SQL functions)
 function setParcelStatus(p: Row, status: string) {
+  const changed = p.status !== status;
   p.status = status;
   p.updated_at = now();
   db().parcel_events.push({ id: uid(), parcel_id: p.id, status, created_at: now() });
+  if (changed) awardPoints(db(), currentUserId, "parcel_moved", "parcels", `${p.id}:${status}`, `Parcel ${p.barcode} ${status.replace(/_/g, " ")}`);
 }
 
 // A typed day becomes noon on that day (never in the future); the parcel history then shows that day.
@@ -1641,10 +1663,12 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
 };
 
 // ---------------------------------------------------------------- auth (signed in by default)
+Object.assign(RPC, rewardsRpc({ db, me: () => currentUserId, save }));
+
 const listeners = new Set<(event: string, session: any) => void>();
 const currentSession = () => {
   if (typeof window !== "undefined" && localStorage.getItem(AUTH_KEY)) return null;
-  return { user: { id: "mock-user", email: "tester@example.com" } };
+  return { user: { id: currentUserId, email: "tester@example.com" } };
 };
 const emit = (event: string) => listeners.forEach((fn) => fn(event, currentSession()));
 
