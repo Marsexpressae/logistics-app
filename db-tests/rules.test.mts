@@ -1143,3 +1143,112 @@ test("move_booking_item: two items that share a position are renumbered and then
     assert.equal(new Set(positions).size, positions.length, "positions are distinct again");
   });
 });
+
+// ---------------- sales rep (customer owner) ----------------
+const SALES_REP_MIGRATION = "supabase/migrations/0061_sales_rep.sql";
+/** Re-applies the migration inside the test's transaction (until it is live). The lock timeout keeps a test from ever waiting long on the live tables. */
+const withSalesRep = async (db: Db) => {
+  await db.owner("set local lock_timeout = '3s'");
+  await db.owner(readFileSync(SALES_REP_MIGRATION, "utf8"));
+};
+const newCustomer = async (db: Db, name = "Owned Customer") => (await db.owner("insert into customers (full_name) values ($1) returning id", [name]))[0].id as string;
+const repOf = async (db: Db, table: "bookings" | "customers", id: string) => (await db.owner(`select sales_rep_id, sales_rep_name from ${table} where id = $1`, [id]))[0] as { sales_rep_id: string | null; sales_rep_name: string | null };
+
+test("sales rep: the name is copied and cleared", { skip }, async () => {
+  await inTransaction(async (db) => {
+    await withSalesRep(db);
+    const rep = await db.person(["bookings.view"], "Rep One");
+    const booking = await db.booking({ invoice_no: "T-SR-1" });
+    const customer = await newCustomer(db);
+    for (const [table, id] of [["bookings", booking], ["customers", customer]] as const) {
+      await db.owner(`update ${table} set sales_rep_id = $2 where id = $1`, [id, rep]);
+      assert.deepEqual(await repOf(db, table, id), { sales_rep_id: rep, sales_rep_name: "Test Rep One" });
+      await db.owner(`update ${table} set sales_rep_id = null where id = $1`, [id]);
+      assert.deepEqual(await repOf(db, table, id), { sales_rep_id: null, sales_rep_name: null });
+    }
+  });
+});
+
+test("sales rep: only active staff can be chosen", { skip }, async () => {
+  await inTransaction(async (db) => {
+    await withSalesRep(db);
+    const gone = await db.person(["bookings.view"], "Inactive Rep");
+    await db.owner("update profiles set active = false where id = $1", [gone]);
+    const booking = await db.booking({ invoice_no: "T-SR-2" });
+    const customer = await newCustomer(db);
+    for (const [table, id] of [["bookings", booking], ["customers", customer]] as const) {
+      for (const who of [gone, "00000000-0000-4000-8000-0000000000ee"]) {
+        assert.match((await db.error(() => db.owner(`update ${table} set sales_rep_id = $2 where id = $1`, [id, who]))) ?? "NOT REFUSED", /That person is not active staff/);
+      }
+      assert.deepEqual(await repOf(db, table, id), { sales_rep_id: null, sales_rep_name: null });
+    }
+  });
+});
+
+test("sales rep: changing needs the permission, creating does not", { skip }, async () => {
+  await inTransaction(async (db) => {
+    await withSalesRep(db);
+    const rep = await db.person(["bookings.view"], "Chosen Rep");
+    const staff = await db.person(["bookings.view", "bookings.create", "bookings.edit", "customers.view", "customers.edit"], "plain-staff");
+    const manager = await db.person(["bookings.view", "bookings.edit", "customers.view", "customers.edit", "sales_rep.change"], "a-manager");
+    const booking = await db.booking({ invoice_no: "T-SR-3" });
+    const customer = await newCustomer(db);
+    const refused = /Only managers can change the sales rep/;
+    // plain staff: refused on update, for a booking and for a customer
+    assert.match((await db.error(() => db.as(staff, "update bookings set sales_rep_id = $2 where id = $1", [booking, rep]))) ?? "NOT REFUSED", refused);
+    assert.match((await db.error(() => db.as(staff, "select set_customer_sales_rep($1, $2)", [customer, rep]))) ?? "NOT REFUSED", refused);
+    // an update that does not touch the rep is fine
+    await db.as(staff, "update bookings set notes = 'hello' where id = $1", [booking]);
+    // creating a booking with a rep needs nothing extra
+    const created = await db.as(staff, "insert into bookings (sender_name, sender_phone, pickup_area, pickup_address, pickup_date, sales_rep_id) values ('New', '+971500000999', 'Dubai', 'Somewhere', current_date, $1) returning id", [rep]);
+    assert.equal((await repOf(db, "bookings", created[0].id)).sales_rep_name, "Test Chosen Rep");
+    // a manager can change both
+    await db.as(manager, "update bookings set sales_rep_id = $2 where id = $1", [booking, rep]);
+    await db.as(manager, "select set_customer_sales_rep($1, $2)", [customer, rep]);
+    assert.equal((await repOf(db, "bookings", booking)).sales_rep_id, rep);
+    assert.equal((await repOf(db, "customers", customer)).sales_rep_id, rep);
+    // and can clear it
+    await db.as(manager, "select set_customer_sales_rep($1, null)", [customer]);
+    assert.equal((await repOf(db, "customers", customer)).sales_rep_id, null);
+    assert.match((await db.error(() => db.anonymous("select set_customer_sales_rep($1, null)", [customer]))) ?? "NOT REFUSED", /permission denied/i);
+  });
+});
+
+test("sales rep: the permission goes to managers and super admins only", { skip }, async () => {
+  await inTransaction(async (db) => {
+    await withSalesRep(db);
+    const roles = (await db.owner("select role from role_permissions where permission = 'sales_rep.change' order by role")).map((r) => r.role);
+    assert.deepEqual(roles, ["manager", "super_admin"]);
+    assert.equal((await db.owner("select label from permissions where key = 'sales_rep.change'"))[0].label, "Change the sales rep (owner)");
+  });
+});
+
+test("sales_rep_choices: active staff only, for people who may pick one", { skip }, async () => {
+  await inTransaction(async (db) => {
+    await withSalesRep(db);
+    const active = await db.person(["bookings.view"], "Zed Active");
+    const inactive = await db.person(["bookings.view"], "Alf Inactive");
+    await db.owner("update profiles set active = false where id = $1", [inactive]);
+    for (const perm of ["bookings.create", "customers.edit", "sales_rep.change"]) {
+      const who = await db.person([perm], `picker-${perm}`);
+      const list = (await db.as(who, "select sales_rep_choices() c", []))[0].c as { id: string; name: string }[];
+      assert.ok(list.some((x) => x.id === active && x.name === "Test Zed Active"), `${perm}: active staff are listed`);
+      assert.ok(!list.some((x) => x.id === inactive), `${perm}: inactive staff are not`);
+      assert.deepEqual(list.map((x) => x.name), [...list.map((x) => x.name)].sort((a, b) => a.localeCompare(b)), "ordered by name");
+    }
+    const viewer = await db.person(["bookings.view"], "viewer-only");
+    assert.match((await db.error(() => db.as(viewer, "select sales_rep_choices()"))) ?? "NOT REFUSED", /permission/i);
+    assert.match((await db.error(() => db.anonymous("select sales_rep_choices()"))) ?? "NOT REFUSED", /permission denied/i);
+  });
+});
+
+test("sales rep: a removed person leaves the old name on old records", { skip }, async () => {
+  await inTransaction(async (db) => {
+    await withSalesRep(db);
+    const rep = await db.person(["bookings.view"], "Leaver");
+    const booking = await db.booking({ invoice_no: "T-SR-6" });
+    await db.owner("update bookings set sales_rep_id = $2 where id = $1", [booking, rep]);
+    await db.owner("delete from profiles where id = $1", [rep]);
+    assert.deepEqual(await repOf(db, "bookings", booking), { sales_rep_id: null, sales_rep_name: "Test Leaver" });
+  });
+});
