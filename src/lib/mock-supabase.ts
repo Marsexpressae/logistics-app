@@ -18,7 +18,7 @@ type Db = {
   booking_events: Row[]; notifications: Row[]; app_settings: Row[]; returns: Row[]; booking_notes: Row[]; client_errors: Row[]; number_series: Row[]; organization: Row[]; customers: Row[]; booking_contacts: Row[]; customer_notes: Row[]; customer_receivers: Row[]; id_documents: Row[];
 };
 
-const STORAGE_KEY = "logistics-mock-db-v39";
+const STORAGE_KEY = "logistics-mock-db-v40";
 const AUTH_KEY = "logistics-mock-signed-out";
 
 const uid = () => crypto.randomUUID();

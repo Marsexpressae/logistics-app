@@ -20,6 +20,8 @@ export type BadgeView = {
   name: string;
   description: string;
   icon: string;
+  family: string | null;
+  tier: number | null;
   earned_at: string | null;
   message: string | null;
   progress: number | null;
@@ -107,3 +109,78 @@ export function newBadges(seen: string[] | null, current: BadgeView[]): { fresh:
   const known = new Set(seen ?? []);
   return { fresh: seen === null ? [] : earned.filter((b) => !known.has(b.key)), seenKeys: [...new Set([...known, ...earned.map((b) => b.key)])] };
 }
+
+export const FAMILY_LABEL: Record<string, string> = {
+  bookings: "Bookings",
+  pickups: "Pickups",
+  payments: "Payments",
+  parcels: "Parcels",
+  streaks: "Streaks",
+  appreciated: "Appreciated",
+};
+
+export type BadgeGroup = {
+  family: string | null;
+  label: string;
+  earnedTop: BadgeView | null;
+  next: BadgeView | null;
+  earnedCount: number;
+  items: BadgeView[];
+};
+
+/**
+ * The medal wall: one group per family (bookings, pickups ...) and one per one-off badge. A group shows the highest tier earned
+ * and the next goal. The highest tier counts even if a lower one was earned later.
+ */
+export function groupBadges(badges: BadgeView[]): BadgeGroup[] {
+  const groups = new Map<string, BadgeView[]>();
+  for (const b of badges) {
+    const id = b.family ?? `one-off:${b.key}`;
+    groups.set(id, [...(groups.get(id) ?? []), b]);
+  }
+  const out: BadgeGroup[] = [];
+  for (const list of groups.values()) {
+    const items = [...list].sort((a, b) => (a.tier ?? 0) - (b.tier ?? 0));
+    const family = items[0].family;
+    const earned = items.filter((b) => b.earned_at);
+    const earnedTop = earned.length ? earned[earned.length - 1] : null;
+    const above = earnedTop ? items.filter((b) => !b.earned_at && (b.tier ?? 0) > (earnedTop.tier ?? 0)) : items.filter((b) => !b.earned_at);
+    out.push({
+      family,
+      label: family ? (FAMILY_LABEL[family] ?? family) : items[0].name,
+      earnedTop,
+      next: above[0] ?? null,
+      earnedCount: earned.length,
+      items,
+    });
+  }
+  return out.sort((a, b) => a.label.localeCompare(b.label));
+}
+
+/** Medal colours by tier: bronze, silver, gold, blue, purple. A badge with no tier is teal. */
+export function medalColors(tier: number | null): { ring: string; fill: string; ink: string } {
+  switch (tier) {
+    case 1: return { ring: "#BA7517", fill: "#FAEEDA", ink: "#633806" };
+    case 2: return { ring: "#888780", fill: "#F1EFE8", ink: "#444441" };
+    case 3: return { ring: "#EF9F27", fill: "#FAEEDA", ink: "#412402" };
+    case 4: return { ring: "#378ADD", fill: "#E6F1FB", ink: "#042C53" };
+    case 5: return { ring: "#7F77DD", fill: "#EEEDFE", ink: "#26215C" };
+    default: return { ring: "#1D9E75", fill: "#E1F5EE", ink: "#04342C" };
+  }
+}
+
+/** The colour band of the level emblem: levels 1-2, 3-4, 5-6 and 7 and up. */
+export const levelBand = (levelNumber: number): 1 | 2 | 3 | 4 => (levelNumber <= 2 ? 1 : levelNumber <= 4 ? 2 : levelNumber <= 6 ? 3 : 4);
+
+/** A colleague on the Team page. No points and nothing private (the database leaves those out). */
+export type TeamMember = {
+  id: string;
+  full_name: string;
+  photo_path: string | null;
+  job_title: string | null;
+  team: string | null;
+  level_number: number;
+  level_name: string;
+  streak: number;
+  badge_count: number;
+};

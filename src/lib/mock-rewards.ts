@@ -18,8 +18,8 @@ const ok = (data: any = null): Result => ({ data, error: null });
 export function seedRewards(): Row {
   const rule = (key: string, label: string, kind: string, points: number, daily_cap: number | null, once_per_person: boolean) =>
     ({ key, label, kind, points, daily_cap, once_per_person, active: true });
-  const badge = (key: string, name: string, description: string, icon: string, team: string | null, kind: string, rule_key: string | null, threshold: number | null) =>
-    ({ key, name, description, icon, team, kind, rule_key, threshold, active: true });
+  const badge = (key: string, name: string, description: string, icon: string, kind: string, rule_key: string | null, threshold: number | null, family: string | null = null, tier: number | null = null) =>
+    ({ key, name, description, icon, team: null, kind, rule_key, threshold, family, tier, active: true });
   return {
     point_rules: [
       rule("booking_created", "Create a booking", "work", 5, 50, false),
@@ -35,14 +35,32 @@ export function seedRewards(): Row {
     levels: [["Rookie", 0], ["Helper", 100], ["Handler", 300], ["Pro handler", 700], ["Specialist", 1500], ["Expert", 3000], ["Master", 6000], ["Legend", 12000]]
       .map(([name, min_points], i) => ({ number: i + 1, name, min_points })),
     badges: [
-      badge("first_booking", "First booking", "Made your first booking", "file-plus", "sales", "count", "booking_created", 1),
-      badge("bookings_100", "100 bookings", "Made 100 bookings", "package", "sales", "count", "booking_created", 100),
-      badge("first_pickup", "First pickup", "Collected your first pickup", "truck", "pickup", "count", "pickup_collected", 1),
-      badge("pickups_100", "100 pickups", "Collected 100 pickups", "truck", "pickup", "count", "pickup_collected", 100),
-      badge("scan_master", "Scan master", "Moved or scanned 1,000 parcels", "scan", null, "count", "parcel_moved", 1000),
-      badge("streak_7", "Seven in a row", "Worked in the app 7 days in a row", "flame", null, "streak", null, 7),
-      badge("explorer", "Explorer", "Tried every main page of the app", "compass", null, "count", "explore", null),
-      badge("team_player", "Team player", "Given by a manager for helping out", "heart", null, "manual", null, null),
+      badge("first_booking", "First booking", "Made your first booking", "file-plus", "count", "booking_created", 1, "bookings", 1),
+      badge("bookings_10", "10 bookings", "Made 10 bookings", "file-plus", "count", "booking_created", 10, "bookings", 2),
+      badge("bookings_50", "50 bookings", "Made 50 bookings", "file-plus", "count", "booking_created", 50, "bookings", 3),
+      badge("bookings_100", "100 bookings", "Made 100 bookings", "package", "count", "booking_created", 100, "bookings", 4),
+      badge("bookings_500", "500 bookings", "Made 500 bookings", "file-plus", "count", "booking_created", 500, "bookings", 5),
+      badge("first_pickup", "First pickup", "Collected your first pickup", "truck", "count", "pickup_collected", 1, "pickups", 1),
+      badge("pickups_10", "10 pickups", "Collected 10 pickups", "truck", "count", "pickup_collected", 10, "pickups", 2),
+      badge("pickups_50", "50 pickups", "Collected 50 pickups", "truck", "count", "pickup_collected", 50, "pickups", 3),
+      badge("pickups_100", "100 pickups", "Collected 100 pickups", "truck", "count", "pickup_collected", 100, "pickups", 4),
+      badge("pickups_500", "500 pickups", "Collected 500 pickups", "truck", "count", "pickup_collected", 500, "pickups", 5),
+      badge("payments_10", "10 payments", "Recorded 10 payments", "receipt", "count", "payment_recorded", 10, "payments", 1),
+      badge("payments_50", "50 payments", "Recorded 50 payments", "receipt", "count", "payment_recorded", 50, "payments", 2),
+      badge("payments_200", "200 payments", "Recorded 200 payments", "receipt", "count", "payment_recorded", 200, "payments", 3),
+      badge("parcels_50", "50 parcels", "Moved or scanned 50 parcels", "scan", "count", "parcel_moved", 50, "parcels", 1),
+      badge("parcels_250", "250 parcels", "Moved or scanned 250 parcels", "scan", "count", "parcel_moved", 250, "parcels", 2),
+      badge("scan_master", "Scan master", "Moved or scanned 1,000 parcels", "scan", "count", "parcel_moved", 1000, "parcels", 3),
+      badge("streak_3", "Three in a row", "Worked in the app 3 days in a row", "flame", "streak", null, 3, "streaks", 1),
+      badge("streak_7", "Seven in a row", "Worked in the app 7 days in a row", "flame", "streak", null, 7, "streaks", 2),
+      badge("streak_14", "Fortnight streak", "Worked in the app 14 days in a row", "flame", "streak", null, 14, "streaks", 3),
+      badge("streak_30", "Month streak", "Worked in the app 30 days in a row", "flame", "streak", null, 30, "streaks", 4),
+      badge("thanks_1", "Thanked", "Got your first thank-you", "heart", "count", "thank_you", 1, "appreciated", 1),
+      badge("thanks_5", "Appreciated", "Got 5 thank-yous", "heart", "count", "thank_you", 5, "appreciated", 2),
+      badge("thanks_20", "Much appreciated", "Got 20 thank-yous", "heart", "count", "thank_you", 20, "appreciated", 3),
+      badge("explorer", "Explorer", "Tried every main page of the app", "compass", "count", "explore", null),
+      badge("team_player", "Team player", "Given by a manager for helping out", "heart", "manual", null, null),
+      badge("star_of_month", "Star of the month", "Given by a manager to the person who shone this month", "star", "manual", null, null),
     ],
     person_badges: [],
   };
@@ -72,10 +90,9 @@ function badgeProgress(d: Row, person: string, b: Row): [number, number] | null 
 }
 
 function checkBadges(d: Row, person: string): void {
-  const prof = d.profiles.find((p: Row) => p.id === person && p.active);
-  if (!prof) return;
+  if (!d.profiles.some((p: Row) => p.id === person && p.active)) return;
   for (const b of d.badges) {
-    if (!b.active || b.kind === "manual" || (b.team && b.team !== (prof.team ?? null))) continue;
+    if (!b.active || b.kind === "manual") continue;
     if (d.person_badges.some((x: Row) => x.person_id === person && x.badge_key === b.key)) continue;
     const prog = badgeProgress(d, person, b);
     if (prog && prog[1] > 0 && prog[0] >= prog[1]) d.person_badges.push({ person_id: person, badge_key: b.key, earned_at: stamp(), given_by: null, message: null });
@@ -140,9 +157,9 @@ export function rewardsRpc({ db, me, save }: Helpers): Record<string, (a: any) =
     if (!prof) return fail("Person not found");
     const list = d.badges.flatMap((b: Row) => {
       const got = d.person_badges.find((x: Row) => x.person_id === person && x.badge_key === b.key);
-      if (!got && !(b.active && (!b.team || b.team === (prof.team ?? null)))) return [];
+      if (!got && !b.active) return [];
       const prog = got ? null : badgeProgress(d, person, b);
-      return [{ key: b.key, name: b.name, description: b.description, icon: b.icon, earned_at: got?.earned_at ?? null, message: got?.message ?? null, progress: prog?.[0] ?? null, goal: prog?.[1] ?? null }];
+      return [{ key: b.key, name: b.name, description: b.description, icon: b.icon, family: b.family ?? null, tier: b.tier ?? null, earned_at: got?.earned_at ?? null, message: got?.message ?? null, progress: prog?.[0] ?? null, goal: prog?.[1] ?? null }];
     });
     list.sort((a: Row, b: Row) => (a.earned_at && b.earned_at ? (a.earned_at < b.earned_at ? 1 : -1) : a.earned_at ? -1 : b.earned_at ? 1 : a.name.localeCompare(b.name)));
     return ok(list);
@@ -276,6 +293,57 @@ export function rewardsRpc({ db, me, save }: Helpers): Record<string, (a: any) =
       Object.assign(b, { name: String(p_name).trim(), description: String(p_description ?? "").trim(), active: p_active ?? b.active, threshold: b.kind === "manual" ? null : (p_threshold ?? b.threshold) });
       save();
       return ok();
+    },
+
+    team_overview() {
+      const d = db();
+      if (!signedIn()) return ok([]);
+      return ok(d.profiles.filter((p: Row) => p.active).map((p: Row) => {
+        const tot = sum(d.point_log.filter((l: Row) => l.person_id === p.id));
+        const levels: Row[] = [...d.levels].sort((a, b) => a.number - b.number);
+        const lvl = [...levels].reverse().find((l) => l.min_points <= tot) ?? levels[0];
+        return {
+          id: p.id, full_name: p.full_name, photo_path: p.photo_path ?? null, job_title: p.job_title ?? null, team: p.team ?? null,
+          level_number: lvl.number, level_name: lvl.name, streak: currentStreak(d, p.id),
+          badge_count: d.person_badges.filter((x: Row) => x.person_id === p.id).length,
+        };
+      }).sort((a: Row, b: Row) => a.full_name.localeCompare(b.full_name)));
+    },
+
+    person_wins({ p_person, p_limit }) {
+      const d = db();
+      if (!signedIn() || !active(p_person)) return ok([]);
+      const name = (id: string | null) => d.profiles.find((p: Row) => p.id === id)?.full_name;
+      const badges = d.person_badges.filter((pb: Row) => pb.person_id === p_person).map((pb: Row) => ({
+        kind: "badge", title: d.badges.find((b: Row) => b.key === pb.badge_key)?.name ?? pb.badge_key, message: pb.message ?? "", created_at: pb.earned_at,
+      }));
+      const thanks = d.point_log.filter((l: Row) => l.person_id === p_person && l.rule_key === "thank_you").map((l: Row) => ({
+        kind: "thank_you", title: `Thanked by ${name(l.given_by) ?? "a colleague"}`, message: l.reason, created_at: l.created_at,
+      }));
+      return ok([...badges, ...thanks].sort((x, y) => (x.created_at < y.created_at ? 1 : -1)).slice(0, Math.min(Math.max(p_limit ?? 20, 1), 100)));
+    },
+
+    create_badge({ p_name, p_description, p_icon, p_family, p_tier, p_kind, p_rule_key, p_threshold }) {
+      const denied = need("rewards.manage");
+      if (denied) return denied;
+      const d = db();
+      const name = String(p_name ?? "").trim();
+      const family = String(p_family ?? "").trim() || null;
+      if (!name) return fail("Give the badge a name");
+      if (d.badges.some((b: Row) => b.name.toLowerCase() === name.toLowerCase())) return fail("A badge with that name already exists");
+      if (!["star", "file-plus", "package", "truck", "receipt", "scan", "flame", "compass", "heart", "trophy"].includes(p_icon)) return fail("Choose an icon from the list");
+      if (!["count", "streak", "manual"].includes(p_kind)) return fail("Choose how the badge is earned");
+      if (p_kind === "count" && !(p_rule_key === "thank_you" || d.point_rules.some((r: Row) => r.key === p_rule_key))) return fail("Choose what is counted");
+      if (p_kind !== "manual" && (p_threshold == null || p_threshold < 1)) return fail("The goal must be more than 0");
+      if (p_tier != null && (p_tier < 1 || p_tier > 5)) return fail("The tier must be from 1 to 5");
+      if (family && p_tier != null && d.badges.some((b: Row) => b.family === family && b.tier === p_tier)) return fail("That tier is already taken in this family");
+      const base = name.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "badge";
+      let key = base;
+      for (let n = 2; d.badges.some((b: Row) => b.key === key); n++) key = `${base}_${n}`;
+      d.badges.push({ key, name, description: String(p_description ?? "").trim(), icon: p_icon, team: null, kind: p_kind, rule_key: p_kind === "count" ? p_rule_key : null,
+        threshold: p_kind === "manual" ? null : p_threshold, family, tier: family ? (p_tier ?? null) : null, active: true });
+      save();
+      return ok(key);
     },
 
     my_rewards: () => personRewards(me()),

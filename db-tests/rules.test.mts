@@ -1640,6 +1640,7 @@ test("rewards: my_badges shows earned badges, and locked badges with their progr
 
 test("rewards: the wins feed shows badges and thank-yous of active people, with no points or private fields", { skip }, async () => {
   await inTransaction(async (db) => {
+    await withTeamMedals(db);
     const boss = await db.person(["rewards.give"], "boss");
     const happy = await db.person([], "happy");
     const gone = await db.person([], "gone");
@@ -1648,7 +1649,7 @@ test("rewards: the wins feed shows badges and thank-yous of active people, with 
     await db.as(boss, "select give_badge($1, 'team_player', 'Gone soon')", [gone]);
     await db.owner("update profiles set active = false where id = $1", [gone]);
     const feed = (await db.as(happy, "select * from wins_feed(20)")) as Row[];
-    assert.deepEqual(feed.map((f) => f.kind).sort(), ["badge", "thank_you"]);
+    assert.deepEqual(feed.map((f) => f.kind).sort(), ["badge", "badge", "thank_you"]); // team player, and Thanked for the thank-you
     assert.ok(feed.every((f) => f.person_id === happy));
     assert.deepEqual(Object.keys(feed[0]).sort(), ["created_at", "kind", "message", "person_id", "person_name", "title"]);
     assert.match(feed.find((f) => f.kind === "thank_you")!.title, /Test boss/);

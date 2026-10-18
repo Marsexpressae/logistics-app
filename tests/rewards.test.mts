@@ -4,7 +4,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createMockClient, freshMockData, setMockUser } from "../src/lib/mock-supabase.ts";
-import { birthdayLabel, featureKeyFor, levelFor, newBadges, streakOf, type Level } from "../src/lib/rewards.ts";
+import { birthdayLabel, featureKeyFor, groupBadges, levelBand, levelFor, medalColors, newBadges, streakOf, type BadgeView, type Level } from "../src/lib/rewards.ts";
 
 const LEVELS: Level[] = [
   { number: 1, name: "Rookie", min_points: 0 },
@@ -99,7 +99,7 @@ test("mock: thank-yous need the permission, a message, another person, and respe
   assert.match((await rpc("give_thank_you", { p_person: "sample-manager", p_points: 5, p_message: "hi" })).error?.message ?? "", /permission/i);
 });
 
-test("mock: badges by hand, count badges for the right team, progress for locked ones, and the wins feed", async () => {
+test("mock: badges by hand, count badges for everyone, progress for locked ones, and the wins feed", async () => {
   fresh();
   assert.equal((await rpc("set_staff_details", { p_person_id: "mock-user", p_team: "sales", p_job_title: "Sales rep", p_joined_on: null })).error, null);
   await newBooking();
@@ -108,14 +108,14 @@ test("mock: badges by hand, count badges for the right team, progress for locked
   assert.ok(byKey.first_booking.earned_at, "first booking earned");
   assert.equal(byKey.bookings_100.earned_at, null);
   assert.deepEqual([byKey.bookings_100.progress, byKey.bookings_100.goal], [1, 100]);
-  assert.ok(!byKey.pickups_100, "pickup badges are not shown to the sales team");
+  assert.ok(byKey.pickups_100, "every badge is shown to every team");
   assert.match((await rpc("give_badge", { p_person: "mock-user", p_badge: "team_player", p_message: "Me" })).error?.message ?? "", /yourself/);
   assert.match((await rpc("give_badge", { p_person: "sample-staff", p_badge: "bookings_100", p_message: "x" })).error?.message ?? "", /by hand/);
   assert.equal((await rpc("give_badge", { p_person: "sample-staff", p_badge: "team_player", p_message: "Stayed late" })).error, null);
   assert.match((await rpc("give_badge", { p_person: "sample-staff", p_badge: "team_player", p_message: "again" })).error?.message ?? "", /already/);
   await rpc("give_thank_you", { p_person: "sample-staff", p_points: 10, p_message: "Thanks" });
   const feed = (await rpc("wins_feed", { p_limit: 20 })).data as R[];
-  assert.deepEqual(feed.map((f) => f.kind).sort(), ["badge", "badge", "thank_you"]);
+  assert.deepEqual(feed.map((f) => f.kind).sort(), ["badge", "badge", "badge", "thank_you"]); // first booking, team player, and Thanked for the thank-you
   assert.ok(feed.every((f) => !("points" in f) && !("phone" in f)));
   setMockUser("sample-staff");
   assert.match((await rpc("give_badge", { p_person: "mock-user", p_badge: "team_player", p_message: "x" })).error?.message ?? "", /permission/i);
@@ -205,4 +205,100 @@ test("mock: a person with no active profile reads nothing from the rewards funct
   assert.deepEqual((await rpc("people_directory")).data, []);
   assert.deepEqual((await rpc("wins_feed", { p_limit: 5 })).data, []);
   assert.match((await rpc("person_rewards", { p_person: "mock-user" })).error?.message ?? "", /not signed in/);
+});
+
+// ---- team medals ----
+const bv = (key: string, family: string | null, tier: number | null, earned: boolean, name = key): BadgeView =>
+  ({ key, name, description: "", icon: "star", family, tier, earned_at: earned ? "2026-10-18T10:00:00Z" : null, message: null, progress: earned ? null : 3, goal: earned ? null : 10 });
+
+test("groupBadges: one group per family with the top earned medal and the next goal, one-offs on their own", () => {
+  const groups = groupBadges([
+    bv("b1", "bookings", 1, true), bv("b4", "bookings", 4, false), bv("b2", "bookings", 2, true), bv("b3", "bookings", 3, false),
+    bv("p1", "pickups", 1, false), bv("p2", "pickups", 2, false),
+    bv("explorer", null, null, true, "Explorer"), bv("star", null, null, false, "Star of the month"),
+  ]);
+  assert.deepEqual(groups.map((g) => g.label), ["Bookings", "Explorer", "Pickups", "Star of the month"]);
+  const bookings = groups.find((g) => g.family === "bookings")!;
+  assert.deepEqual([bookings.earnedTop?.key, bookings.next?.key, bookings.earnedCount, bookings.items.map((i) => i.key)], ["b2", "b3", 2, ["b1", "b2", "b3", "b4"]]);
+  const pickups = groups.find((g) => g.family === "pickups")!;
+  assert.deepEqual([pickups.earnedTop, pickups.next?.key, pickups.earnedCount], [null, "p1", 0]);
+  const explorer = groups.find((g) => g.label === "Explorer")!;
+  assert.deepEqual([explorer.family, explorer.earnedTop?.key, explorer.next], [null, "explorer", null]);
+  const star = groups.find((g) => g.label === "Star of the month")!;
+  assert.deepEqual([star.earnedTop, star.next?.key], [null, "star"]);
+  // the highest earned tier wins even when a lower tier was earned later
+  const odd = groupBadges([bv("a1", "streaks", 1, true), bv("a3", "streaks", 3, true), bv("a2", "streaks", 2, false)])[0];
+  assert.deepEqual([odd.earnedTop?.key, odd.next], ["a3", null]);
+});
+
+test("medalColors and levelBand", () => {
+  assert.deepEqual(medalColors(1), { ring: "#BA7517", fill: "#FAEEDA", ink: "#633806" });
+  assert.deepEqual(medalColors(3), { ring: "#EF9F27", fill: "#FAEEDA", ink: "#412402" });
+  assert.equal(medalColors(5).ring, "#7F77DD");
+  assert.equal(medalColors(null).ring, "#1D9E75");
+  assert.deepEqual([1, 2, 3, 4, 5, 6, 7, 8].map(levelBand), [1, 1, 2, 2, 3, 3, 4, 4]);
+});
+
+test("mock: every person sees the same 26 badges, whatever their team", async () => {
+  fresh("sample-staff");
+  const keys = ((await rpc("my_badges")).data as R[]).map((b) => b.key);
+  assert.equal(keys.length, 26);
+  setMockUser("mock-user");
+  await rpc("set_staff_details", { p_person_id: "sample-staff", p_team: "pickup", p_job_title: null, p_joined_on: null });
+  setMockUser("sample-staff");
+  const again = ((await rpc("my_badges")).data as R[]);
+  assert.deepEqual(again.map((b) => b.key), keys);
+  const wall = Object.fromEntries(again.map((b) => [b.key, b]));
+  assert.deepEqual([wall.bookings_100.family, wall.bookings_100.tier, wall.team_player.family], ["bookings", 4, null]);
+});
+
+test("mock: higher tiers of a family are earned at their goal", async () => {
+  fresh();
+  const d = (await c.from("point_log").select("*")).data as R[];
+  assert.equal(d.length, 0);
+  for (let i = 0; i < 10; i++) await newBooking(`Tier ${i}`);
+  const got = ((await rpc("my_badges")).data as R[]).filter((b) => b.earned_at).map((b) => b.key).sort();
+  assert.deepEqual(got.filter((k) => k.startsWith("bookings_") || k === "first_booking"), ["bookings_10", "first_booking"]);
+});
+
+test("mock: the team overview lists active colleagues with level, streak and badge count, and nothing private", async () => {
+  fresh("sample-staff");
+  const rows = (await rpc("team_overview")).data as R[];
+  assert.deepEqual(Object.keys(rows[0]).sort(), ["badge_count", "full_name", "id", "job_title", "level_name", "level_number", "photo_path", "streak", "team"]);
+  assert.ok(!rows.some((r) => r.id === "sample-warehouse"), "the inactive person is left out");
+  const names = rows.map((r) => r.full_name as string);
+  assert.deepEqual(names, [...names].sort((x, y) => x.localeCompare(y)));
+  setMockUser("sample-warehouse");
+  assert.deepEqual((await rpc("team_overview")).data, []);
+});
+
+test("mock: achievements are badges and thank-yous, with no work reasons", async () => {
+  fresh();
+  await newBooking();
+  assert.equal((await rpc("give_badge", { p_person: "sample-staff", p_badge: "team_player", p_message: "Stayed late" })).error, null);
+  assert.equal((await rpc("give_thank_you", { p_person: "sample-staff", p_points: 10, p_message: "Thanks for the help" })).error, null);
+  setMockUser("sample-manager");
+  const wins = (await rpc("person_wins", { p_person: "sample-staff", p_limit: 20 })).data as R[];
+  assert.deepEqual(Object.keys(wins[0]).sort(), ["created_at", "kind", "message", "title"]);
+  assert.ok(wins.some((w) => w.kind === "badge" && w.title === "Team player" && w.message === "Stayed late"));
+  assert.ok(wins.some((w) => w.kind === "thank_you" && /Tester/.test(w.title) && w.message === "Thanks for the help"));
+  const mine = (await rpc("person_wins", { p_person: "mock-user", p_limit: 20 })).data as R[];
+  assert.ok(!mine.some((w) => /^Booking /.test(w.message)), "work reasons stay private");
+});
+
+test("mock: managers add a badge, it is earned at its goal, and the inputs are checked", async () => {
+  fresh("sample-staff");
+  assert.match((await rpc("create_badge", { p_name: "X", p_description: "x", p_icon: "star", p_family: null, p_tier: null, p_kind: "manual", p_rule_key: null, p_threshold: null })).error?.message ?? "", /permission/i);
+  setMockUser("sample-manager");
+  const add = (name: string, over: R = {}) => rpc("create_badge", { p_name: name, p_description: "Seven payments recorded", p_icon: "receipt", p_family: "payments", p_tier: 4, p_kind: "count", p_rule_key: "payment_recorded", p_threshold: 7, ...over });
+  const made = await add("Seven payments");
+  assert.deepEqual([made.error, made.data], [null, "seven_payments"]);
+  assert.match((await add("seven PAYMENTS", { p_tier: 5 })).error?.message ?? "", /already exists/);
+  assert.match((await add("Odd icon", { p_icon: "skull" })).error?.message ?? "", /icon from the list/);
+  assert.match((await add("No goal", { p_threshold: 0 })).error?.message ?? "", /more than 0/);
+  assert.match((await add("Unknown rule", { p_rule_key: "made_up" })).error?.message ?? "", /what is counted/);
+  assert.match((await add("Taken tier", { p_tier: 4 })).error?.message ?? "", /tier is already taken/);
+  assert.match((await add("Bad tier", { p_tier: 9 })).error?.message ?? "", /from 1 to 5/);
+  assert.match((await add("Bad kind", { p_kind: "magic" })).error?.message ?? "", /how the badge is earned/);
+  assert.equal((await add("Seven payments by hand", { p_family: null, p_tier: null, p_kind: "manual", p_rule_key: null, p_threshold: null })).data, "seven_payments_by_hand");
 });
