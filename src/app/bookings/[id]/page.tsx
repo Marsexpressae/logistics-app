@@ -12,6 +12,7 @@ import DeleteBooking from "@/components/bookings/DeleteBooking";
 import WarningBanner from "@/components/customers/WarningBanner";
 import IdCard from "@/components/customers/IdCard";
 import CustomerCard from "@/components/customers/CustomerCard";
+import SalesRepEditor from "@/components/people/SalesRepEditor";
 import CollectedDate from "@/components/bookings/CollectedDate";
 import NotesCard from "@/components/bookings/NotesCard";
 import TrackingLink from "@/components/bookings/TrackingLink";
@@ -125,6 +126,9 @@ export default function EditBookingPage() {
           </Card>
         )}
         <CustomerCard bookingId={id} />
+        <Card title="Sales rep">
+          <SalesRepEditor table="bookings" id={id} currentId={b.sales_rep_id ?? null} currentName={b.sales_rep_name ?? null} label="Who made this sale" canChange={can("sales_rep.change")} onSaved={() => { booking.reload(); history.reload(); }} />
+        </Card>
         {b.collected_at && <CollectedDate bookingId={id} collectedAt={b.collected_at} canEdit={canEdit} onChanged={() => { booking.reload(); history.reload(); }} />}
       </div>
 

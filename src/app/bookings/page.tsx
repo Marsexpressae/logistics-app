@@ -44,7 +44,7 @@ const COLUMNS: Record<string, SortColumn<Booking>> = {
   customer: { key: "customer", label: "Customer → Receiver", value: (b) => b.sender_name },
   pickup: { key: "pickup", label: "Pickup", kind: "date", value: (b) => b.pickup_date },
   area: { key: "area", label: "Area", value: (b) => b.pickup_area },
-  driver: { key: "driver", label: "Driver", value: (b) => b.driver?.name },
+  salesrep: { key: "salesrep", label: "Sales rep", hint: "Sorts by the sales rep's name", value: (b) => b.sales_rep_name },
   status: { key: "status", label: "Status", kind: "number", firstDir: "asc", words: ["Earliest stage first", "Latest stage first"], hint: "Sorts by progress, from booked to delivered", value: (b) => orderOf(STAGE_ORDER, b.stage ?? b.status) },
   payment: { key: "payment", label: "Payment", kind: "number", words: ["Least to pay first", "Most to pay first"], hint: "Sorts by the amount still to pay", value: balanceOf },
   created: { key: "created", label: "Created", kind: "date", value: (b) => b.created_at },
@@ -55,7 +55,7 @@ function BookingsContent() {
   const { data, error, loading } = useQuery<Booking[]>(() =>
     supabase
       .from("bookings")
-      .select("*, driver:drivers(name), payments(amount), stage")
+      .select("*, payments(amount), stage")
       .order("pickup_date", { ascending: false })
       .order("created_at", { ascending: false })
   );
@@ -72,7 +72,7 @@ function BookingsContent() {
       (status === "all" || (b.stage ?? b.status) === status) &&
       matchesSearch(
         search,
-        [b.code, b.invoice_no, b.sender_name, b.receiver_name, b.pickup_area, b.pickup_address, b.receiver_address, b.notes, b.driver?.name],
+        [b.code, b.invoice_no, b.sender_name, b.receiver_name, b.pickup_area, b.pickup_address, b.receiver_address, b.notes, b.sales_rep_name],
         [b.sender_phone, b.sender_whatsapp, b.receiver_phone, b.receiver_whatsapp]
       )
   );
@@ -133,7 +133,7 @@ function BookingsContent() {
                 </span>
                 <span className="mt-1 block text-base text-slate-700">
                   {formatDay(b.pickup_date)} · {b.pickup_area}
-                  {b.driver?.name ? ` · ${b.driver.name}` : ""}
+                  {b.sales_rep_name ? ` · ${b.sales_rep_name}` : ""}
                 </span>
                 <span className="mt-1 block text-base font-medium text-slate-800">
                   {b.invoice_amount !== null
@@ -170,7 +170,7 @@ function BookingsContent() {
                     </td>
                     <td className="whitespace-nowrap px-4 py-3">{formatDay(b.pickup_date)}</td>
                     <td className="px-4 py-3">{b.pickup_area}</td>
-                    <td className="px-4 py-3">{b.driver?.name ?? "—"}</td>
+                    <td className="px-4 py-3">{b.sales_rep_name ?? "—"}</td>
                     <td className="px-4 py-3">
                       <StatusBadge status={b.stage ?? b.status} />
                       {b.status === "cancelled" && b.cancellation_reason && (

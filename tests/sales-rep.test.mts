@@ -96,3 +96,33 @@ test("the permission exists and goes to managers and super admins", async () => 
   const roles = ((await c.from("role_permissions").select("*").eq("permission", "sales_rep.change")).data as R[]).map((r) => r.role).sort();
   assert.deepEqual(roles, ["manager", "super_admin"]);
 });
+
+// ---- the screens, checked as source ----
+import { readFileSync } from "node:fs";
+const read = (f: string) => readFileSync(f, "utf8");
+
+test("the new booking form has a Sales rep dropdown, preselected, and sends it only for a new booking", () => {
+  const form = read("src/components/bookings/BookingForm.tsx");
+  assert.ok(form.includes("SalesRepSelect"));
+  assert.match(form, /\.\.\.\(booking \? \{\} : \{ sales_rep_id: salesRepId \}\)/);
+  assert.ok(form.includes("picked?.sales_rep_id") && form.includes("useCurrentProfile"), "the customer's owner, or else the signed-in person");
+});
+
+test("the booking page shows the Sales rep, editable with sales_rep.change", () => {
+  const page = read("src/app/bookings/[id]/page.tsx");
+  assert.ok(page.includes("<SalesRepEditor") && page.includes('can("sales_rep.change")') && page.includes('table="bookings"'));
+});
+
+test("the shared field loads the choices and saves through the right route", () => {
+  const select = read("src/components/people/SalesRepSelect.tsx");
+  assert.ok(select.includes('"sales_rep_choices"') && select.includes("No sales rep"));
+  const editor = read("src/components/people/SalesRepEditor.tsx");
+  assert.ok(editor.includes('"set_customer_sales_rep"') && editor.includes("sales_rep_id") && editor.includes("Saved") && editor.includes("canChange"));
+});
+
+test("the Bookings list shows the Sales rep, not the driver", () => {
+  const list = read("src/app/bookings/page.tsx");
+  assert.ok(list.includes('salesrep: { key: "salesrep", label: "Sales rep"'));
+  assert.ok(!list.includes('label: "Driver"') && !list.includes("driver: {"), "no driver column");
+  assert.ok(list.includes("b.sales_rep_name"));
+});

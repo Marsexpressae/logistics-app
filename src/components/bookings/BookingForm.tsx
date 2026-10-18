@@ -6,7 +6,8 @@ import type { CustomerHit, ReceiverEntry } from "@/lib/customers";
 import { formatGeo, parseGeo } from "@/lib/geo";
 import { useQuery } from "@/lib/hooks";
 import { formatPhone, parsePhone } from "@/lib/phone";
-import { usePermissions } from "@/lib/profile-context";
+import { useCurrentProfile, usePermissions } from "@/lib/profile-context";
+import SalesRepSelect from "@/components/people/SalesRepSelect";
 import { supabase } from "@/lib/supabase";
 import type { Booking, Driver } from "@/lib/types";
 import BillingCard from "./form/BillingCard";
@@ -29,6 +30,7 @@ type BookingFormProps = {
  */
 export default function BookingForm({ booking, submitLabel, onSaved, numbersOpen }: BookingFormProps) {
   const { can } = usePermissions();
+  const me = useCurrentProfile();
   const canSetNumbers = can("numbers.edit");
   const showNumbers = canSetNumbers && (!booking || !!numbersOpen);
   const numbers = useBookingNumbers(booking, showNumbers);
@@ -36,6 +38,9 @@ export default function BookingForm({ booking, submitLabel, onSaved, numbersOpen
 
   // A returning customer picked from the list: their details fill the form, and the booking is linked to them when saved.
   const [picked, setPicked] = useState<CustomerHit | null>(null);
+  // The sales rep: until someone chooses, it is the picked customer's owner, or else the person making the booking.
+  const [chosenRep, setChosenRep] = useState<string | null | undefined>(undefined);
+  const salesRepId = chosenRep !== undefined ? chosenRep : (picked?.sales_rep_id ?? me.id);
   // Editing: the booking already belongs to a customer. Their name and numbers are changed on the customer page, not here.
   const linkedCustomer = useQuery<{ customer_id: string } | null>(
     () => (booking && can("customers.view") ? (supabase.from("booking_contacts").select("customer_id").eq("booking_id", booking.id).eq("role", "customer").maybeSingle() as never) : Promise.resolve({ data: null, error: null })),
@@ -104,6 +109,8 @@ export default function BookingForm({ booking, submitLabel, onSaved, numbersOpen
       geo_lat: geo?.lat ?? null,
       geo_lng: geo?.lng ?? null,
       driver_id: text("driver_id"),
+      // Who made this sale (a new booking only; changing it later needs the permission and is done on the booking page).
+      ...(booking ? {} : { sales_rep_id: salesRepId }),
       estimated_bill: f.get("estimated_bill") ? Number(f.get("estimated_bill")) : null,
       // Only editable after the booking exists (set once the invoice is raised).
       ...(booking ? { invoice_amount: f.get("invoice_amount") ? Number(f.get("invoice_amount")) : null } : {}),
@@ -162,6 +169,14 @@ export default function BookingForm({ booking, submitLabel, onSaved, numbersOpen
           <PickupSection booking={booking} onlyPickup={onlyPickup} address={address} geoText={geoText} onGeoText={setGeoText} drivers={drivers.data} onError={setError} />
         </div>
       </Card>
+
+      {/* The sales rep: the customer's owner if one was picked, otherwise the person making the booking. */}
+      {!booking && !onlyPickup && (
+        <Card title="Sales rep">
+          <SalesRepSelect value={salesRepId} onChange={setChosenRep} />
+          <p className="mt-2 text-sm text-slate-500">The staff member who owns this customer. A returning customer&apos;s owner is filled in for you.</p>
+        </Card>
+      )}
 
       {/* 2. Where it is going (optional, can be filled in later) */}
       <ReceiverCard
