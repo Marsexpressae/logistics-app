@@ -65,3 +65,24 @@
   outline: 2px solid var(--color-brand-700);
   outline-offset: 2px;
 }
+
+/* Confetti for a new badge. Hidden unless the device allows motion; the pieces only fall once and never take a tap. */
+.confetti-piece {
+  display: none;
+  position: absolute;
+  top: -8px;
+  width: 8px;
+  height: 12px;
+  border-radius: 2px;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .confetti-piece {
+    display: block;
+    opacity: 0;
+    animation: confetti-fall 1400ms ease-out forwards;
+  }
+  @keyframes confetti-fall {
+    0% { opacity: 1; transform: translateY(0) rotate(0deg); }
+    100% { opacity: 0; transform: translateY(150px) rotate(360deg); }
+  }
+}

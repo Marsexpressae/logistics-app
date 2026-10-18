@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
-import { Award, X } from "lucide-react";
+import Celebration from "@/components/rewards/Celebration";
 import { recordFeature } from "@/lib/feature-use";
 import { useCurrentProfile } from "@/lib/profile-context";
 import { featureKeyFor, newBadges, type BadgeView } from "@/lib/rewards";
@@ -48,25 +47,5 @@ export default function FeatureUseTracker() {
 
   const badge = fresh[0];
   if (!badge) return null;
-  return (
-    <div
-      role="status"
-      aria-live="polite"
-      className="fixed inset-x-3 top-24 z-(--z-toast) mx-auto max-w-md rounded-lg border border-green-200 bg-green-50 p-3 shadow-lg print:hidden md:left-auto md:right-4 md:mx-0 md:w-96"
-    >
-      <div className="flex items-start gap-3">
-        <Award className="mt-0.5 h-5 w-5 shrink-0 text-green-800" aria-hidden="true" />
-        <div className="min-w-0 flex-1">
-          <p className="font-medium text-green-900">You earned {badge.name}</p>
-          <p className="text-sm text-green-900">{badge.message || badge.description}</p>
-          <Link href="/account" onClick={() => setFresh((f) => f.slice(1))} className="inline-flex min-h-11 items-center text-sm font-medium text-green-900 underline">
-            See my badges
-          </Link>
-        </div>
-        <button type="button" aria-label="Close" className="flex min-h-11 w-11 shrink-0 items-center justify-center text-green-900" onClick={() => setFresh((f) => f.slice(1))}>
-          <X className="h-5 w-5" aria-hidden="true" />
-        </button>
-      </div>
-    </div>
-  );
+  return <Celebration badge={badge} onClose={() => setFresh((f) => f.slice(1))} />;
 }

@@ -50,7 +50,7 @@ test("feature tracking is mounted once in the app shell, scanning counts when a 
   assert.ok(readFileSync("src/components/scan/ScanParcel.tsx", "utf8").includes('recordFeature("use_scan")'));
   assert.ok(readFileSync("src/app/page.tsx", "utf8").includes("WinsFeed"));
   const toast = readFileSync(`${dir}/FeatureUseTracker.tsx`, "utf8");
-  assert.ok(toast.includes("z-(--z-toast)"), "the badge toast sits on the named toast layer");
+  assert.ok(readFileSync(`${dir}/Celebration.tsx`, "utf8").includes("z-(--z-toast)"), "the badge pop-up sits on the named toast layer");
   assert.match(toast, /localStorage/);
   assert.match(toast, /try \{/, "browser storage is wrapped in try/catch");
 });
@@ -121,4 +121,17 @@ test("the Team page shows colleagues as cards that open their profile, with no p
   const colleague = readFileSync("src/app/people/[id]/page.tsx", "utf8");
   assert.ok(colleague.includes("AchievementsList") && !colleague.includes("PointsList") && !colleague.includes("ProfileEditor"));
   assert.match(readFileSync("src/lib/profile-context.tsx", "utf8"), /p === "\*"/, "menu checks understand the everyone rule");
+});
+
+// ---- team medals: the celebration ----
+test("the celebration is a large medal card with confetti that stays off for reduced motion and never blocks a tap", () => {
+  const code = readFileSync(`${dir}/Celebration.tsx`, "utf8");
+  assert.ok(code.includes("Medal") && code.includes("aria-live") && code.includes("z-(--z-toast)"));
+  assert.match(code, /pointer-events-none/);
+  const tracker = readFileSync(`${dir}/FeatureUseTracker.tsx`, "utf8");
+  assert.ok(tracker.includes("<Celebration") && !tracker.includes("<Award"), "the tracker shows the celebration, not its own small card");
+  const css = readFileSync("src/app/globals.css", "utf8");
+  const block = css.match(/@media \(prefers-reduced-motion: no-preference\)\s*\{[\s\S]*?@keyframes confetti-fall[\s\S]*?\n\}/);
+  assert.ok(block, "the confetti keyframes live inside a no-preference block");
+  assert.match(css, /\.confetti-piece\s*\{[^}]*display:\s*none/, "confetti is hidden unless motion is allowed");
 });
