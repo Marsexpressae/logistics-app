@@ -1285,7 +1285,7 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
       seen.add(key);
       return true;
     });
-    for (const f of ["phone", "whatsapp", "address", "geo_lat", "geo_lng", "emirates_id", "warning_note"]) k[f] = k[f] ?? rm[f];
+    for (const f of ["phone", "whatsapp", "address", "geo_lat", "geo_lng", "emirates_id", "warning_note", "sales_rep_id", "sales_rep_name"]) k[f] = k[f] ?? rm[f];
     k.updated_at = now();
     d.customer_notes.push({ id: uid(), customer_id: k.id, author_id: "mock-user", author_name: "Tester (super admin)", created_at: now(),
       body: `Merged with the record of ${rm.full_name}${rm.phone ? ` (${rm.phone})` : ""}. All invoices, notes and receivers moved here.` });

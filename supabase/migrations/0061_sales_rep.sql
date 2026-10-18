@@ -17,11 +17,16 @@ create index if not exists bookings_sales_rep_idx on bookings (sales_rep_id);
 create or replace function set_sales_rep_name() returns trigger
 language plpgsql security definer set search_path = public as $$
 begin
+  -- the name only ever follows the id: writing the name by hand changes nothing
+  if tg_op = 'UPDATE' and new.sales_rep_id is not distinct from old.sales_rep_id then
+    new.sales_rep_name := old.sales_rep_name;
+    return new;
+  end if;
   if new.sales_rep_id is null then
     -- cleared on purpose: the name goes too. When the person is removed, the foreign key sets the id to null from inside
     -- another trigger (depth above 1): then the name stays on the old record.
     if not (tg_op = 'UPDATE' and old.sales_rep_id is not null and pg_trigger_depth() > 1) then new.sales_rep_name := null; end if;
-  elsif tg_op = 'INSERT' or new.sales_rep_id is distinct from old.sales_rep_id then
+  else
     select pr.full_name into new.sales_rep_name from profiles pr where pr.id = new.sales_rep_id and pr.active;
     if not found then raise exception 'That person is not active staff'; end if;
   end if;
@@ -33,7 +38,8 @@ end $$;
 create or replace function require_sales_rep_permission() returns trigger
 language plpgsql security definer set search_path = public as $$
 begin
-  if new.sales_rep_id is distinct from old.sales_rep_id and auth.uid() is not null and not has_perm('sales_rep.change') then
+  if new.sales_rep_id is distinct from old.sales_rep_id and auth.uid() is not null and not has_perm('sales_rep.change')
+     and coalesce(current_setting('app.merging_customers', true), '') <> 'on' then
     raise exception 'Only managers can change the sales rep';
   end if;
   return new;
@@ -44,13 +50,13 @@ drop trigger if exists customers_a_sales_rep_permission on customers;
 create trigger customers_a_sales_rep_permission before update of sales_rep_id on customers
   for each row execute function require_sales_rep_permission();
 drop trigger if exists customers_b_sales_rep_name on customers;
-create trigger customers_b_sales_rep_name before insert or update of sales_rep_id on customers
+create trigger customers_b_sales_rep_name before insert or update of sales_rep_id, sales_rep_name on customers
   for each row execute function set_sales_rep_name();
 drop trigger if exists bookings_a_sales_rep_permission on bookings;
 create trigger bookings_a_sales_rep_permission before update of sales_rep_id on bookings
   for each row execute function require_sales_rep_permission();
 drop trigger if exists bookings_b_sales_rep_name on bookings;
-create trigger bookings_b_sales_rep_name before insert or update of sales_rep_id on bookings
+create trigger bookings_b_sales_rep_name before insert or update of sales_rep_id, sales_rep_name on bookings
   for each row execute function set_sales_rep_name();
 
 -- ---------- the permission ----------
@@ -369,6 +375,104 @@ begin
     ) s
     order by rn
     limit lim
+  ) r;
+  return jsonb_build_object('customers', res, 'total', total);
+end $$;
+
+-- ---------- merging customers keeps an owner; the default customers list shows and sorts by the owner ----------
+create or replace function merge_customers(p_keep uuid, p_remove uuid)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $$
+declare k customers; r customers;
+begin
+  perform require_perm('customers.manage');
+  if p_keep = p_remove then raise exception 'Choose two different customers'; end if;
+  select * into k from customers where id = p_keep;
+  select * into r from customers where id = p_remove;
+  if k.id is null or r.id is null then raise exception 'Customer not found'; end if;
+
+  -- the kept customer takes the other's owner when it has none (this change is allowed for the merge, whoever may merge)
+  perform set_config('app.merging_customers', 'on', true);
+  update booking_contacts set customer_id = k.id where customer_id = r.id;
+  update customer_notes set customer_id = k.id where customer_id = r.id;
+  -- address book: move what is not there yet, drop the rest
+  delete from customer_receivers x where (x.sender_id = r.id or x.receiver_id = r.id)
+    and exists (select 1 from customer_receivers y where y.id <> x.id
+      and y.sender_id = case when x.sender_id = r.id then k.id else x.sender_id end
+      and y.receiver_id = case when x.receiver_id = r.id then k.id else x.receiver_id end
+      and coalesce(y.address, '') = coalesce(x.address, ''));
+  update customer_receivers set sender_id = k.id where sender_id = r.id;
+  update customer_receivers set receiver_id = k.id where receiver_id = r.id;
+  delete from customer_receivers where sender_id = receiver_id;
+
+  update customers set
+    phone = coalesce(k.phone, r.phone),
+    whatsapp = coalesce(k.whatsapp, r.whatsapp),
+    address = coalesce(k.address, r.address),
+    geo_lat = coalesce(k.geo_lat, r.geo_lat),
+    geo_lng = coalesce(k.geo_lng, r.geo_lng),
+    emirates_id = coalesce(k.emirates_id, r.emirates_id),
+    warning_note = coalesce(k.warning_note, r.warning_note),
+    sales_rep_id = coalesce(k.sales_rep_id, r.sales_rep_id),
+    updated_at = now()
+  where id = k.id;
+  insert into customer_notes (customer_id, body)
+  values (k.id, left('Merged with the record of ' || r.full_name || coalesce(' (' || r.phone || ')', '') || '. All invoices, notes and receivers moved here.', 2000));
+  delete from customers where id = r.id;
+  perform set_config('app.merging_customers', 'off', true);
+end $$;
+
+create or replace function list_customers(p_limit integer DEFAULT 50, p_offset integer DEFAULT 0, p_sort text DEFAULT NULL::text, p_dir text DEFAULT NULL::text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE
+ SET search_path TO 'public'
+AS $$
+declare
+  res jsonb;
+  total bigint;
+  v_sort text := case when p_sort in ('name', 'phone', 'address', 'owner', 'invoices', 'last_invoice') then p_sort else 'name' end;
+  v_desc boolean := lower(coalesce(p_dir, 'asc')) = 'desc';
+begin
+  select coalesce(jsonb_agg(to_jsonb(r) - 'rn' - 'last_invoice_at' order by r.rn), '[]'::jsonb), coalesce(max(r.total), 0) into res, total
+  from (
+    select s.id, s.full_name, s.phone, s.whatsapp, s.address, s.emirates_id, s.sales_rep_id, s.sales_rep, s.invoices, s.last_invoice, s.last_invoice_at, s.total,
+           row_number() over (
+             order by
+               case when v_sort = 'name' and not v_desc then s.full_name end asc nulls last,
+               case when v_sort = 'name' and v_desc then s.full_name end desc nulls last,
+               case when v_sort = 'phone' and not v_desc then s.phone end asc nulls last,
+               case when v_sort = 'phone' and v_desc then s.phone end desc nulls last,
+               case when v_sort = 'address' and not v_desc then s.address end asc nulls last,
+               case when v_sort = 'address' and v_desc then s.address end desc nulls last,
+               case when v_sort = 'owner' and not v_desc then s.sales_rep end asc nulls last,
+               case when v_sort = 'owner' and v_desc then s.sales_rep end desc nulls last,
+               case when v_sort = 'invoices' and not v_desc then s.invoices end asc,
+               case when v_sort = 'invoices' and v_desc then s.invoices end desc,
+               case when v_sort = 'last_invoice' and not v_desc then s.last_invoice_at end asc nulls last,
+               case when v_sort = 'last_invoice' and v_desc then s.last_invoice_at end desc nulls last,
+               s.full_name, s.id
+           ) as rn
+    from (
+      select c.id, c.full_name, c.phone, c.whatsapp, c.address, c.emirates_id,
+             c.sales_rep_id, c.sales_rep_name as sales_rep,
+             x.invoices, x.last_invoice, x.last_invoice_at,
+             count(*) over () as total
+      from customers c
+      left join lateral (
+        select count(*) as invoices,
+               (array_agg(b.invoice_no order by b.created_at desc) filter (where b.invoice_no is not null))[1] as last_invoice,
+               max(b.created_at) filter (where b.invoice_no is not null) as last_invoice_at
+        from booking_contacts bc
+        join bookings b on b.id = bc.booking_id
+        where bc.customer_id = c.id and bc.role = 'customer'
+      ) x on true
+    ) s
+    order by rn
+    limit greatest(least(coalesce(p_limit, 50), 200), 1) offset greatest(coalesce(p_offset, 0), 0)
   ) r;
   return jsonb_build_object('customers', res, 'total', total);
 end $$;

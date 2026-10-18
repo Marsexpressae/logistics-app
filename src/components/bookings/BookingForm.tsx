@@ -7,7 +7,7 @@ import { formatGeo, parseGeo } from "@/lib/geo";
 import { useQuery } from "@/lib/hooks";
 import { formatPhone, parsePhone } from "@/lib/phone";
 import { useCurrentProfile, usePermissions } from "@/lib/profile-context";
-import SalesRepSelect from "@/components/people/SalesRepSelect";
+import SalesRepSelect, { useSalesRepChoices } from "@/components/people/SalesRepSelect";
 import { supabase } from "@/lib/supabase";
 import type { Booking, Driver } from "@/lib/types";
 import BillingCard from "./form/BillingCard";
@@ -40,7 +40,10 @@ export default function BookingForm({ booking, submitLabel, onSaved, numbersOpen
   const [picked, setPicked] = useState<CustomerHit | null>(null);
   // The sales rep: until someone chooses, it is the picked customer's owner, or else the person making the booking.
   const [chosenRep, setChosenRep] = useState<string | null | undefined>(undefined);
-  const salesRepId = chosenRep !== undefined ? chosenRep : (picked?.sales_rep_id ?? me.id);
+  const repChoices = useSalesRepChoices();
+  // an owner who has left (no longer in the list) is not preselected: the booking could not be saved with them
+  const ownerStillStaff = !!picked?.sales_rep_id && !!repChoices.data?.some((p) => p.id === picked.sales_rep_id);
+  const salesRepId = chosenRep !== undefined ? chosenRep : ownerStillStaff ? (picked?.sales_rep_id ?? me.id) : me.id;
   // Editing: the booking already belongs to a customer. Their name and numbers are changed on the customer page, not here.
   const linkedCustomer = useQuery<{ customer_id: string } | null>(
     () => (booking && can("customers.view") ? (supabase.from("booking_contacts").select("customer_id").eq("booking_id", booking.id).eq("role", "customer").maybeSingle() as never) : Promise.resolve({ data: null, error: null })),

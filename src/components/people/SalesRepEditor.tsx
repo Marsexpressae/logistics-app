@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import SalesRepSelect from "@/components/people/SalesRepSelect";
+import SalesRepSelect, { useSalesRepChoices } from "@/components/people/SalesRepSelect";
 import { ErrorMessage } from "@/components/ui/form";
 import { supabase } from "@/lib/supabase";
 
@@ -23,6 +23,9 @@ export default function SalesRepEditor({ table, id, currentId, currentName, labe
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const choices = useSalesRepChoices();
+  // the person recorded is gone (inactive, or removed): the dropdown cannot show them, so the name is written out
+  const gone = !!currentName && !!choices.data && (currentId === null || !choices.data.some((p) => p.id === currentId));
 
   async function change(next: string | null) {
     const before = value;
@@ -49,6 +52,7 @@ export default function SalesRepEditor({ table, id, currentId, currentName, labe
       {canChange ? (
         <>
           <SalesRepSelect value={value} onChange={change} disabled={busy} label={label} />
+          {gone && value === currentId && <p className="mt-1 text-sm text-slate-600">Recorded as {currentName}, who is no longer active staff.</p>}
           {saved && <p role="status" className="mt-1 text-sm text-green-700">Saved</p>}
         </>
       ) : (

@@ -1343,3 +1343,59 @@ test("sales rep: Accounts, global search and customer search carry the rep", { s
     assert.deepEqual(await order("desc"), ["Zzowner Qxone", "Zzowner Qxthree", "Zzowner Qxtwo"]);
   });
 });
+
+test("sales rep: the default customers list carries the owner and sorts by it", { skip }, async () => {
+  await inTransaction(async (db) => {
+    await withSalesRep(db);
+    const viewer = await db.person(["customers.view"], "list-viewer-2");
+    const alpha = await db.person(["bookings.view"], "Alpha Lister");
+    await bookingWithRep(db, "+971500777021", alpha, "Zzlist Qxone");
+    await bookingWithRep(db, "+971500777022", null, "Zzlist Qxtwo");
+    const all = (await db.as(viewer, "select list_customers(200, 0, 'owner', 'asc') r"))[0].r as { customers: Row[] };
+    const mine = all.customers.filter((c) => String(c.full_name).startsWith("Zzlist"));
+    assert.deepEqual(mine.map((c) => [c.full_name, c.sales_rep_id, c.sales_rep]), [["Zzlist Qxone", alpha, "Test Alpha Lister"], ["Zzlist Qxtwo", null, null]]);
+    const firstOwned = all.customers.findIndex((c) => c.sales_rep != null);
+    const firstEmpty = all.customers.findIndex((c) => c.sales_rep == null);
+    assert.ok(firstOwned === -1 || firstEmpty === -1 || firstOwned < firstEmpty, "people with no owner come last");
+  });
+});
+
+test("sales rep: the rep's name cannot be written by hand", { skip }, async () => {
+  await inTransaction(async (db) => {
+    await withSalesRep(db);
+    const editor = await db.person(["bookings.view", "bookings.edit"], "plain-editor");
+    const rep = await db.person(["bookings.view"], "Real Rep");
+    const booking = await db.booking({ invoice_no: "T-SR-9" });
+    await db.owner("update bookings set sales_rep_id = $2 where id = $1", [booking, rep]);
+    await db.as(editor, "update bookings set sales_rep_name = 'Somebody Else' where id = $1", [booking]);
+    assert.equal((await repOf(db, "bookings", booking)).sales_rep_name, "Test Real Rep", "the name follows the id, nothing else");
+    // with no rep, a hand-written name does not stick either
+    const bare = await db.booking({ invoice_no: "T-SR-10" });
+    await db.as(editor, "update bookings set sales_rep_name = 'Nobody' where id = $1", [bare]);
+    assert.equal((await repOf(db, "bookings", bare)).sales_rep_name, null);
+  });
+});
+
+test("sales rep: merging customers keeps an owner, even for people who may merge but not change owners", { skip }, async () => {
+  await inTransaction(async (db) => {
+    await withSalesRep(db);
+    const merger = await db.person(["customers.view", "customers.manage"], "merger-only");
+    const sara = await db.person(["bookings.view"], "Sara Rep");
+    const keep = await newCustomer(db, "Keep Me");
+    const remove = await newCustomer(db, "Remove Me");
+    await db.owner("update customers set sales_rep_id = $2 where id = $1", [remove, sara]);
+    await db.as(merger, "select merge_customers($1, $2)", [keep, remove]);
+    assert.deepEqual(await repOf(db, "customers", keep), { sales_rep_id: sara, sales_rep_name: "Test Sara Rep" });
+    // when the kept customer already has an owner, that owner stays
+    const other = await db.person(["bookings.view"], "Other Rep");
+    const keep2 = await newCustomer(db, "Keep Two");
+    const remove2 = await newCustomer(db, "Remove Two");
+    await db.owner("update customers set sales_rep_id = $2 where id = $1", [keep2, other]);
+    await db.owner("update customers set sales_rep_id = $2 where id = $1", [remove2, sara]);
+    await db.as(merger, "select merge_customers($1, $2)", [keep2, remove2]);
+    assert.equal((await repOf(db, "customers", keep2)).sales_rep_id, other);
+    // a person who may merge still cannot change an owner by hand
+    const target = await newCustomer(db, "No Hand Change");
+    assert.match((await db.error(() => db.as(merger, "select set_customer_sales_rep($1, $2)", [target, sara]))) ?? "NOT REFUSED", /Only managers can change the sales rep/);
+  });
+});

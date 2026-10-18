@@ -169,3 +169,29 @@ test("the Accounts list sorts by the sales rep, people with none last", async ()
   assert.deepEqual(await order("asc"), ["Zzacc Rep Alpha", "Zzacc Rep Bravo"]); // Mona, Sam
   assert.deepEqual(await order("desc"), ["Zzacc Rep Bravo", "Zzacc Rep Alpha"]);
 });
+
+test("merging customers keeps an owner", async () => {
+  const mk = async (name: string, phone: string) => (await c.rpc("create_customer", { p_name: name, p_phone: phone, p_whatsapp: null, p_address: null, p_lat: null, p_lng: null, p_eid: null })).data as string;
+  const keep = await mk("Merge Keep", "+971500888040");
+  const remove = await mk("Merge Remove", "+971500888041");
+  await c.rpc("set_customer_sales_rep", { p_customer_id: keep, p_sales_rep_id: null });
+  await c.rpc("set_customer_sales_rep", { p_customer_id: remove, p_sales_rep_id: "sample-staff" });
+  assert.equal((await c.rpc("merge_customers", { p_keep: keep, p_remove: remove })).error, null);
+  const kept = (await customers()).find((x) => x.id === keep)!;
+  assert.deepEqual([kept.sales_rep_id, kept.sales_rep_name], ["sample-staff", "Sam Staff"]);
+  // an existing owner stays
+  const k2 = await mk("Merge Keep Two", "+971500888042");
+  const r2 = await mk("Merge Remove Two", "+971500888043");
+  await c.rpc("set_customer_sales_rep", { p_customer_id: k2, p_sales_rep_id: "sample-manager" });
+  await c.rpc("set_customer_sales_rep", { p_customer_id: r2, p_sales_rep_id: "sample-staff" });
+  await c.rpc("merge_customers", { p_keep: k2, p_remove: r2 });
+  assert.equal((await customers()).find((x) => x.id === k2)!.sales_rep_id, "sample-manager");
+});
+
+test("a returning customer whose owner left is not preselected, and managers see who is recorded", () => {
+  assert.ok(read("src/components/people/SalesRepSelect.tsx").includes("export function useSalesRepChoices"));
+  const form = read("src/components/bookings/BookingForm.tsx");
+  assert.ok(form.includes("useSalesRepChoices") && form.includes("ownerStillStaff"), "only an active owner is preselected");
+  const editor = read("src/components/people/SalesRepEditor.tsx");
+  assert.ok(editor.includes("useSalesRepChoices") && editor.includes("no longer active staff"), "the recorded name is shown when the person is gone");
+});
