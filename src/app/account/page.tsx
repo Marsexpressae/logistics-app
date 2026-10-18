@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useState, type FormEvent } from "react";
+import DeviceToggle from "@/components/celebrations/DeviceToggle";
 import BadgeGrid from "@/components/rewards/BadgeGrid";
 import PointsList from "@/components/rewards/PointsList";
 import ProfileEditor from "@/components/rewards/ProfileEditor";
@@ -64,6 +65,10 @@ function AccountPage() {
 
       <Card title="My recent points">
         <PointsList lines={rewards.data?.recent ?? []} />
+      </Card>
+
+      <Card title="Celebrations">
+        <DeviceToggle />
       </Card>
 
       {me && (
