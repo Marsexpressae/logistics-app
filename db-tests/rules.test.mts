@@ -1569,7 +1569,6 @@ const badgeKeys = async (db: Db, who: string) => (await db.owner("select badge_k
 
 test("rewards: count badges are earned at the threshold, for everyone, and are never taken away", { skip }, async () => {
   await inTransaction(async (db) => {
-    await withTeamMedals(db);
     const rep = await db.person([], "sales rep");
     const driver = await db.person([], "pickup driver");
     await db.owner("update profiles set team = 'sales' where id = $1", [rep]);
@@ -1621,7 +1620,6 @@ test("rewards: badges by hand need the permission, another person, a manual badg
 
 test("rewards: my_badges shows earned badges, and locked badges with their progress, for everyone", { skip }, async () => {
   await inTransaction(async (db) => {
-    await withTeamMedals(db);
     const driver = await db.person([], "driver");
     await db.owner("update profiles set team = 'pickup' where id = $1", [driver]);
     await oldLines(db, driver, "pickup_collected", 40);
@@ -1640,7 +1638,6 @@ test("rewards: my_badges shows earned badges, and locked badges with their progr
 
 test("rewards: the wins feed shows badges and thank-yous of active people, with no points or private fields", { skip }, async () => {
   await inTransaction(async (db) => {
-    await withTeamMedals(db);
     const boss = await db.person(["rewards.give"], "boss");
     const happy = await db.person([], "happy");
     const gone = await db.person([], "gone");
@@ -1763,13 +1760,10 @@ test("rewards: a login with no active profile reads nothing from the rewards fun
 });
 
 // ---------------- team medals (migration 0063) ----------------
-// Until the migration is live, each test applies the file inside its own rolled-back transaction.
-const TEAM_MEDALS_MIGRATION = "supabase/migrations/0063_team_medals.sql";
-const withTeamMedals = (db: Db) => db.owner(readFileSync(TEAM_MEDALS_MIGRATION, "utf8"));
+// The migration is live: these tests run against the real structure, inside rolled-back transactions.
 
 test("team medals: every person sees every badge, whatever their team", { skip }, async () => {
   await inTransaction(async (db) => {
-    await withTeamMedals(db);
     const picker = await db.person([], "picker");
     const nobody = await db.person([], "no team");
     await db.owner("update profiles set team = 'pickup' where id = $1", [picker]);
@@ -1783,7 +1777,6 @@ test("team medals: every person sees every badge, whatever their team", { skip }
 
 test("team medals: 26 badges in families with unique tiers, and the original eight keep their goals", { skip }, async () => {
   await inTransaction(async (db) => {
-    await withTeamMedals(db);
     assert.equal((await db.owner("select count(*)::int n from badges"))[0].n, 26);
     assert.equal((await db.owner("select count(*)::int n from badges where team is not null"))[0].n, 0);
     assert.deepEqual(await db.owner("select family, tier from badges where family is not null group by 1, 2 having count(*) > 1"), []);
@@ -1796,7 +1789,6 @@ test("team medals: 26 badges in families with unique tiers, and the original eig
 
 test("team medals: tiers are earned at their goal for anyone, and a higher tier is never taken away", { skip }, async () => {
   await inTransaction(async (db) => {
-    await withTeamMedals(db);
     const picker = await db.person([], "pickup person");
     await db.owner("update profiles set team = 'pickup' where id = $1", [picker]);
     await oldLines(db, picker, "booking_created", 98);
@@ -1814,7 +1806,6 @@ test("team medals: tiers are earned at their goal for anyone, and a higher tier 
 
 test("team medals: thank-yous received earn the Appreciated medals, with progress toward the next", { skip }, async () => {
   await inTransaction(async (db) => {
-    await withTeamMedals(db);
     const boss = await db.person(["rewards.give"], "boss");
     const staff = await db.person([], "thanked");
     await db.as(boss, "select give_thank_you($1, 5, 'Thanks')", [staff]);
@@ -1829,7 +1820,6 @@ test("team medals: thank-yous received earn the Appreciated medals, with progres
 
 test("team medals: the team overview lists active colleagues with level, streak and badge count, and nothing private", { skip }, async () => {
   await inTransaction(async (db) => {
-    await withTeamMedals(db);
     const me = await db.person([], "viewer");
     const a = await db.person([], "alpha");
     const gone = await db.person([], "gone");
@@ -1851,7 +1841,6 @@ test("team medals: the team overview lists active colleagues with level, streak 
 
 test("team medals: a person's achievements are badges and thank-yous, with no work reasons and no points", { skip }, async () => {
   await inTransaction(async (db) => {
-    await withTeamMedals(db);
     const boss = await db.person(["rewards.give"], "boss");
     const star = await db.person([], "star");
     const viewer = await db.person([], "viewer");
@@ -1872,7 +1861,6 @@ test("team medals: a person's achievements are badges and thank-yous, with no wo
 
 test("team medals: managers add a badge, it is earned at its goal, and the inputs are checked", { skip }, async () => {
   await inTransaction(async (db) => {
-    await withTeamMedals(db);
     const staff = await db.person([], "staff");
     const boss = await db.person(["rewards.manage"], "boss");
     const add = (name: string, over: Partial<Record<string, unknown>> = {}) => {
@@ -1901,7 +1889,6 @@ test("team medals: managers add a badge, it is earned at its goal, and the input
 // ---- fixes after the team medals review ----
 test("team medals: the streak check uses a time range (so it can use the index), and still counts days in a row", { skip }, async () => {
   await inTransaction(async (db) => {
-    await withTeamMedals(db);
     const src = (await db.owner("select pg_get_functiondef('streak_of(uuid)'::regprocedure) d"))[0].d as string;
     assert.equal(/::date\s*=\s*cur/.test(src), false, "a per-row cast cannot use the index");
     assert.match(src, /created_at\s*>=/);
@@ -1914,7 +1901,6 @@ test("team medals: the streak check uses a time range (so it can use the index),
 
 test("team medals: a badge in a family needs a tier, and an explore rule cannot be counted", { skip }, async () => {
   await inTransaction(async (db) => {
-    await withTeamMedals(db);
     const boss = await db.person(["rewards.manage"], "boss");
     assert.match((await db.error(() => db.as(boss, "select create_badge('No tier', 'x', 'receipt', 'payments', null, 'count', 'payment_recorded', 5)"))) ?? "", /Choose a tier for a badge in a family/);
     assert.match((await db.error(() => db.as(boss, "select create_badge('Explore count', 'x', 'compass', null, null, 'count', 'use_bookings', 5)"))) ?? "", /what is counted/);
