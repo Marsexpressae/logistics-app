@@ -1145,18 +1145,11 @@ test("move_booking_item: two items that share a position are renumbered and then
 });
 
 // ---------------- sales rep (customer owner) ----------------
-const SALES_REP_MIGRATION = "supabase/migrations/0061_sales_rep.sql";
-/** Re-applies the migration inside the test's transaction (until it is live). The lock timeout keeps a test from ever waiting long on the live tables. */
-const withSalesRep = async (db: Db) => {
-  await db.owner("set local lock_timeout = '3s'");
-  await db.owner(readFileSync(SALES_REP_MIGRATION, "utf8"));
-};
 const newCustomer = async (db: Db, name = "Owned Customer") => (await db.owner("insert into customers (full_name) values ($1) returning id", [name]))[0].id as string;
 const repOf = async (db: Db, table: "bookings" | "customers", id: string) => (await db.owner(`select sales_rep_id, sales_rep_name from ${table} where id = $1`, [id]))[0] as { sales_rep_id: string | null; sales_rep_name: string | null };
 
 test("sales rep: the name is copied and cleared", { skip }, async () => {
   await inTransaction(async (db) => {
-    await withSalesRep(db);
     const rep = await db.person(["bookings.view"], "Rep One");
     const booking = await db.booking({ invoice_no: "T-SR-1" });
     const customer = await newCustomer(db);
@@ -1171,7 +1164,6 @@ test("sales rep: the name is copied and cleared", { skip }, async () => {
 
 test("sales rep: only active staff can be chosen", { skip }, async () => {
   await inTransaction(async (db) => {
-    await withSalesRep(db);
     const gone = await db.person(["bookings.view"], "Inactive Rep");
     await db.owner("update profiles set active = false where id = $1", [gone]);
     const booking = await db.booking({ invoice_no: "T-SR-2" });
@@ -1187,7 +1179,6 @@ test("sales rep: only active staff can be chosen", { skip }, async () => {
 
 test("sales rep: changing needs the permission, creating does not", { skip }, async () => {
   await inTransaction(async (db) => {
-    await withSalesRep(db);
     const rep = await db.person(["bookings.view"], "Chosen Rep");
     const staff = await db.person(["bookings.view", "bookings.create", "bookings.edit", "customers.view", "customers.edit"], "plain-staff");
     const manager = await db.person(["bookings.view", "bookings.edit", "customers.view", "customers.edit", "sales_rep.change"], "a-manager");
@@ -1216,7 +1207,6 @@ test("sales rep: changing needs the permission, creating does not", { skip }, as
 
 test("sales rep: the permission goes to managers and super admins only", { skip }, async () => {
   await inTransaction(async (db) => {
-    await withSalesRep(db);
     const roles = (await db.owner("select role from role_permissions where permission = 'sales_rep.change' order by role")).map((r) => r.role);
     assert.deepEqual(roles, ["manager", "super_admin"]);
     assert.equal((await db.owner("select label from permissions where key = 'sales_rep.change'"))[0].label, "Change the sales rep (owner)");
@@ -1225,7 +1215,6 @@ test("sales rep: the permission goes to managers and super admins only", { skip 
 
 test("sales_rep_choices: active staff only, for people who may pick one", { skip }, async () => {
   await inTransaction(async (db) => {
-    await withSalesRep(db);
     const active = await db.person(["bookings.view"], "Zed Active");
     const inactive = await db.person(["bookings.view"], "Alf Inactive");
     await db.owner("update profiles set active = false where id = $1", [inactive]);
@@ -1244,7 +1233,6 @@ test("sales_rep_choices: active staff only, for people who may pick one", { skip
 
 test("sales rep: a removed person leaves the old name on old records", { skip }, async () => {
   await inTransaction(async (db) => {
-    await withSalesRep(db);
     const rep = await db.person(["bookings.view"], "Leaver");
     const booking = await db.booking({ invoice_no: "T-SR-6" });
     await db.owner("update bookings set sales_rep_id = $2 where id = $1", [booking, rep]);
@@ -1262,7 +1250,6 @@ async function bookingWithRep(db: Db, phone: string, rep: string | null, name = 
 
 test("sales rep: a booking for a new customer gives the customer the same owner", { skip }, async () => {
   await inTransaction(async (db) => {
-    await withSalesRep(db);
     const rep = await db.person(["bookings.view"], "Rep Alpha");
     const { customer } = await bookingWithRep(db, "+971500777001", rep);
     assert.deepEqual(await repOf(db, "customers", customer), { sales_rep_id: rep, sales_rep_name: "Test Rep Alpha" });
@@ -1271,7 +1258,6 @@ test("sales rep: a booking for a new customer gives the customer the same owner"
 
 test("sales rep: a booking for an existing customer leaves their owner alone", { skip }, async () => {
   await inTransaction(async (db) => {
-    await withSalesRep(db);
     const alpha = await db.person(["bookings.view"], "Rep Alpha");
     const beta = await db.person(["bookings.view"], "Rep Beta");
     const first = await bookingWithRep(db, "+971500777002", alpha);
@@ -1288,7 +1274,6 @@ test("sales rep: a booking for an existing customer leaves their owner alone", {
 
 test("sales rep: a customer added by hand, or made from a booking, gets an owner", { skip }, async () => {
   await inTransaction(async (db) => {
-    await withSalesRep(db);
     const creator = await db.person(["customers.view", "customers.edit"], "Creator");
     const made = (await db.as(creator, "select create_customer('By Hand', '+971500777004', null, null, null, null, null) id"))[0].id as string;
     assert.deepEqual(await repOf(db, "customers", made), { sales_rep_id: creator, sales_rep_name: "Test Creator" });
@@ -1301,7 +1286,6 @@ test("sales rep: a customer added by hand, or made from a booking, gets an owner
 
 test("sales rep: changing a customer's owner leaves their old bookings alone", { skip }, async () => {
   await inTransaction(async (db) => {
-    await withSalesRep(db);
     const alpha = await db.person(["bookings.view"], "Rep Alpha");
     const beta = await db.person(["bookings.view"], "Rep Beta");
     const manager = await db.person(["customers.view", "sales_rep.change"], "Boss");
@@ -1314,7 +1298,6 @@ test("sales rep: changing a customer's owner leaves their old bookings alone", {
 
 test("sales rep: Accounts, global search and customer search carry the rep", { skip }, async () => {
   await inTransaction(async (db) => {
-    await withSalesRep(db);
     const rep = await db.person(["bookings.view"], "Rep Delta");
     const viewer = await db.person(["accounts.view", "bookings.view", "customers.view"], "list-viewer");
     const withRep = await bookingWithRep(db, "+971500777011", rep, "Zzowner Qxone");
@@ -1346,7 +1329,6 @@ test("sales rep: Accounts, global search and customer search carry the rep", { s
 
 test("sales rep: the default customers list carries the owner and sorts by it", { skip }, async () => {
   await inTransaction(async (db) => {
-    await withSalesRep(db);
     const viewer = await db.person(["customers.view"], "list-viewer-2");
     const alpha = await db.person(["bookings.view"], "Alpha Lister");
     await bookingWithRep(db, "+971500777021", alpha, "Zzlist Qxone");
@@ -1362,7 +1344,6 @@ test("sales rep: the default customers list carries the owner and sorts by it", 
 
 test("sales rep: the rep's name cannot be written by hand", { skip }, async () => {
   await inTransaction(async (db) => {
-    await withSalesRep(db);
     const editor = await db.person(["bookings.view", "bookings.edit"], "plain-editor");
     const rep = await db.person(["bookings.view"], "Real Rep");
     const booking = await db.booking({ invoice_no: "T-SR-9" });
@@ -1378,7 +1359,6 @@ test("sales rep: the rep's name cannot be written by hand", { skip }, async () =
 
 test("sales rep: merging customers keeps an owner, even for people who may merge but not change owners", { skip }, async () => {
   await inTransaction(async (db) => {
-    await withSalesRep(db);
     const merger = await db.person(["customers.view", "customers.manage"], "merger-only");
     const sara = await db.person(["bookings.view"], "Sara Rep");
     const keep = await newCustomer(db, "Keep Me");
