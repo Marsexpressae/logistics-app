@@ -1,15 +1,20 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { Suspense, useState, type FormEvent } from "react";
+import BadgeGrid from "@/components/rewards/BadgeGrid";
+import PointsList from "@/components/rewards/PointsList";
+import ProfileEditor from "@/components/rewards/ProfileEditor";
+import ProfileHeader from "@/components/rewards/ProfileHeader";
 import PageHeader from "@/components/ui/PageHeader";
 import { Button, Card, ErrorMessage, Field, Notice, inputClass } from "@/components/ui/form";
 import { checkNewPassword } from "@/lib/password";
 import { useCurrentProfile } from "@/lib/profile-context";
-import { useSession } from "@/lib/hooks";
+import { useQuery, useSession } from "@/lib/hooks";
+import type { BadgeView, DirectoryPerson, Rewards } from "@/lib/rewards";
 import { supabase } from "@/lib/supabase";
 
-/** Everyone's own page: who you are, and changing your own password. */
-export default function AccountPage() {
+/** Everyone's own page: your profile, points and badges, and changing your own password. */
+function AccountPage() {
   const profile = useCurrentProfile();
   const session = useSession();
   const email = session?.user.email ?? "";
@@ -17,6 +22,10 @@ export default function AccountPage() {
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
   const [busy, setBusy] = useState(false);
+  const people = useQuery<DirectoryPerson[]>(() => supabase.rpc("people_directory") as never);
+  const rewards = useQuery<Rewards>(() => supabase.rpc("my_rewards") as never);
+  const badges = useQuery<BadgeView[]>(() => supabase.rpc("my_badges") as never);
+  const me = people.data?.find((p) => p.id === profile.id) ?? null;
 
   async function change(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -44,8 +53,24 @@ export default function AccountPage() {
   }
 
   return (
-    <div className="max-w-lg space-y-4">
-      <PageHeader title="My account" description="Your details, and your password." />
+    <div className="max-w-2xl space-y-4">
+      <PageHeader title="My profile" description="Your points and badges, your details, and your password." />
+
+      {me && <ProfileHeader person={me} rewards={rewards.data} />}
+
+      <Card title="My badges">
+        <BadgeGrid badges={badges.data ?? []} />
+      </Card>
+
+      <Card title="My recent points">
+        <PointsList lines={rewards.data?.recent ?? []} />
+      </Card>
+
+      {me && (
+        <Card title="Edit my profile">
+          <ProfileEditor key={`${me.photo_path}-${me.about}-${me.phone}`} person={me} onSaved={people.reload} />
+        </Card>
+      )}
 
       <Card title="You">
         <dl className="space-y-2 text-base">
@@ -88,5 +113,13 @@ export default function AccountPage() {
         </form>
       </Card>
     </div>
+  );
+}
+
+export default function Page() {
+  return (
+    <Suspense fallback={null}>
+      <AccountPage />
+    </Suspense>
   );
 }

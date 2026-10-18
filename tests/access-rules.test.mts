@@ -37,6 +37,7 @@ test("the account page is open to everyone who is signed in, whatever their role
   assert.equal(canAccess([], "/account"), true);
   assert.equal(canAccess(["pickups.view_own"], "/account"), true);
   assert.equal(canAccess([], "/accounts"), false); // not to be confused with the Accounts (money) page
+  assert.equal(canAccess([], "/people/sample-id"), true); // a colleague's profile
 });
 
 test("a known page still needs its permission", () => {

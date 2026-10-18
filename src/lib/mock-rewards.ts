@@ -181,6 +181,7 @@ export function rewardsRpc({ db, me, save }: Helpers): Record<string, (a: any) =
           id: p.id, full_name: p.full_name, role: p.role, team: p.team ?? null, job_title: p.job_title ?? null, about: p.about ?? null,
           photo_path: p.photo_path ?? null, joined_on: p.joined_on ?? null,
           birthday_day: hide ? null : p.birthday_day ?? null, birthday_month: hide ? null : p.birthday_month ?? null,
+          hide_birthday: !!p.hide_birthday && p.id === me(),
           phone: p.id === me() || seeAll ? p.phone ?? null : null,
         };
       }));

@@ -192,12 +192,13 @@ end $$;
 -- Everyone can see their colleagues' basics. Phone numbers only for managers (and the person), and a hidden birthday is hidden from everyone else.
 create or replace function people_directory() returns table (
   id uuid, full_name text, role text, team text, job_title text, about text, photo_path text, joined_on date,
-  birthday_day int, birthday_month int, phone text
+  birthday_day int, birthday_month int, hide_birthday boolean, phone text
 )
 language sql stable security definer set search_path = public as $$
   select p.id, p.full_name, p.role, p.team, p.job_title, p.about, p.photo_path, p.joined_on,
     case when p.hide_birthday and p.id <> (select auth.uid()) then null else p.birthday_day end,
     case when p.hide_birthday and p.id <> (select auth.uid()) then null else p.birthday_month end,
+    p.hide_birthday and p.id = (select auth.uid()),
     case when p.id = (select auth.uid()) or has_perm('rewards.manage') then p.phone else null end
   from profiles p
   where p.active and (select auth.uid()) is not null

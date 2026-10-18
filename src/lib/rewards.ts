@@ -73,3 +73,27 @@ export function featureKeyFor(pathname: string): string | null {
   for (const [prefix, key] of FEATURES) if (pathname === prefix || pathname.startsWith(`${prefix}/`)) return key;
   return null;
 }
+
+/** How far along to the next level, 0 to 100 (100 at the top level). */
+export function progressPercent(r: { total: number; level_min: number; next_min: number | null }): number {
+  if (r.next_min == null) return 100;
+  return Math.round(((r.total - r.level_min) / (r.next_min - r.level_min)) * 100);
+}
+
+/** A colleague as the people directory returns them. Phone and a hidden birthday are already left out by the database. */
+export type DirectoryPerson = {
+  id: string;
+  full_name: string;
+  role: string;
+  team: string | null;
+  job_title: string | null;
+  about: string | null;
+  photo_path: string | null;
+  joined_on: string | null;
+  birthday_day: number | null;
+  birthday_month: number | null;
+  hide_birthday: boolean;
+  phone: string | null;
+};
+
+export const TEAM_LABEL: Record<string, string> = { sales: "Sales", pickup: "Pickup", warehouse: "Warehouse", office: "Office" };

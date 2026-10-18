@@ -49,6 +49,8 @@ const extraRules: { prefix: string; anyOf: string[] }[] = [
   { prefix: "/settings/roles", anyOf: ["roles.manage"] },
   // Everyone who is signed in: their own account and password.
   { prefix: "/account", anyOf: ["*"] },
+  // A colleague's profile (points, level, badges): everyone who is signed in.
+  { prefix: "/people", anyOf: ["*"] },
 ];
 
 const rulesFor = (path: string) =>
