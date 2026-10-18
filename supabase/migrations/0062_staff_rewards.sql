@@ -247,13 +247,6 @@ begin
   return n;
 end $$;
 
--- Badges are added in a later step of this file; until then this does nothing.
-create or replace function check_badges(p_person uuid) returns int
-language plpgsql security definer set search_path = public as $$
-begin
-  return 0;
-end $$;
-
 -- Pay points for one rule, once per record, within the caps. Returns the points paid (0 when nothing was paid).
 -- Not callable from the browser: it is used by the triggers and the functions below.
 create or replace function award_points(p_person uuid, p_rule text, p_source_table text, p_source_id uuid, p_reason text) returns int
@@ -290,7 +283,7 @@ begin
 exception when unique_violation then
   return 0;
 end $$;
-revoke execute on function award_points(uuid, text, text, uuid, text), check_badges(uuid), streak_of(uuid), dubai_today() from public, anon, authenticated;
+revoke execute on function award_points(uuid, text, text, uuid, text), streak_of(uuid), dubai_today() from public, anon, authenticated;
 
 -- ---------- work actions are counted when the real record is saved ----------
 -- A rewards problem must never stop a booking, a payment or a scan: every award is wrapped so it can only fail quietly.
@@ -395,3 +388,109 @@ $$;
 
 revoke execute on function record_feature_use(text), give_thank_you(uuid, int, text), person_rewards(uuid), my_rewards() from public, anon;
 grant execute on function record_feature_use(text), give_thank_you(uuid, int, text), person_rewards(uuid), my_rewards() to authenticated;
+
+-- ======================================================================================================================
+-- Badges
+-- ======================================================================================================================
+
+-- How far a person is toward a badge: {progress, goal}. Count badges count point-log lines; the explorer badge counts the
+-- explore rules tried; streak badges use the current streak. Manual badges have no progress.
+create or replace function badge_progress(p_person uuid, b badges) returns int[]
+language plpgsql stable security definer set search_path = public as $$
+declare done int; goal int;
+begin
+  if b.kind = 'streak' then
+    return array[streak_of(p_person), b.threshold];
+  elsif b.kind = 'count' and b.rule_key = 'explore' then
+    select count(distinct l.rule_key) into done from point_log l join point_rules r on r.key = l.rule_key and r.kind = 'explore' and r.active where l.person_id = p_person;
+    select count(*) into goal from point_rules where kind = 'explore' and active;
+    return array[done, goal];
+  elsif b.kind = 'count' then
+    select count(*) into done from point_log where person_id = p_person and rule_key = b.rule_key;
+    return array[done, b.threshold];
+  end if;
+  return null;
+end $$;
+
+-- Give every count and streak badge the person has now reached. Called after points are paid. Badges are never taken away.
+create or replace function check_badges(p_person uuid) returns int
+language plpgsql security definer set search_path = public as $$
+declare b badges; prog int[]; team_of text; got int := 0;
+begin
+  select team into team_of from profiles where id = p_person and active;
+  if not found then return 0; end if;
+  for b in
+    select * from badges bd where bd.active and bd.kind in ('count', 'streak') and (bd.team is null or bd.team = team_of)
+      and not exists (select 1 from person_badges pb where pb.person_id = p_person and pb.badge_key = bd.key)
+  loop
+    prog := badge_progress(p_person, b);
+    if prog is not null and prog[2] > 0 and prog[1] >= prog[2] then
+      insert into person_badges (person_id, badge_key) values (p_person, b.key) on conflict do nothing;
+      got := got + 1;
+    end if;
+  end loop;
+  return got;
+end $$;
+
+create or replace function give_badge(p_person uuid, p_badge text, p_message text) returns void
+language plpgsql security definer set search_path = public as $$
+declare uid uuid := (select auth.uid());
+begin
+  perform require_perm('rewards.give');
+  if p_person = uid then raise exception 'You cannot give yourself a badge'; end if;
+  if not exists (select 1 from badges where key = p_badge and kind = 'manual' and active) then raise exception 'That badge cannot be given by hand'; end if;
+  if not exists (select 1 from profiles where id = p_person and active) then raise exception 'That person is not active'; end if;
+  if exists (select 1 from person_badges where person_id = p_person and badge_key = p_badge) then raise exception 'They already have that badge'; end if;
+  insert into person_badges (person_id, badge_key, given_by, message) values (p_person, p_badge, uid, nullif(left(btrim(coalesce(p_message, '')), 200), ''));
+end $$;
+
+-- The badges that apply to a person (their team's and everyone's, plus any they already hold), earned first.
+create or replace function person_badges_of(p_person uuid) returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare team_of text; out jsonb;
+begin
+  if (select auth.uid()) is null then raise exception 'You are not signed in' using errcode = '42501'; end if;
+  select team into team_of from profiles where id = p_person and active;
+  if not found then raise exception 'Person not found'; end if;
+  select coalesce(jsonb_agg(x.item order by x.earned desc nulls last, x.name), '[]'::jsonb) into out
+  from (
+    select b.name, pb.earned_at as earned,
+      jsonb_build_object(
+        'key', b.key, 'name', b.name, 'description', b.description, 'icon', b.icon,
+        'earned_at', pb.earned_at, 'message', pb.message,
+        'progress', case when pb.earned_at is null then (badge_progress(p_person, b))[1] end,
+        'goal', case when pb.earned_at is null then (badge_progress(p_person, b))[2] end
+      ) as item
+    from badges b
+    left join person_badges pb on pb.badge_key = b.key and pb.person_id = p_person
+    where pb.earned_at is not null or (b.active and (b.team is null or b.team = team_of))
+  ) x;
+  return out;
+end $$;
+
+create or replace function my_badges() returns jsonb
+language sql stable security definer set search_path = public as $$
+  select person_badges_of((select auth.uid()))
+$$;
+
+-- Recent celebrations for the whole team: badges earned and thank-yous. No points, no ranking.
+create or replace function wins_feed(p_limit int default 20) returns table (
+  kind text, person_id uuid, person_name text, title text, message text, created_at timestamptz
+)
+language sql stable security definer set search_path = public as $$
+  select * from (
+    select 'badge'::text as kind, p.id as person_id, p.full_name as person_name, b.name as title, coalesce(pb.message, '') as message, pb.earned_at as created_at
+    from person_badges pb join badges b on b.key = pb.badge_key join profiles p on p.id = pb.person_id and p.active
+    union all
+    select 'thank_you', p.id, p.full_name, 'Thanked by ' || coalesce(g.full_name, 'a colleague'), l.reason, l.created_at
+    from point_log l join profiles p on p.id = l.person_id and p.active left join profiles g on g.id = l.given_by
+    where l.rule_key = 'thank_you'
+  ) w
+  where (select auth.uid()) is not null
+  order by created_at desc
+  limit least(greatest(coalesce(p_limit, 20), 1), 100)
+$$;
+
+revoke execute on function badge_progress(uuid, badges), check_badges(uuid) from public, anon, authenticated;
+revoke execute on function give_badge(uuid, text, text), person_badges_of(uuid), my_badges(), wins_feed(int) from public, anon;
+grant execute on function give_badge(uuid, text, text), person_badges_of(uuid), my_badges(), wins_feed(int) to authenticated;

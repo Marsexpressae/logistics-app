@@ -1573,3 +1573,98 @@ test("rewards: the streak counts days in a row, ends today or yesterday, and the
     assert.ok(Array.isArray(pr.recent));
   });
 });
+
+const oldLines = (db: Db, who: string, rule: string, n: number) =>
+  db.owner("insert into point_log (person_id, rule_key, points, reason, created_at) select $1, $2, 1, 'old work', now() - interval '5 days' from generate_series(1, $3)", [who, rule, n]);
+const badgeKeys = async (db: Db, who: string) => (await db.owner("select badge_key from person_badges where person_id = $1 order by badge_key", [who])).map((r) => r.badge_key as string);
+
+test("rewards: count badges are earned at the threshold, only for the badge's team, and are never taken away", { skip }, async () => {
+  await inTransaction(async (db) => {
+    await withRewards(db);
+    const rep = await db.person([], "sales rep");
+    const driver = await db.person([], "pickup driver");
+    await db.owner("update profiles set team = 'sales' where id = $1", [rep]);
+    await db.owner("update profiles set team = 'pickup' where id = $1", [driver]);
+    await oldLines(db, rep, "booking_created", 98);
+    await oldLines(db, driver, "booking_created", 98);
+    assert.deepEqual(await badgeKeys(db, rep), []);
+    await db.owner("select award_points($1, 'booking_created', 'bookings', gen_random_uuid(), 'x')", [rep]); // the 99th
+    assert.deepEqual(await badgeKeys(db, rep), ["first_booking"]);
+    await db.owner("select award_points($1, 'booking_created', 'bookings', gen_random_uuid(), 'x')", [rep]); // the 100th
+    assert.deepEqual(await badgeKeys(db, rep), ["bookings_100", "first_booking"]);
+    await db.owner("select award_points($1, 'booking_created', 'bookings', gen_random_uuid(), 'x')", [driver]);
+    await db.owner("select award_points($1, 'booking_created', 'bookings', gen_random_uuid(), 'x')", [driver]);
+    assert.deepEqual(await badgeKeys(db, driver), [], "sales badges are not for the pickup team");
+    await db.owner("delete from point_log where person_id = $1", [rep]);
+    assert.deepEqual(await badgeKeys(db, rep), ["bookings_100", "first_booking"], "a badge is never taken away");
+  });
+});
+
+test("rewards: the streak badge and the explorer badge", { skip }, async () => {
+  await inTransaction(async (db) => {
+    await withRewards(db);
+    const a = await db.person([], "streaker");
+    for (const d of [1, 2, 3, 4, 5, 6]) await db.owner("insert into point_log (person_id, rule_key, points, reason, created_at) values ($1, 'booking_created', 1, 'x', now() - ($2 || ' days')::interval)", [a, String(d)]);
+    assert.deepEqual(await badgeKeys(db, a), []);
+    await db.owner("select award_points($1, 'booking_created', 'bookings', gen_random_uuid(), 'x')", [a]); // today makes seven in a row
+    assert.ok((await badgeKeys(db, a)).includes("streak_7"));
+    const e = await db.person([], "explorer");
+    const keys = (await db.owner("select key from point_rules where kind = 'explore' order by key")).map((r) => r.key as string);
+    for (const k of keys.slice(0, -1)) await db.as(e, "select record_feature_use($1)", [k]);
+    assert.ok(!(await badgeKeys(db, e)).includes("explorer"));
+    await db.as(e, "select record_feature_use($1)", [keys.at(-1)]);
+    assert.ok((await badgeKeys(db, e)).includes("explorer"));
+  });
+});
+
+test("rewards: badges by hand need the permission, another person, a manual badge, and only once", { skip }, async () => {
+  await inTransaction(async (db) => {
+    await withRewards(db);
+    const boss = await db.person(["rewards.give"], "boss");
+    const staff = await db.person([], "staff");
+    assert.match((await db.error(() => db.as(staff, "select give_badge($1, 'team_player', 'Thanks')", [boss]))) ?? "", /permission/i);
+    assert.match((await db.error(() => db.as(boss, "select give_badge($1, 'team_player', 'Me')", [boss]))) ?? "", /yourself/);
+    assert.match((await db.error(() => db.as(boss, "select give_badge($1, 'bookings_100', 'x')", [staff]))) ?? "", /by hand/);
+    assert.match((await db.error(() => db.as(boss, "select give_badge($1, 'nothing', 'x')", [staff]))) ?? "", /by hand/);
+    await db.as(boss, "select give_badge($1, 'team_player', 'Stayed late to help')", [staff]);
+    assert.deepEqual(await badgeKeys(db, staff), ["team_player"]);
+    assert.match((await db.error(() => db.as(boss, "select give_badge($1, 'team_player', 'again')", [staff]))) ?? "", /already/);
+  });
+});
+
+test("rewards: my_badges shows earned badges, and locked badges with their progress, for the person's own team only", { skip }, async () => {
+  await inTransaction(async (db) => {
+    await withRewards(db);
+    const driver = await db.person([], "driver");
+    await db.owner("update profiles set team = 'pickup' where id = $1", [driver]);
+    await oldLines(db, driver, "pickup_collected", 40);
+    const list = (await db.as(driver, "select my_badges() b"))[0].b as Row[];
+    const byKey = Object.fromEntries(list.map((b) => [b.key, b]));
+    assert.equal(byKey.pickups_100.earned_at, null);
+    assert.equal(byKey.pickups_100.progress, 40);
+    assert.equal(byKey.pickups_100.goal, 100);
+    assert.ok(byKey.scan_master && byKey.team_player, "badges for everyone are shown");
+    assert.ok(!byKey.bookings_100 && !byKey.first_booking, "sales badges are not shown to the pickup team");
+    const other = await db.person([], "colleague");
+    const theirs = (await db.as(other, "select person_badges_of($1) b", [driver]))[0].b as Row[];
+    assert.equal(theirs.length, list.length);
+  });
+});
+
+test("rewards: the wins feed shows badges and thank-yous of active people, with no points or private fields", { skip }, async () => {
+  await inTransaction(async (db) => {
+    await withRewards(db);
+    const boss = await db.person(["rewards.give"], "boss");
+    const happy = await db.person([], "happy");
+    const gone = await db.person([], "gone");
+    await db.as(boss, "select give_badge($1, 'team_player', 'Stayed late')", [happy]);
+    await db.as(boss, "select give_thank_you($1, 10, 'Thanks for the help')", [happy]);
+    await db.as(boss, "select give_badge($1, 'team_player', 'Gone soon')", [gone]);
+    await db.owner("update profiles set active = false where id = $1", [gone]);
+    const feed = (await db.as(happy, "select * from wins_feed(20)")) as Row[];
+    assert.deepEqual(feed.map((f) => f.kind).sort(), ["badge", "thank_you"]);
+    assert.ok(feed.every((f) => f.person_id === happy));
+    assert.deepEqual(Object.keys(feed[0]).sort(), ["created_at", "kind", "message", "person_id", "person_name", "title"]);
+    assert.match(feed.find((f) => f.kind === "thank_you")!.title, /Test boss/);
+  });
+});
