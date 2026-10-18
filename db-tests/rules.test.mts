@@ -1391,7 +1391,7 @@ test("rewards: the tables exist, browser roles cannot write them, and the seed i
     assert.match((await db.error(() => db.as(staff, "update point_rules set points = 999"))) ?? "", /permission denied|row-level security/);
     assert.equal((await db.owner("select count(*)::int n from levels"))[0].n, 8);
     assert.equal((await db.owner("select count(*)::int n from point_rules"))[0].n, 13);
-    assert.equal((await db.owner("select count(*)::int n from badges where kind = 'manual'"))[0].n, 1);
+    assert.ok((await db.owner("select key from badges where kind = 'manual'")).some((r) => r.key === "team_player"));
     assert.deepEqual((await db.owner("select key from permissions where key like 'rewards.%' order by key")).map((r) => r.key), ["rewards.give", "rewards.manage"]);
     assert.deepEqual((await db.owner("select role from role_permissions where permission = 'rewards.give' order by role")).map((r) => r.role), ["manager", "super_admin"]);
   });
@@ -1567,8 +1567,9 @@ const oldLines = (db: Db, who: string, rule: string, n: number) =>
   db.owner("insert into point_log (person_id, rule_key, points, reason, created_at) select $1, $2, 1, 'old work', now() - interval '5 days' from generate_series(1, $3)", [who, rule, n]);
 const badgeKeys = async (db: Db, who: string) => (await db.owner("select badge_key from person_badges where person_id = $1 order by badge_key", [who])).map((r) => r.badge_key as string);
 
-test("rewards: count badges are earned at the threshold, only for the badge's team, and are never taken away", { skip }, async () => {
+test("rewards: count badges are earned at the threshold, for everyone, and are never taken away", { skip }, async () => {
   await inTransaction(async (db) => {
+    await withTeamMedals(db);
     const rep = await db.person([], "sales rep");
     const driver = await db.person([], "pickup driver");
     await db.owner("update profiles set team = 'sales' where id = $1", [rep]);
@@ -1577,14 +1578,14 @@ test("rewards: count badges are earned at the threshold, only for the badge's te
     await oldLines(db, driver, "booking_created", 98);
     assert.deepEqual(await badgeKeys(db, rep), []);
     await db.owner("select award_points($1, 'booking_created', 'bookings', gen_random_uuid(), 'x')", [rep]); // the 99th
-    assert.deepEqual(await badgeKeys(db, rep), ["first_booking"]);
+    assert.deepEqual(await badgeKeys(db, rep), ["bookings_10", "bookings_50", "first_booking"]);
     await db.owner("select award_points($1, 'booking_created', 'bookings', gen_random_uuid(), 'x')", [rep]); // the 100th
-    assert.deepEqual(await badgeKeys(db, rep), ["bookings_100", "first_booking"]);
+    assert.deepEqual(await badgeKeys(db, rep), ["bookings_10", "bookings_100", "bookings_50", "first_booking"]);
     await db.owner("select award_points($1, 'booking_created', 'bookings', gen_random_uuid(), 'x')", [driver]);
     await db.owner("select award_points($1, 'booking_created', 'bookings', gen_random_uuid(), 'x')", [driver]);
-    assert.deepEqual(await badgeKeys(db, driver), [], "sales badges are not for the pickup team");
+    assert.deepEqual(await badgeKeys(db, driver), ["bookings_10", "bookings_100", "bookings_50", "first_booking"], "the pickup team earns booking badges too");
     await db.owner("delete from point_log where person_id = $1", [rep]);
-    assert.deepEqual(await badgeKeys(db, rep), ["bookings_100", "first_booking"], "a badge is never taken away");
+    assert.deepEqual(await badgeKeys(db, rep), ["bookings_10", "bookings_100", "bookings_50", "first_booking"], "a badge is never taken away");
   });
 });
 
@@ -1618,8 +1619,9 @@ test("rewards: badges by hand need the permission, another person, a manual badg
   });
 });
 
-test("rewards: my_badges shows earned badges, and locked badges with their progress, for the person's own team only", { skip }, async () => {
+test("rewards: my_badges shows earned badges, and locked badges with their progress, for everyone", { skip }, async () => {
   await inTransaction(async (db) => {
+    await withTeamMedals(db);
     const driver = await db.person([], "driver");
     await db.owner("update profiles set team = 'pickup' where id = $1", [driver]);
     await oldLines(db, driver, "pickup_collected", 40);
@@ -1629,7 +1631,7 @@ test("rewards: my_badges shows earned badges, and locked badges with their progr
     assert.equal(byKey.pickups_100.progress, 40);
     assert.equal(byKey.pickups_100.goal, 100);
     assert.ok(byKey.scan_master && byKey.team_player, "badges for everyone are shown");
-    assert.ok(!byKey.bookings_100 && !byKey.first_booking, "sales badges are not shown to the pickup team");
+    assert.ok(byKey.bookings_100 && byKey.first_booking, "every badge is shown to every team");
     const other = await db.person([], "colleague");
     const theirs = (await db.as(other, "select person_badges_of($1) b", [driver]))[0].b as Row[];
     assert.equal(theirs.length, list.length);
@@ -1756,5 +1758,70 @@ test("rewards: a login with no active profile reads nothing from the rewards fun
       assert.match((await db.error(() => db.as(who, "select person_badges_of($1)", [real]))) ?? "", /not signed in|permission/i);
       assert.equal((await db.as(who, "select count(*)::int n from levels"))[0].n, 0);
     }
+  });
+});
+
+// ---------------- team medals (migration 0063) ----------------
+// Until the migration is live, each test applies the file inside its own rolled-back transaction.
+const TEAM_MEDALS_MIGRATION = "supabase/migrations/0063_team_medals.sql";
+const withTeamMedals = (db: Db) => db.owner(readFileSync(TEAM_MEDALS_MIGRATION, "utf8"));
+
+test("team medals: every person sees every badge, whatever their team", { skip }, async () => {
+  await inTransaction(async (db) => {
+    await withTeamMedals(db);
+    const picker = await db.person([], "picker");
+    const nobody = await db.person([], "no team");
+    await db.owner("update profiles set team = 'pickup' where id = $1", [picker]);
+    for (const who of [picker, nobody]) {
+      const keys = ((await db.as(who, "select my_badges() b"))[0].b as Row[]).map((b) => b.key);
+      assert.ok(keys.includes("first_booking") && keys.includes("pickups_100") && keys.includes("team_player"), "all badges are shown");
+      assert.equal(keys.length, 26);
+    }
+  });
+});
+
+test("team medals: 26 badges in families with unique tiers, and the original eight keep their goals", { skip }, async () => {
+  await inTransaction(async (db) => {
+    await withTeamMedals(db);
+    assert.equal((await db.owner("select count(*)::int n from badges"))[0].n, 26);
+    assert.equal((await db.owner("select count(*)::int n from badges where team is not null"))[0].n, 0);
+    assert.deepEqual(await db.owner("select family, tier from badges where family is not null group by 1, 2 having count(*) > 1"), []);
+    const goals = Object.fromEntries((await db.owner("select key, threshold from badges where key in ('first_booking','bookings_100','first_pickup','pickups_100','scan_master','streak_7')")).map((r) => [r.key, r.threshold]));
+    assert.deepEqual(goals, { first_booking: 1, bookings_100: 100, first_pickup: 1, pickups_100: 100, scan_master: 1000, streak_7: 7 });
+    const fam = Object.fromEntries((await db.owner("select family, count(*)::int n from badges where family is not null group by 1")).map((r) => [r.family, r.n]));
+    assert.deepEqual(fam, { bookings: 5, pickups: 5, payments: 3, parcels: 3, streaks: 4, appreciated: 3 });
+  });
+});
+
+test("team medals: tiers are earned at their goal for anyone, and a higher tier is never taken away", { skip }, async () => {
+  await inTransaction(async (db) => {
+    await withTeamMedals(db);
+    const picker = await db.person([], "pickup person");
+    await db.owner("update profiles set team = 'pickup' where id = $1", [picker]);
+    await oldLines(db, picker, "booking_created", 98);
+    await db.owner("select award_points($1, 'booking_created', 'bookings', gen_random_uuid(), 'x')", [picker]); // the 99th
+    assert.deepEqual((await badgeKeys(db, picker)).filter((k) => k.startsWith("bookings_") || k === "first_booking"), ["bookings_10", "bookings_50", "first_booking"]);
+    await db.owner("select award_points($1, 'booking_created', 'bookings', gen_random_uuid(), 'x')", [picker]); // the 100th
+    assert.ok((await badgeKeys(db, picker)).includes("bookings_100"));
+    // a higher tier already held stays when a lower one is earned later
+    const late = await db.person([], "late starter");
+    await db.owner("insert into person_badges (person_id, badge_key) values ($1, 'bookings_100')", [late]);
+    await db.owner("select award_points($1, 'booking_created', 'bookings', gen_random_uuid(), 'x')", [late]);
+    assert.deepEqual((await badgeKeys(db, late)).filter((k) => k.startsWith("bookings_") || k === "first_booking"), ["bookings_100", "first_booking"]);
+  });
+});
+
+test("team medals: thank-yous received earn the Appreciated medals, with progress toward the next", { skip }, async () => {
+  await inTransaction(async (db) => {
+    await withTeamMedals(db);
+    const boss = await db.person(["rewards.give"], "boss");
+    const staff = await db.person([], "thanked");
+    await db.as(boss, "select give_thank_you($1, 5, 'Thanks')", [staff]);
+    assert.ok((await badgeKeys(db, staff)).includes("thanks_1"));
+    const list = (await db.as(staff, "select my_badges() b"))[0].b as Row[];
+    const five = list.find((b) => b.key === "thanks_5")!;
+    assert.deepEqual([five.progress, five.goal, five.family, five.tier], [1, 5, "appreciated", 2]);
+    const manual = list.find((b) => b.key === "team_player")!;
+    assert.deepEqual([manual.family, manual.tier], [null, null]);
   });
 });
