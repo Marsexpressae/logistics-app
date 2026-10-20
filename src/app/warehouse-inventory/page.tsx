@@ -49,7 +49,13 @@ function WarehouseContent() {
   const [moveTo, setMoveTo] = useState("");
   const [moved, setMoved] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const canOperate = usePermissions().can("warehouse.manage");
+  const { can } = usePermissions();
+  const canMove = can("warehouse.manage"); // move parcels, set their position
+  const canReceive = can("warehouse.receive");
+  const canEditParcels = can("parcels.edit");
+  const canPrepareReturn = can("returns.prepare");
+  const canPick = canMove || canEditParcels || canPrepareReturn; // may tick parcels
+  const canOpenReturn = canPrepareReturn || can("returns.complete");
 
   const warehouses = useQuery<Warehouse[]>(() => supabase.from("warehouses").select("*").order("code"));
   const awaiting = useQuery<Booking[]>(() => supabase.from("bookings").select("*").eq("status", "collected").order("collected_at"));
@@ -151,7 +157,7 @@ function WarehouseContent() {
 
   const stockProps = {
     warehouses: warehouses.data ?? [], filter, setFilter, q, groupLimit, setGroupLimit, open, toggleOpen, picked, setPicked, toggle, toggleGroup,
-    canOperate, canMerge, canSplit, onEdit: startEdit, oneBooking, busy, prepareReturn, moveTo, setMoveTo, moveSelected, moved, returnError, reload: parcels.reload,
+    canOperate: canPick, canMove, canPrepareReturn, canMerge: canEditParcels && canMerge, canSplit: canEditParcels && canSplit, onEdit: startEdit, oneBooking, busy, prepareReturn, moveTo, setMoveTo, moveSelected, moved, returnError, reload: parcels.reload,
   };
 
   return (
@@ -219,7 +225,7 @@ function WarehouseContent() {
         />
       </div>
 
-      {canOperate && edit && (tab === "unpacked" || tab === "packed") && (
+      {canEditParcels && edit && (tab === "unpacked" || tab === "packed") && (
         <ParcelEditPanel
           key={`${edit.mode}-${edit.bookingId}`}
           mode={edit.mode}
@@ -231,13 +237,13 @@ function WarehouseContent() {
       )}
 
       <div key={tab} className={slide ? `swipe-in-${slide}` : ""}>
-      {tab === "intake" && <IntakeList bookings={intake} hasAny={!!awaiting.data?.length} canOperate={canOperate} />}
+      {tab === "intake" && <IntakeList bookings={intake} hasAny={!!awaiting.data?.length} canOperate={canReceive} />}
 
       {tab === "unpacked" && <StockList {...stockProps} list={unpacked} empty="No unpacked parcels in the warehouse." />}
       {tab === "packed" && <StockList {...stockProps} list={packed} empty="Nothing has been repacked yet." />}
 
       {tab === "returns" && (
-        <ReturnsList list={returnList} hasAny={!!returns.data?.length} canOperate={canOperate} openReturns={openReturns} setOpenReturns={setOpenReturns} />
+        <ReturnsList list={returnList} hasAny={!!returns.data?.length} canOperate={canOpenReturn} openReturns={openReturns} setOpenReturns={setOpenReturns} />
       )}
       </div>
       </div>

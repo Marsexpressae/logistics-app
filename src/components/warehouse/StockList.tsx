@@ -28,6 +28,8 @@ export type StockListProps = {
   toggle: (id: string) => void;
   toggleGroup: (list: StockParcel[]) => void;
   canOperate: boolean;
+  canMove: boolean; // move parcels and set their position
+  canPrepareReturn: boolean;
   canMerge: boolean; // two or more parcels of one invoice are ticked
   canSplit: boolean; // exactly one parcel is ticked
   onEdit: (mode: "merge" | "split") => void;
@@ -45,7 +47,7 @@ export type StockListProps = {
 /** The parcels in stock (Unpacked and Packed tabs): one group per invoice, with the selection bar for returning and moving. */
 export default function StockList({
   list, empty, warehouses, filter, setFilter, q, groupLimit, setGroupLimit, open, toggleOpen, picked, setPicked, toggle, toggleGroup,
-  canOperate, canMerge, canSplit, onEdit, oneBooking, busy, prepareReturn, moveTo, setMoveTo, moveSelected, moved, returnError, reload,
+  canOperate, canMove, canPrepareReturn, canMerge, canSplit, onEdit, oneBooking, busy, prepareReturn, moveTo, setMoveTo, moveSelected, moved, returnError, reload,
 }: StockListProps) {
   const groups = (list: StockParcel[]) => {
     const byBooking = new Map<string, { bookingId: string; invoice: string; code: string; customer: string; parcels: StockParcel[] }>();
@@ -90,12 +92,14 @@ export default function StockList({
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-orange-200 bg-orange-50 px-4 py-3 text-sm">
           <span>
             {picked.length} selected
-            {!oneBooking && <span className="ml-2 text-orange-800">A return form covers one invoice at a time.</span>}
+            {canPrepareReturn && !oneBooking && <span className="ml-2 text-orange-800">A return form covers one invoice at a time.</span>}
           </span>
           <span className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center">
-            <Button size="large" onClick={prepareReturn} disabled={busy || !oneBooking}>
-              <Undo2 className="h-6 w-6" /> Return selected
-            </Button>
+            {canPrepareReturn && (
+              <Button size="large" onClick={prepareReturn} disabled={busy || !oneBooking}>
+                <Undo2 className="h-6 w-6" /> Return selected
+              </Button>
+            )}
             {canMerge && (
               <Button size="large" variant="secondary" onClick={() => onEdit("merge")} disabled={busy}>
                 <Merge className="h-6 w-6" /> Merge into one
@@ -106,6 +110,7 @@ export default function StockList({
                 <Split className="h-6 w-6" /> Split in parts
               </Button>
             )}
+            {canMove && (<>
             <select aria-label="Move to" value={moveTo} onChange={(e) => setMoveTo(e.target.value)} className={`${inputClass} sm:w-auto`} disabled={busy}>
               <option value="">Move to…</option>
               {warehouses
@@ -119,6 +124,7 @@ export default function StockList({
             <Button variant="secondary" onClick={moveSelected} disabled={busy || !moveTo}>
               <MoveRight className="h-5 w-5" /> Move to the place above
             </Button>
+            </>)}
             <Button variant="secondary" onClick={() => setPicked([])} disabled={busy}>
               Clear selection
             </Button>
@@ -203,7 +209,7 @@ export default function StockList({
                           </span>
                           <span className="mt-1 block text-base text-slate-700">
                             {p.warehouse?.name ?? p.warehouse?.code}
-                            <ParcelPosition parcelId={p.id} barcode={p.barcode} position={p.position} canEdit={canOperate} onChanged={reload} />
+                            <ParcelPosition parcelId={p.id} barcode={p.barcode} position={p.position} canEdit={canMove} onChanged={reload} />
                           </span>
                         </span>
                         <StatusBadge large status={p.status} />
@@ -308,7 +314,7 @@ export default function StockList({
                         <td className="px-4 py-2.5">{kg(Number(p.weight_kg))}</td>
                         <td className="px-4 py-2.5">{p.warehouse?.name ?? p.warehouse?.code}</td>
                         <td className="px-4 py-2.5">
-                          <ParcelPosition parcelId={p.id} barcode={p.barcode} position={p.position} canEdit={canOperate} onChanged={reload} />
+                          <ParcelPosition parcelId={p.id} barcode={p.barcode} position={p.position} canEdit={canMove} onChanged={reload} />
                         </td>
                         <td className="px-4 py-2.5">
                           <StatusBadge large status={p.status} />

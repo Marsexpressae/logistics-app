@@ -77,18 +77,22 @@ const PERMISSIONS: Row[] = [
   ["sales_rep.change", "Customers", "Change the sales rep (owner)", "Choose or change who owns a customer and who made a booking"],
   ["rewards.give", "Rewards", "Give thank-yous and badges", "Thank a colleague with points and a message, and give badges by hand"],
   ["rewards.manage", "Rewards", "Manage the rewards system", "Change point values, levels and badges, and see colleagues' phone numbers"],
+  ["warehouse.receive", "Warehouse", "Receive and split bookings", "Receive a collected booking into the warehouse, split it into parcels and print labels"],
+  ["parcels.edit", "Warehouse", "Merge and split parcels", "Merge parcels into one, or split one parcel into several, after intake"],
+  ["returns.prepare", "Warehouse", "Prepare and cancel returns", "Mark parcels ready for return on a return form, and cancel an open return"],
+  ["returns.complete", "Warehouse", "Complete returns", "Confirm the parcels were handed over and mark the return as returned"],
   ["refunds.void", "Accounts", "Void refunds and credit notes", "Cancel a credit note or refund that was made by mistake (the record stays, marked void)"],
 ].map(([key, group_name, label, description], i) => ({ key, group_name, label, description, sort: (i + 1) * 10 }));
 const GRANTS: Record<string, string[]> = {
   super_admin: PERMISSIONS.map((p) => p.key),
   manager: ["containers.override_payment", "containers.override_departure", "dashboard.view", "bookings.view", "bookings.create", "bookings.edit", "bookings.cancel", "pickups.view_all",
-    "pickups.collect", "warehouse.view", "warehouse.manage", "containers.view", "containers.manage", "accounts.view",
+    "pickups.collect", "warehouse.view", "warehouse.manage", "warehouse.receive", "parcels.edit", "returns.prepare", "returns.complete", "containers.view", "containers.manage", "accounts.view",
     "payments.manage", "drivers.manage", "users.manage", "activity.view", "notifications.view", "bookings.reschedule",
     "items.edit", "items.edit_after", "notes.write", "numbers.edit", "returns.manage", "customers.view", "customers.edit", "customers.manage", "customers.id_photo", "refunds.issue", "sales_rep.change", "rewards.give", "rewards.manage"],
   staff: ["dashboard.view", "bookings.view", "bookings.create", "bookings.edit", "bookings.cancel", "pickups.view_all",
     "pickups.collect", "warehouse.view", "containers.view", "accounts.view", "notifications.view", "bookings.reschedule", "items.edit", "items.edit_after", "notes.write", "customers.view", "customers.edit", "customers.id_photo"],
   accounts: ["dashboard.view", "notifications.view", "bookings.view", "customers.view", "accounts.view", "payments.manage"],
-  warehouse: ["dashboard.view", "warehouse.view", "warehouse.manage", "containers.view", "containers.manage", "notifications.view", "notes.write"],
+  warehouse: ["dashboard.view", "warehouse.view", "warehouse.manage", "warehouse.receive", "parcels.edit", "returns.prepare", "returns.complete", "containers.view", "containers.manage", "notifications.view", "notes.write"],
   driver: ["pickups.view_own", "pickups.collect", "pickups.cancel", "pickups.reschedule", "notifications.view", "pickups.edit_contact", "items.edit", "notes.write", "customers.id_photo"],
 };
 // Printing is allowed for every role until a super admin removes it (like migration 0043).

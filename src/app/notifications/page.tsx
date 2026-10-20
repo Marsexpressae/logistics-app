@@ -19,7 +19,7 @@ export default function NotificationsPage() {
     if (!bookingId) return null;
     if (can("bookings.view")) return `/bookings/${bookingId}`;
     if (can("pickups.view_all") || can("pickups.view_own")) return `/pickups/${bookingId}`;
-    return can("warehouse.manage") ? `/warehouse-inventory/split/${bookingId}` : null;
+    return can("warehouse.receive") ? `/warehouse-inventory/split/${bookingId}` : null;
   };
 
   return (

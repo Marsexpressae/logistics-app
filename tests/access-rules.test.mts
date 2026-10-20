@@ -69,3 +69,11 @@ test("the Team page is open to everyone signed in, and sits after Tracking in th
   assert.equal(labels[labels.indexOf("Tracking") + 1], "Team");
   assert.deepEqual(navItems.find((i) => i.label === "Team")!.anyOf, ["*"]);
 });
+
+test("warehouse pages follow the warehouse permissions: receiving, and the return form", () => {
+  assert.equal(canAccess(["warehouse.view", "warehouse.receive"], "/warehouse-inventory/split/sample-id"), true);
+  assert.equal(canAccess(["warehouse.view", "warehouse.manage"], "/warehouse-inventory/split/sample-id"), false); // moving parcels is not receiving
+  assert.equal(canAccess(["warehouse.view", "returns.prepare"], "/warehouse-inventory/returns/sample-id"), true);
+  assert.equal(canAccess(["warehouse.view", "returns.complete"], "/warehouse-inventory/returns/sample-id"), true);
+  assert.equal(canAccess(["warehouse.view", "warehouse.receive", "parcels.edit"], "/warehouse-inventory/returns/sample-id"), false);
+});

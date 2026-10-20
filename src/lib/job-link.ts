@@ -5,7 +5,7 @@
 export function jobHref(can: (permission: string) => boolean, bookingId: string): string | null {
   if (can("bookings.view")) return `/bookings/${bookingId}`;
   if (can("pickups.view_all") || can("pickups.view_own")) return `/pickups/${bookingId}`;
-  if (can("warehouse.manage")) return `/warehouse-inventory/split/${bookingId}`;
+  if (can("warehouse.receive")) return `/warehouse-inventory/split/${bookingId}`;
   return null;
 }
 

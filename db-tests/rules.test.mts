@@ -210,7 +210,7 @@ test("deleting a booking needs permission and a reason, and never loses money si
 
 test("payment before loading: an unpaid parcel cannot be loaded until it is paid (when the switch is on)", { skip }, async () => {
   await inTransaction(async (db) => {
-    const warehouseUser = await db.person(["warehouse.view", "warehouse.manage", "containers.view", "containers.manage"]);
+    const warehouseUser = await db.person(["warehouse.view", "warehouse.manage", "warehouse.receive", "containers.view", "containers.manage"]);
     const booking = await db.booking({ invoice_no: "T-PAY-1" });
     await db.owner("update bookings set status = 'collected', invoice_amount = 100 where id = $1", [booking]);
     const wh = (await db.owner("select id from warehouses order by code limit 1"))[0].id;
@@ -290,7 +290,7 @@ test("a typed booking or invoice number must start with the prefix from Settings
 test("old records: every step can carry its real day, never a future day", { skip }, async () => {
   await inTransaction(async (db) => {
     const office = await db.person(["bookings.view", "bookings.edit", "bookings.reschedule", "payments.manage"]);
-    const warehouseUser = await db.person(["warehouse.view", "warehouse.manage", "containers.view", "containers.manage"]);
+    const warehouseUser = await db.person(["warehouse.view", "warehouse.manage", "warehouse.receive", "containers.view", "containers.manage"]);
     const booking = await db.booking({ invoice_no: "T-OLD-1" });
 
     // pickup date: a past day is allowed
@@ -846,7 +846,7 @@ test("customer timeline lists credit notes and refunds, and their voiding", { sk
 
 test("payment before loading: a credit note settles the balance, and a refund reopens it", { skip }, async () => {
   await inTransaction(async (db) => {
-    const warehouseUser = await db.person(["warehouse.view", "warehouse.manage", "containers.view", "containers.manage"]);
+    const warehouseUser = await db.person(["warehouse.view", "warehouse.manage", "warehouse.receive", "containers.view", "containers.manage"]);
     const booking = await db.booking({ invoice_no: "T-GATE-1" });
     await db.owner("update bookings set status = 'collected', invoice_amount = 1000 where id = $1", [booking]);
     const wh = (await db.owner("select id from warehouses order by code limit 1"))[0].id;
@@ -869,7 +869,7 @@ test("payment before loading: a credit note settles the balance, and a refund re
 
 /** A collected booking received into a warehouse as three parcels (P1, P2, P3), and a person who may edit parcels. */
 async function receivedBooking(db: Db) {
-  const worker = await db.person(["warehouse.view", "warehouse.manage"], "parcel-worker");
+  const worker = await db.person(["warehouse.view", "warehouse.manage", "warehouse.receive", "parcels.edit", "returns.prepare"], "parcel-worker");
   const booking = await db.booking({ invoice_no: "T-PE-" + Math.floor(Math.random() * 1e6) });
   await db.owner("update bookings set status = 'collected', collected_at = now() - interval '3 days' where id = $1", [booking]);
   const wh = (await db.owner("select id from warehouses where active order by code limit 1"))[0].id as string;
@@ -1647,9 +1647,11 @@ test("rewards: the wins feed shows badges and thank-yous of active people, with 
     await db.as(boss, "select give_thank_you($1, 10, 'Thanks for the help')", [happy]);
     await db.as(boss, "select give_badge($1, 'team_player', 'Gone soon')", [gone]);
     await db.owner("update profiles set active = false where id = $1", [gone]);
-    const feed = (await db.as(happy, "select * from wins_feed(20)")) as Row[];
+    // The feed lists everyone's recent wins, and real colleagues now have some: look only at this test's people.
+    const everyone = (await db.as(happy, "select * from wins_feed(200)")) as Row[];
+    const feed = everyone.filter((f) => f.person_id === happy || f.person_id === gone);
     assert.deepEqual(feed.map((f) => f.kind).sort(), ["badge", "badge", "thank_you"]); // team player, and Thanked for the thank-you
-    assert.ok(feed.every((f) => f.person_id === happy));
+    assert.ok(feed.every((f) => f.person_id === happy), "a person who left is not in the feed");
     assert.deepEqual(Object.keys(feed[0]).sort(), ["created_at", "kind", "message", "person_id", "person_name", "title"]);
     assert.match(feed.find((f) => f.kind === "thank_you")!.title, /Test boss/);
   });
@@ -1937,5 +1939,48 @@ test("celebrations: only people who manage settings can save, and the choices ar
     await refused(`select save_celebrations(true, 'salvo', '[]'::jsonb)`, /on or off choice/);
     await refused(`select save_celebrations(null, 'salvo', ${EVENTS_OK})`, /Choose on or off/);
     assert.equal((await db.owner("select (value->>'style') s from app_settings where key = 'celebrations'"))[0].s, "confetti", "a refused save changes nothing");
+  });
+});
+
+test("warehouse jobs each have their own permission, and every role that could manage the warehouse keeps all of them", { skip }, async () => {
+  await inTransaction(async (db) => {
+    const { booking, parcelIds, wh } = await receivedBooking(db);
+    const only = (...p: string[]) => db.person(["warehouse.view", ...p], "wh-" + p.join("-"));
+    const plain = await only("warehouse.manage"); // the old all-in-one permission opens none of the four jobs
+    const receiver = await only("warehouse.receive");
+    const editor = await only("parcels.edit");
+    const preparer = await only("returns.prepare");
+    const completer = await only("returns.complete");
+    const denied = /permission/i;
+
+    // receive and split
+    const fresh = await db.booking({ invoice_no: "T-WHP-1" });
+    await db.owner("update bookings set status = 'collected', collected_at = now() - interval '1 day' where id = $1", [fresh]);
+    const one = JSON.stringify([{ description: "Box", weight_kg: 5 }]);
+    for (const who of [plain, editor, preparer, completer]) assert.match((await db.error(() => db.as(who, "select split_booking($1, $2, $3::jsonb)", [fresh, wh, one]))) ?? "", denied);
+    assert.equal(await db.error(() => db.as(receiver, "select split_booking($1, $2, $3::jsonb)", [fresh, wh, one])), null);
+
+    // merge and split parcels
+    const two = [{ weight_kg: 1 }, { weight_kg: 1 }];
+    for (const who of [plain, receiver, preparer, completer]) assert.match((await db.error(() => editParcels(db, who, booking, [parcelIds[0]], two))) ?? "", denied);
+    assert.equal(await db.error(() => editParcels(db, editor, booking, [parcelIds[0]], two)), null);
+
+    // return: prepare and cancel belong together, complete is separate
+    const left = (await db.owner("select id from parcels where booking_id = $1 and status = 'in_warehouse' order by seq", [booking])).map((r) => r.id as string);
+    for (const who of [plain, receiver, editor, completer]) assert.match((await db.error(() => db.as(who, "select prepare_return($1, $2::uuid[])", [booking, [left[0]]]))) ?? "", denied);
+    const ret = (await db.as(preparer, "select prepare_return($1, $2::uuid[]) id", [booking, [left[0]]]))[0].id as string;
+    for (const who of [plain, receiver, editor, completer]) assert.match((await db.error(() => db.as(who, "select cancel_return($1)", [ret]))) ?? "", denied);
+    for (const who of [plain, receiver, editor, preparer]) assert.match((await db.error(() => db.as(who, "select complete_return($1, 'Ali')", [ret]))) ?? "", denied);
+    assert.equal(await db.error(() => db.as(completer, "select complete_return($1, 'Ali')", [ret])), null);
+    const ret2 = (await db.as(preparer, "select prepare_return($1, $2::uuid[]) id", [booking, [left[1]]]))[0].id as string;
+    assert.equal(await db.error(() => db.as(preparer, "select cancel_return($1)", [ret2])), null);
+
+    // nobody who could manage the warehouse before loses a job
+    const missing = await db.owner(
+      `select rp.role, k.key from role_permissions rp cross join (values ('warehouse.receive'), ('parcels.edit'), ('returns.prepare'), ('returns.complete')) k(key)
+       where rp.permission = 'warehouse.manage' and rp.role not like 't\_%'
+         and not exists (select 1 from role_permissions x where x.role = rp.role and x.permission = k.key)`
+    );
+    assert.deepEqual(missing, []);
   });
 });

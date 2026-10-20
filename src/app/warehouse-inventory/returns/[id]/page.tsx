@@ -29,6 +29,8 @@ export default function ReturnFormPage() {
   const router = useRouter();
   const { can } = usePermissions();
   const canManage = can("returns.manage");
+  const canComplete = can("returns.complete");
+  const canCancel = can("returns.prepare");
   const canPrint = usePermissions().can("documents.print");
   const { org } = useOrganization();
   const [editing, setEditing] = useState(false);
@@ -255,12 +257,16 @@ export default function ReturnFormPage() {
           />
           <ErrorMessage message={error} />
           <div className="flex flex-col gap-2">
-            <Button size="large" onClick={complete} disabled={busy || !receivedBy.trim()}>
-              <CheckCircle2 className="h-6 w-6" /> 3. Mark returned (signed)
-            </Button>
-            <Button variant="secondary" className="w-full" onClick={cancel} disabled={busy}>
-              Cancel return
-            </Button>
+            {canComplete && (
+              <Button size="large" onClick={complete} disabled={busy || !receivedBy.trim()}>
+                <CheckCircle2 className="h-6 w-6" /> 3. Mark returned (signed)
+              </Button>
+            )}
+            {canCancel && (
+              <Button variant="secondary" className="w-full" onClick={cancel} disabled={busy}>
+                Cancel return
+              </Button>
+            )}
           </div>
         </div>
       )}

@@ -45,8 +45,8 @@ const extraRules: { prefix: string; anyOf: string[] }[] = [
   { prefix: "/bookings/new", anyOf: ["bookings.create"] },
   // The results page behind the search box in the top bar.
   { prefix: "/search", anyOf: ["bookings.view", "warehouse.view", "containers.view", "customers.view", "pickups.view_all", "pickups.view_own"] },
-  { prefix: "/warehouse-inventory/split", anyOf: ["warehouse.manage"] },
-  { prefix: "/warehouse-inventory/returns", anyOf: ["warehouse.manage"] },
+  { prefix: "/warehouse-inventory/split", anyOf: ["warehouse.receive"] },
+  { prefix: "/warehouse-inventory/returns", anyOf: ["returns.prepare", "returns.complete"] },
   { prefix: "/settings/users", anyOf: ["users.manage"] },
   { prefix: "/settings/roles", anyOf: ["roles.manage"] },
   { prefix: "/settings/rewards", anyOf: ["rewards.give", "rewards.manage"] },
