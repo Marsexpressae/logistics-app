@@ -1181,6 +1181,15 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
     return { data: `${s.prefix}${n}`, error: null };
   },
 
+  // Same answer as number_in_use() in migration 0066.
+  number_in_use({ p_kind, p_value, p_exclude = null }) {
+    if (!["booking", "invoice"].includes(p_kind)) return fail("Unknown number series");
+    const v = String(p_value ?? "").trim().toUpperCase();
+    if (!v) return { data: null, error: null };
+    const hit = db().bookings.find((x) => (p_kind === "invoice" ? x.invoice_no : x.code) === v && x.id !== p_exclude);
+    return { data: hit ? { id: hit.id, code: hit.code, status: hit.status } : null, error: null };
+  },
+
   set_number_series({ p_kind, p_prefix, p_next }) {
     const s = db().number_series.find((x) => x.kind === p_kind);
     const prefix = String(p_prefix ?? "").trim().toUpperCase();

@@ -124,6 +124,10 @@ export default function BookingForm({ booking, submitLabel, onSaved, numbersOpen
       ...(canSetNumbers ? numbers.typed() : {}),
     };
 
+    // The numbers card already says so under the box; stop here instead of sending a booking the database will refuse.
+    const taken = canSetNumbers && (numbers.bookingTaken || numbers.invoiceTaken);
+    if (taken) return setError(taken);
+
     setBusy(true);
     setError(null);
     setConflict(false);

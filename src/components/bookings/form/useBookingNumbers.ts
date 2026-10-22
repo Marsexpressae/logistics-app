@@ -1,11 +1,37 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@/lib/hooks";
 import { supabase } from "@/lib/supabase";
+import { checkState, takenMessage, type NumberAnswer, type NumberCheck, type NumberUse } from "@/lib/number-check";
 import type { Booking } from "@/lib/types";
 
 type Kind = "booking" | "invoice";
+
+const CHECK_DELAY_MS = 500;
+
+/**
+ * Asks the database, half a second after typing stops, whether the number in the box is already used by another booking.
+ * `own` is the number the booking being edited already has: that is not a clash. A later answer replaces an earlier one, and an
+ * answer for an older value is never shown.
+ */
+function useNumberCheck(kind: Kind, full: string, own: string | null, excludeId: string | undefined, enabled: boolean): NumberCheck {
+  const value = enabled && full && full !== own ? full : "";
+  const [answer, setAnswer] = useState<NumberAnswer | null>(null);
+  useEffect(() => {
+    if (!value) return;
+    let stale = false;
+    const timer = setTimeout(async () => {
+      const { data, error } = await supabase.rpc("number_in_use", { p_kind: kind, p_value: value, p_exclude: excludeId ?? null });
+      if (!stale) setAnswer({ value, by: error ? null : (data as NumberUse | null), failed: !!error });
+    }, CHECK_DELAY_MS);
+    return () => {
+      stale = true;
+      clearTimeout(timer);
+    };
+  }, [kind, value, excludeId]);
+  return checkState(value, answer);
+}
 
 /**
  * The booking and invoice number boxes. The prefix (BK-, INV-) is chosen in Settings only, so people type just the digits
@@ -31,7 +57,16 @@ export function useBookingNumbers(booking: Booking | undefined, enabled: boolean
   const [bookingDigits, setBookingDigits] = useState<string | null>(null);
   const [invoiceDigits, setInvoiceDigits] = useState<string | null>(null);
 
+  const typedBooking = bookingDigits ? `${bookingPrefix}${bookingDigits}` : "";
+  const typedInvoice = invoiceDigits ? `${invoicePrefix}${invoiceDigits}` : "";
+  const bookingCheck = useNumberCheck("booking", typedBooking.toUpperCase(), booking?.code ?? null, booking?.id, enabled && !!bookingPrefix);
+  const invoiceCheck = useNumberCheck("invoice", typedInvoice.toUpperCase(), booking?.invoice_no ?? null, booking?.id, enabled && !!invoicePrefix);
+
   return {
+    bookingCheck,
+    invoiceCheck,
+    bookingTaken: bookingCheck.by ? takenMessage("booking", typedBooking.toUpperCase(), bookingCheck.by) : null,
+    invoiceTaken: invoiceCheck.by ? takenMessage("invoice", typedInvoice.toUpperCase(), invoiceCheck.by) : null,
     bookingPrefix,
     invoicePrefix,
     bookingValue: bookingDigits ?? digitsOf(booking?.code, bookingPrefix),

@@ -102,3 +102,14 @@ test("the next-number hint is the first free number of the series, skipping numb
   assert.equal((await c.rpc("next_number_preview", { p_kind: "booking" })).data, "BK-7102");
   assert.match((await c.rpc("next_number_preview", { p_kind: "nope" })).error.message, /Unknown number series/);
 });
+
+test("number_in_use: says who already has a booking or invoice number, ignoring case and spaces, and skips the booking being edited", async () => {
+  const b = (await newBooking({ code: "BK-9300", invoice_no: "INV-9300" })).data;
+  const bookingUse = (await c.rpc("number_in_use", { p_kind: "booking", p_value: " bk-9300 " })).data;
+  assert.deepEqual(bookingUse, { id: b.id, code: "BK-9300", status: "booked" });
+  assert.equal((await c.rpc("number_in_use", { p_kind: "invoice", p_value: "inv-9300" })).data.id, b.id);
+  assert.equal((await c.rpc("number_in_use", { p_kind: "booking", p_value: "BK-9301" })).data, null); // free
+  assert.equal((await c.rpc("number_in_use", { p_kind: "booking", p_value: "BK-9300", p_exclude: b.id })).data, null); // its own number
+  assert.equal((await c.rpc("number_in_use", { p_kind: "booking", p_value: "" })).data, null);
+  assert.match((await c.rpc("number_in_use", { p_kind: "container", p_value: "X" })).error.message, /Unknown number series/);
+});

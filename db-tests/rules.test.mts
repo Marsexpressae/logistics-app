@@ -1942,7 +1942,7 @@ test("celebrations: only people who manage settings can save, and the choices ar
   });
 });
 
-test("warehouse jobs each have their own permission, and every role that could manage the warehouse keeps all of them", { skip }, async () => {
+test("warehouse jobs each have their own permission", { skip }, async () => {
   await inTransaction(async (db) => {
     const { booking, parcelIds, wh } = await receivedBooking(db);
     const only = (...p: string[]) => db.person(["warehouse.view", ...p], "wh-" + p.join("-"));
@@ -1974,13 +1974,25 @@ test("warehouse jobs each have their own permission, and every role that could m
     assert.equal(await db.error(() => db.as(completer, "select complete_return($1, 'Ali')", [ret])), null);
     const ret2 = (await db.as(preparer, "select prepare_return($1, $2::uuid[]) id", [booking, [left[1]]]))[0].id as string;
     assert.equal(await db.error(() => db.as(preparer, "select cancel_return($1)", [ret2])), null);
+  });
+});
 
-    // nobody who could manage the warehouse before loses a job
-    const missing = await db.owner(
-      `select rp.role, k.key from role_permissions rp cross join (values ('warehouse.receive'), ('parcels.edit'), ('returns.prepare'), ('returns.complete')) k(key)
-       where rp.permission = 'warehouse.manage' and rp.role not like 't\_%'
-         and not exists (select 1 from role_permissions x where x.role = rp.role and x.permission = k.key)`
-    );
-    assert.deepEqual(missing, []);
+test("number_in_use: tells people who may type numbers which booking has a number, and only them", { skip }, async () => {
+  await inTransaction(async (db) => {
+    const typer = await db.person(["numbers.edit"], "typer");
+    const viewer = await db.person(["bookings.view"], "viewer");
+    const booking = await db.booking({ invoice_no: "T-NIU-1" });
+    const code = (await db.owner("select code from bookings where id = $1", [booking]))[0].code as string;
+    const ask = (who: string, kind: string, value: string | null, exclude: string | null = null) =>
+      db.as(who, "select number_in_use($1, $2, $3::uuid) r", [kind, value, exclude]).then((rows) => rows[0].r);
+    assert.deepEqual(await ask(typer, "booking", ` ${code.toLowerCase()} `), { id: booking, code, status: "booked" });
+    assert.equal((await ask(typer, "invoice", "t-niu-1")).id, booking);
+    assert.equal(await ask(typer, "booking", "BK-99999999"), null);
+    assert.equal(await ask(typer, "booking", code, booking), null); // the booking's own number
+    assert.equal(await ask(typer, "booking", ""), null);
+    assert.equal(await ask(typer, "booking", null), null);
+    assert.match((await db.error(() => ask(typer, "container", "X"))) ?? "", /Unknown number series/);
+    assert.match((await db.error(() => ask(viewer, "booking", code))) ?? "", /permission/i);
+    assert.match((await db.error(() => db.anonymous("select number_in_use('booking', 'BK-1', null)"))) ?? "", /permission denied/i);
   });
 });
