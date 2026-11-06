@@ -20,7 +20,6 @@ async function inTransaction(fn: (db: Db) => Promise<void>) {
   await client.connect();
   try {
     await client.query("begin");
-    await client.query(readFileSync("supabase/migrations/0067_return_requests.sql", "utf8")); // TEMP until applied
     await fn(new Db(client));
   } finally {
     await client.query("rollback").catch(() => {});
