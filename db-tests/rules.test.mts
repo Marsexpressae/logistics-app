@@ -20,6 +20,7 @@ async function inTransaction(fn: (db: Db) => Promise<void>) {
   await client.connect();
   try {
     await client.query("begin");
+    await client.query(readFileSync("supabase/migrations/0067_return_requests.sql", "utf8")); // TEMP until applied
     await fn(new Db(client));
   } finally {
     await client.query("rollback").catch(() => {});
@@ -1994,5 +1995,160 @@ test("number_in_use: tells people who may type numbers which booking has a numbe
     assert.match((await db.error(() => ask(typer, "container", "X"))) ?? "", /Unknown number series/);
     assert.match((await db.error(() => ask(viewer, "booking", code))) ?? "", /permission/i);
     assert.match((await db.error(() => db.anonymous("select number_in_use('booking', 'BK-1', null)"))) ?? "", /permission denied/i);
+  });
+});
+
+// ---------- return requests (migration 0067) ----------
+const ask = (db: Db, who: string, booking: string, note: string | null = null, needed: string | null = null, ids: string[] | null = null) =>
+  db.as(who, "select request_return($1, $2, $3::date, $4::uuid[]) id", [booking, note, needed, ids]).then((r) => r[0].id as string);
+const mailOf = (db: Db, user: string) => db.owner("select kind, title, body from notifications where user_id = $1 order by created_at, id", [user]);
+
+test("return requests: only people with returns.request can raise one, with checked input", { skip }, async () => {
+  await inTransaction(async (db) => {
+    const { booking, parcelIds } = await receivedBooking(db);
+    const other = await receivedBooking(db);
+    const office = await db.person(["bookings.view", "returns.request"], "office");
+    const nobody = await db.person(["bookings.view"], "nobody");
+    assert.match((await db.error(() => ask(db, nobody, booking))) ?? "", /permission/i);
+
+    const id = await ask(db, office, booking, "Customer collects Thursday");
+    const row = (await db.owner("select status, parcel_ids, note, requested_by from return_requests where id = $1", [id]))[0];
+    assert.deepEqual([row.status, row.parcel_ids, row.note, row.requested_by], ["open", null, "Customer collects Thursday", office]);
+    assert.match((await db.error(() => ask(db, office, booking))) ?? "", /already has an open return request/);
+
+    const bare = await db.booking();
+    assert.match((await db.error(() => ask(db, office, bare))) ?? "", /no parcels in the warehouse/);
+    const cancelled = await db.booking();
+    await db.owner("update bookings set status = 'cancelled', cancellation_reason = 'test' where id = $1", [cancelled]);
+    assert.match((await db.error(() => ask(db, office, cancelled))) ?? "", /cancelled booking cannot have a return request/);
+    assert.match((await db.error(() => ask(db, office, randomUuid()))) ?? "", /Booking not found/);
+    const yesterday = await daysFromToday(db, -1);
+    assert.match((await db.error(() => ask(db, office, other.booking, null, yesterday))) ?? "", /cannot be in the past/);
+    assert.match((await db.error(() => ask(db, office, other.booking, null, null, [parcelIds[0]]))) ?? "", /Choose parcels of this booking that are in the warehouse/);
+
+    const picked = await ask(db, office, other.booking, null, await daysFromToday(db, 2), [other.parcelIds[1]]);
+    const p = (await db.owner("select parcel_ids, needed_by::text d from return_requests where id = $1", [picked]))[0];
+    assert.deepEqual(p.parcel_ids, [other.parcelIds[1]]);
+    assert.equal(p.d, await daysFromToday(db, 2));
+  });
+});
+
+test("return requests: the warehouse is told, and the booking history records it", { skip }, async () => {
+  await inTransaction(async (db) => {
+    const { booking } = await receivedBooking(db);
+    const prep = await db.person(["warehouse.view", "returns.prepare", "notifications.view"], "prep");
+    const gone = await db.person(["returns.prepare"], "gone");
+    await db.owner("update profiles set active = false where id = $1", [gone]);
+    const both = await db.person(["bookings.view", "returns.request", "returns.prepare"], "both"); // the requester is never told about their own request
+    await ask(db, both, booking, "Customer collects Thursday", await daysFromToday(db, 3));
+    const mail = await mailOf(db, prep);
+    assert.equal(mail.length, 1);
+    assert.equal(mail[0].kind, "return_requested");
+    assert.match(mail[0].title, /^Return requested: /);
+    assert.match(mail[0].body, /Customer collects Thursday/);
+    assert.match(mail[0].body, /Needed by/);
+    assert.deepEqual(await mailOf(db, gone), []);
+    assert.deepEqual(await mailOf(db, both), []);
+    const events = await db.owner("select reason from booking_events where booking_id = $1 and kind = 'return_requested'", [booking]);
+    assert.equal(events.length, 1);
+    assert.match(events[0].reason, /Customer collects Thursday/);
+  });
+});
+
+test("return requests: cancel by the requester or the warehouse, not by anyone else", { skip }, async () => {
+  await inTransaction(async (db) => {
+    const { booking } = await receivedBooking(db);
+    const office = await db.person(["bookings.view", "returns.request"], "office");
+    const colleague = await db.person(["bookings.view", "returns.request"], "colleague");
+    const prep = await db.person(["warehouse.view", "returns.prepare", "notifications.view"], "prep");
+    const cancel = (who: string, id: string) => db.as(who, "select cancel_return_request($1)", [id]);
+    const first = await ask(db, office, booking);
+    assert.match((await db.error(() => cancel(colleague, first))) ?? "", /Only the person who asked, or the warehouse, can cancel this request/);
+    assert.equal(await db.error(() => cancel(office, first)), null);
+    const row = (await db.owner("select status, closed_by_name, closed_at from return_requests where id = $1", [first]))[0];
+    assert.equal(row.status, "cancelled");
+    assert.equal(row.closed_by_name, "Test office");
+    assert.ok(row.closed_at);
+    assert.deepEqual((await mailOf(db, prep)).map((m) => m.kind).sort(), ["return_request_cancelled", "return_requested"]); // same transaction, same clock: order is not meaningful
+    assert.equal((await db.owner("select count(*)::int n from booking_events where booking_id = $1 and kind = 'return_request_cancelled'", [booking]))[0].n, 1);
+    assert.match((await db.error(() => cancel(office, first))) ?? "", /already cancelled/);
+    assert.match((await db.error(() => cancel(office, randomUuid()))) ?? "", /Return request not found/);
+
+    const second = await ask(db, office, booking); // a new request is allowed once the first is closed
+    assert.equal(await db.error(() => cancel(prep, second)), null); // the warehouse may cancel someone else's request
+  });
+});
+
+test("return requests: preparing a return closes the open request and tells the requester", { skip }, async () => {
+  await inTransaction(async (db) => {
+    const { booking, parcelIds } = await receivedBooking(db);
+    const office = await db.person(["bookings.view", "returns.request", "notifications.view"], "office");
+    const prep = await db.person(["warehouse.view", "returns.prepare"], "prep");
+    const request = await ask(db, office, booking, "Customer collects Thursday");
+    const ret = (await db.as(prep, "select prepare_return($1, $2::uuid[]) id", [booking, [parcelIds[0], parcelIds[1]]]))[0].id as string;
+    const code = (await db.owner("select code from returns where id = $1", [ret]))[0].code as string;
+    const row = (await db.owner("select status, return_id, closed_by_name from return_requests where id = $1", [request]))[0];
+    assert.deepEqual([row.status, row.return_id, row.closed_by_name], ["prepared", ret, "Test prep"]);
+    const mail = (await mailOf(db, office)).filter((m) => m.kind === "return_prepared");
+    assert.equal(mail.length, 1);
+    assert.ok(mail[0].title.includes(code));
+    assert.deepEqual((await db.owner("select status from parcels where id = any($1::uuid[]) order by seq", [[parcelIds[0], parcelIds[1]]])).map((r) => r.status), ["ready_for_return", "ready_for_return"]);
+    // a parcel that is no longer in the warehouse still cannot be returned
+    assert.match((await db.error(() => db.as(prep, "select prepare_return($1, $2::uuid[])", [booking, [parcelIds[0]]]))) ?? "", /Only parcels of this booking that are in the warehouse/);
+
+    // a return made without any request works as before and creates no request
+    const plain = await receivedBooking(db);
+    const ret2 = (await db.as(prep, "select prepare_return($1, $2::uuid[]) id", [plain.booking, [plain.parcelIds[0]]]))[0].id;
+    assert.ok(ret2);
+    assert.equal((await db.owner("select count(*)::int n from return_requests where booking_id = $1", [plain.booking]))[0].n, 0);
+  });
+});
+
+test("return requests: the table is read only for browser roles, visible to the right people, and goes with a deleted booking", { skip }, async () => {
+  await inTransaction(async (db) => {
+    const { booking } = await receivedBooking(db);
+    const office = await db.person(["bookings.view", "returns.request"], "office");
+    const viewer = await db.person(["bookings.view"], "viewer");
+    const store = await db.person(["warehouse.view"], "store");
+    await ask(db, office, booking);
+    const seen = (who: string) => db.as(who, "select count(*)::int n from return_requests").then((r) => r[0].n as number);
+    assert.equal(await seen(viewer), 0);
+    assert.equal(await seen(store), 1);
+    assert.equal(await seen(office), 1);
+    for (const sql of ["insert into return_requests (booking_id) values ($1)", "update return_requests set note = 'x' where booking_id = $1", "delete from return_requests where booking_id = $1"]) {
+      assert.match((await db.error(() => db.as(office, sql, [booking]))) ?? "", /permission denied/);
+    }
+    assert.match((await db.error(() => db.anonymous("select * from return_requests"))) ?? "", /permission denied/);
+    assert.match((await db.error(() => db.owner("insert into return_requests (booking_id) values ($1)", [booking]))) ?? "", /duplicate key|unique/); // one open request per booking
+
+    const plain = await db.booking();
+    await db.owner("insert into return_requests (booking_id) values ($1)", [plain]);
+    await db.owner("delete from bookings where id = $1", [plain]);
+    assert.equal((await db.owner("select count(*)::int n from return_requests where booking_id = $1", [plain]))[0].n, 0);
+  });
+});
+
+test("return requests: parcels_for_return_request lists only the parcels in the warehouse, and only for people who may request", { skip }, async () => {
+  await inTransaction(async (db) => {
+    const { booking, parcelIds } = await receivedBooking(db);
+    await db.owner("update parcels set status = 'delivered' where id = $1", [parcelIds[2]]);
+    const office = await db.person(["returns.request"], "office"); // no warehouse.view on purpose
+    const nobody = await db.person(["bookings.view"], "nobody");
+    const rows = await db.as(office, "select * from parcels_for_return_request($1)", [booking]);
+    assert.equal(rows.length, 2);
+    assert.deepEqual(Object.keys(rows[0]).sort(), ["barcode", "description", "id", "weight_kg"]);
+    assert.deepEqual(rows.map((r) => r.id), [parcelIds[0], parcelIds[1]]);
+    assert.match((await db.error(() => db.as(nobody, "select * from parcels_for_return_request($1)", [booking]))) ?? "", /permission/i);
+  });
+});
+
+test("return requests: every role that can edit bookings or prepare returns gets returns.request", { skip }, async () => {
+  await inTransaction(async (db) => {
+    const missing = await db.owner(
+      `select distinct rp.role from role_permissions rp
+       where rp.permission in ('bookings.edit', 'returns.prepare') and rp.role not like 't\\_%'
+         and not exists (select 1 from role_permissions x where x.role = rp.role and x.permission = 'returns.request')`
+    );
+    assert.deepEqual(missing, []);
   });
 });
