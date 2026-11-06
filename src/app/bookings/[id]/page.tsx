@@ -18,6 +18,7 @@ import NotesCard from "@/components/bookings/NotesCard";
 import TrackingLink from "@/components/bookings/TrackingLink";
 import ItemsCard from "@/components/bookings/ItemsCard";
 import PaymentsCard from "@/components/bookings/PaymentsCard";
+import ReturnRequestCard from "@/components/bookings/ReturnRequestCard";
 import ScheduleHistory from "@/components/bookings/ScheduleHistory";
 import { Button, Card, ErrorMessage, StatusBadge, Loading } from "@/components/ui/form";
 import { formatDate } from "@/lib/format";
@@ -145,6 +146,7 @@ export default function EditBookingPage() {
         <NotesCard bookingId={id} />
         <TrackingLink booking={b} />
         <ItemsCard bookingId={id} status={b.status} items={items.data ?? []} onChanged={() => { items.reload(); history.reload(); }} />
+        <ReturnRequestCard bookingId={id} onChanged={() => setChanges((n) => n + 1)} />
         {seesMoney && (
           <PaymentsCard
             booking={b}

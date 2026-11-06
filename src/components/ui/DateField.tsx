@@ -15,6 +15,7 @@ export default function DateField({
   name,
   defaultValue,
   pastNote,
+  future,
   className = "",
 }: {
   label: string;
@@ -23,6 +24,8 @@ export default function DateField({
   name?: string;
   defaultValue?: string;
   pastNote?: string;
+  /** For a day that is still to come (a planned day): allows today and later, instead of stopping at today. */
+  future?: boolean;
   className?: string;
 }) {
   const controlled = value !== undefined;
@@ -34,7 +37,7 @@ export default function DateField({
         <input
           type="date"
           name={name}
-          max={todayISO()}
+          {...(future ? { min: todayISO() } : { max: todayISO() })}
           {...(controlled ? { value, onChange: (e) => onChange?.(e.target.value) } : { defaultValue: defaultValue ?? todayISO() })}
           className={`${inputClass} w-auto`}
         />
