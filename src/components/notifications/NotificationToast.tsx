@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Bell, X } from "lucide-react";
+import { notificationHref } from "@/lib/job-link";
 import { usePermissions } from "@/lib/profile-context";
 import { useNotifications } from "@/lib/notifications";
 
@@ -22,8 +23,8 @@ export default function NotificationToast() {
 
   if (!toast) return null;
 
-  // Office staff open the booking; the pickup team opens the pickup.
-  const href = toast.booking_id ? (can("bookings.view") ? `/bookings/${toast.booking_id}` : `/pickups/${toast.booking_id}`) : "/notifications";
+  // Office staff open the booking; the pickup team opens the pickup; the warehouse opens the Returns tab for a return alert.
+  const href = notificationHref(can, toast.kind, toast.booking_id) ?? "/notifications";
 
   return (
     <div

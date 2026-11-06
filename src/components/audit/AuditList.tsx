@@ -14,6 +14,7 @@ export const TABLE_LABELS: Record<string, string> = {
   organization: "Organization",
   warehouses: "Warehouse",
   returns: "Return",
+  return_requests: "Return request",
   deletion_reason: "Booking deleted",
 };
 

@@ -40,3 +40,37 @@ test("the shared date control can allow a day still to come (needed by)", () => 
   assert.ok(code.includes("future"));
   assert.ok(card().includes("future"), "the Return card asks for a day that is still to come");
 });
+
+const list = () => read("src/components/warehouse/ToPrepareList.tsx");
+
+test("the To prepare list shows the pick list with places, gates Prepare and Cancel, and says when parcels changed or are gone", () => {
+  const code = list();
+  for (const needle of ["pickList", "changedCount", "requestLine", "position", "prepare_return", "cancel_return_request", "To prepare", "Nothing left to return", "Some requested parcels have changed", "Prepare return", "Cancel request"]) {
+    assert.ok(code.includes(needle), `the list should use ${needle}`);
+  }
+  assert.match(code, /canPrepare &&/);
+  assert.match(code, /canCancel &&/);
+  assert.ok(code.includes("confirmAction") && code.includes("danger: true"));
+  assert.equal(/\b(window\.)?(confirm|alert|prompt)\(/.test(code), false);
+  assert.ok(code.includes("min-h-16") && code.includes("<Button"), "the row is 64px tall and the actions are the shared 44px buttons");
+  assert.ok(code.includes("aria-expanded"));
+  assert.equal(/text-xs/.test(code), false);
+  assert.equal(/\bz-\d/.test(code), false);
+});
+
+test("the warehouse page loads open requests, shows the list on the Returns tab and counts them", () => {
+  const page = read("src/app/warehouse-inventory/page.tsx");
+  assert.ok(page.includes("ToPrepareList") && page.includes("return_requests"));
+  assert.ok(page.includes('can("returns.prepare")'));
+  assert.match(page, /openReturnCount \+/, "the Returns tab count includes the waiting requests");
+  const badges = read("src/lib/badges.tsx");
+  assert.ok(badges.includes("return_requests"), "the Warehouse menu badge counts waiting requests too");
+});
+
+test("notifications: the three new kinds have icons and the right link; the audit log labels the table", () => {
+  const page = read("src/app/notifications/page.tsx");
+  for (const kind of ["return_requested", "return_request_cancelled", "return_prepared"]) assert.ok(page.includes(kind), kind);
+  assert.ok(page.includes("notificationHref"));
+  assert.ok(read("src/components/notifications/NotificationToast.tsx").includes("notificationHref"));
+  assert.ok(read("src/components/audit/AuditList.tsx").includes("return_requests"));
+});

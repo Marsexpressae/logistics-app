@@ -9,6 +9,15 @@ export function jobHref(can: (permission: string) => boolean, bookingId: string)
   return null;
 }
 
+/**
+ * Where a notification takes you. Return alerts for the warehouse open the Returns tab (where the request waits);
+ * everything else opens the job, as above.
+ */
+export function notificationHref(can: (permission: string) => boolean, kind: string, bookingId: string | null): string | null {
+  if ((kind === "return_requested" || kind === "return_request_cancelled") && can("returns.prepare")) return "/warehouse-inventory?tab=returns";
+  return bookingId ? jobHref(can, bookingId) : null;
+}
+
 /** The result of global_search(): a few matches per kind, and how many there are in total. */
 export type SearchBooking = {
   id: string;

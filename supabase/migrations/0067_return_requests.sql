@@ -151,6 +151,14 @@ begin
   values (r.booking_id, 'return_request_cancelled', 'Return request cancelled', actor, actor_name);
   perform notify_returns_team(r.booking_id, 'return_request_cancelled',
     'Return request cancelled: ' || coalesce(b.invoice_no, b.code) || ' (' || b.sender_name || ')', coalesce(r.note, ''));
+  -- the person who asked is told when someone else cancels (unless they prepare returns themselves: they were told just above)
+  if r.requested_by is not null and r.requested_by is distinct from actor
+     and exists (select 1 from profiles where id = r.requested_by and active)
+     and not exists (select 1 from profiles pr join role_permissions rp on rp.role = pr.role and rp.permission = 'returns.prepare' where pr.id = r.requested_by) then
+    insert into notifications (user_id, booking_id, kind, title, body, actor_name)
+    values (r.requested_by, r.booking_id, 'return_request_cancelled',
+            'Return request cancelled: ' || coalesce(b.invoice_no, b.code) || ' (' || b.sender_name || ')', 'Cancelled by ' || actor_name, actor_name);
+  end if;
 end $$;
 
 -- ---------- 3. the parcels a request can ask for (needs no access to the warehouse screens) ----------

@@ -2071,11 +2071,15 @@ test("return requests: cancel by the requester or the warehouse, not by anyone e
     assert.ok(row.closed_at);
     assert.deepEqual((await mailOf(db, prep)).map((m) => m.kind).sort(), ["return_request_cancelled", "return_requested"]); // same transaction, same clock: order is not meaningful
     assert.equal((await db.owner("select count(*)::int n from booking_events where booking_id = $1 and kind = 'return_request_cancelled'", [booking]))[0].n, 1);
+    assert.deepEqual(await mailOf(db, office), []); // cancelling your own request tells only the warehouse
     assert.match((await db.error(() => cancel(office, first))) ?? "", /already cancelled/);
     assert.match((await db.error(() => cancel(office, randomUuid()))) ?? "", /Return request not found/);
 
     const second = await ask(db, office, booking); // a new request is allowed once the first is closed
     assert.equal(await db.error(() => cancel(prep, second)), null); // the warehouse may cancel someone else's request
+    const told = (await mailOf(db, office)).filter((m) => m.kind === "return_request_cancelled"); // and the person who asked is told, once
+    assert.equal(told.length, 1);
+    assert.match(told[0].body, /Test prep/);
   });
 });
 

@@ -334,6 +334,8 @@ const RELATIONS: Record<string, { fk: string; kind: "one" | "many"; from?: strin
   "booking_contacts.customers": { kind: "one", fk: "customer_id" },
   "booking_contacts.bookings": { kind: "one", fk: "booking_id" },
   "returns.parcels": { kind: "many", fk: "return_id" },
+  "return_requests.bookings": { kind: "one", fk: "booking_id" },
+  "return_requests.returns": { kind: "one", fk: "return_id" },
   "credit_notes.credit_note_lines": { kind: "many", fk: "credit_note_id" },
   "credit_notes.bookings": { kind: "one", fk: "booking_id" },
   "refunds.bookings": { kind: "one", fk: "booking_id" },
@@ -910,7 +912,13 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
     Object.assign(r, { status: "cancelled", closed_at: now(), closed_by_name: personName() });
     const b = d.bookings.find((x) => x.id === r.booking_id)!;
     d.booking_events.push({ id: uid(), booking_id: r.booking_id, kind: "return_request_cancelled", reason: "Return request cancelled", old_date: null, new_date: null, actor_name: personName(), created_at: now() });
-    notifyReturnsTeam(r.booking_id, "return_request_cancelled", `Return request cancelled: ${b.invoice_no ?? b.code} (${b.sender_name})`, r.note ?? "");
+    const title = `Return request cancelled: ${b.invoice_no ?? b.code} (${b.sender_name})`;
+    notifyReturnsTeam(r.booking_id, "return_request_cancelled", title, r.note ?? "");
+    // the person who asked is told when someone else cancels (unless they prepare returns themselves: they were told above)
+    const asker = d.profiles.find((pr) => pr.id === r.requested_by && pr.active);
+    if (asker && asker.id !== currentUserId && !d.role_permissions.some((rp) => rp.role === asker.role && rp.permission === "returns.prepare")) {
+      d.notifications.push({ id: uid(), user_id: asker.id, booking_id: r.booking_id, kind: "return_request_cancelled", title, body: `Cancelled by ${personName()}`, actor_name: personName(), created_at: now(), read_at: null });
+    }
     save();
     return { data: null, error: null };
   },

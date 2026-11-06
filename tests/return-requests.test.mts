@@ -4,6 +4,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createMockClient, freshMockData, setMockUser } from "../src/lib/mock-supabase.ts";
 import { changedCount, pickList, requestLine } from "../src/lib/return-requests.ts";
+import { notificationHref } from "../src/lib/job-link.ts";
 
 type R = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 const c: any = createMockClient(); // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -53,6 +54,23 @@ test("mock: only people with returns.request can raise a request, with checked i
   assert.equal(p.needed_by, daysAway(2));
 });
 
+test("mock: a request can be read with its booking and its return form (the joins the screens use)", async () => {
+  freshMockData();
+  const { booking, ids } = await received();
+  setMockUser("sample-staff");
+  const id = (await ask(booking.id, "Customer collects Thursday")).data as string;
+  const open = (await c.from("return_requests").select("*, booking:bookings(code, invoice_no, sender_name), return:returns(code)").eq("id", id).single()).data as R;
+  assert.deepEqual(Object.keys(open.booking).sort(), ["code", "invoice_no", "sender_name"]);
+  assert.equal(open.booking.code, booking.code);
+  assert.equal(open.booking.sender_name, "Test Sender");
+  assert.ok(open.booking.invoice_no, "a collected booking has an invoice number");
+  assert.equal(open.return, null);
+  setMockUser("sample-manager");
+  const ret = (await rpc("prepare_return", { p_booking_id: booking.id, p_parcel_ids: [ids[0]] })).data as string;
+  const done = (await c.from("return_requests").select("*, return:returns(code)").eq("id", id).single()).data as R;
+  assert.equal(done.return.code, (await rows("returns")).find((r) => r.id === ret)!.code);
+});
+
 test("mock: the warehouse is told, the requester is not, and the booking history records it", async () => {
   freshMockData();
   const { booking } = await received();
@@ -86,11 +104,15 @@ test("mock: cancel by the requester or the warehouse, not by anyone else", async
   assert.ok(row.closed_at);
   assert.equal((await rows("notifications")).filter((n) => n.kind === "return_request_cancelled" && n.user_id === "sample-manager").length, 1);
   assert.equal((await rows("booking_events")).filter((e) => e.booking_id === booking.id && e.kind === "return_request_cancelled").length, 1);
+  assert.deepEqual(await mailOf("sample-staff"), []); // cancelling your own request tells only the warehouse
   assert.match(await msg("cancel_return_request", { p_request_id: first }), /already cancelled/);
   assert.match(await msg("cancel_return_request", { p_request_id: "nope" }), /Return request not found/);
   const second = (await ask(booking.id)).data as string; // allowed again once the first is closed
   setMockUser("sample-manager");
   assert.equal((await rpc("cancel_return_request", { p_request_id: second })).error, null); // the warehouse may cancel someone else's request
+  const told = (await mailOf("sample-staff")).filter((n) => n.kind === "return_request_cancelled"); // and the person who asked is told, once
+  assert.equal(told.length, 1);
+  assert.match(told[0].body, /Mona Manager/);
 });
 
 test("mock: preparing a return closes the open request and tells the requester", async () => {
@@ -167,4 +189,15 @@ test("requestLine: the invoice (or booking) number and the customer", () => {
   assert.equal(requestLine({ ...base, booking: { code: "BK-1003", invoice_no: "INV-1002", sender_name: "Fatima Noor" } }), "INV-1002 · Fatima Noor");
   assert.equal(requestLine({ ...base, booking: { code: "BK-1003", invoice_no: null, sender_name: "Fatima Noor" } }), "BK-1003 · Fatima Noor");
   assert.equal(requestLine({ ...base, booking: null }), "Booking");
+});
+
+test("notificationHref: return alerts take the warehouse to the Returns tab, everything else opens the job as before", () => {
+  const can = (...perms: string[]) => (p: string) => perms.includes(p);
+  assert.equal(notificationHref(can("returns.prepare", "warehouse.view"), "return_requested", "b1"), "/warehouse-inventory?tab=returns");
+  assert.equal(notificationHref(can("returns.prepare"), "return_request_cancelled", "b1"), "/warehouse-inventory?tab=returns");
+  assert.equal(notificationHref(can("bookings.view", "returns.request"), "return_prepared", "b1"), "/bookings/b1"); // the requester opens the booking
+  assert.equal(notificationHref(can("bookings.view", "returns.prepare"), "rescheduled", "b1"), "/bookings/b1");
+  assert.equal(notificationHref(can("pickups.view_own"), "rescheduled", "b1"), "/pickups/b1");
+  assert.equal(notificationHref(can("warehouse.receive"), "cancelled", "b1"), "/warehouse-inventory/split/b1");
+  assert.equal(notificationHref(can("bookings.view"), "note_mention", null), null);
 });

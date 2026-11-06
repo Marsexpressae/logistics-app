@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { Bell, CalendarClock, Ban, MessageSquare } from "lucide-react";
+import { Bell, CalendarClock, Ban, MessageSquare, Undo2 } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
 import EmptyState from "@/components/ui/EmptyState";
 import PhoneAlertsCard from "@/components/notifications/PhoneAlertsCard";
 import { Button, Card, Loading } from "@/components/ui/form";
 import { formatDate } from "@/lib/format";
+import { notificationHref } from "@/lib/job-link";
 import { useNotifications } from "@/lib/notifications";
 import { usePermissions } from "@/lib/profile-context";
 
@@ -14,13 +15,8 @@ export default function NotificationsPage() {
   const { items, unread, loading, markRead, markAllRead } = useNotifications();
   const { can } = usePermissions();
 
-  // Office staff open the booking; the pickup team opens the pickup; the warehouse team opens the receive screen.
-  const hrefFor = (bookingId: string | null) => {
-    if (!bookingId) return null;
-    if (can("bookings.view")) return `/bookings/${bookingId}`;
-    if (can("pickups.view_all") || can("pickups.view_own")) return `/pickups/${bookingId}`;
-    return can("warehouse.receive") ? `/warehouse-inventory/split/${bookingId}` : null;
-  };
+  // Office staff open the booking; the pickup team opens the pickup; the warehouse team opens the receive screen or the Returns tab.
+  const hrefFor = (kind: string, bookingId: string | null) => notificationHref(can, kind, bookingId);
 
   return (
     <>
@@ -46,10 +42,12 @@ export default function NotificationsPage() {
         <Card className="max-w-3xl p-0">
           <ul className="divide-y divide-slate-100">
             {items.map((n) => {
-              const href = hrefFor(n.booking_id);
+              const href = hrefFor(n.kind, n.booking_id);
               const content = (
                 <div className={`flex gap-3 px-4 py-3 ${n.read_at ? "" : "bg-brand-50/50"}`}>
-                  {n.kind === "cancelled" ? (
+                  {n.kind === "return_requested" || n.kind === "return_prepared" ? (
+                    <Undo2 className="mt-0.5 h-5 w-5 shrink-0 text-orange-600" />
+                  ) : n.kind === "cancelled" || n.kind === "return_request_cancelled" ? (
                     <Ban className="mt-0.5 h-5 w-5 shrink-0 text-red-600" />
                   ) : n.kind === "note_mention" ? (
                     <MessageSquare className="mt-0.5 h-5 w-5 shrink-0 text-brand-600" />

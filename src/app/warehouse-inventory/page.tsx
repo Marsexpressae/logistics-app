@@ -15,11 +15,12 @@ import { useSwipe } from "@/lib/use-swipe";
 import { useQuery } from "@/lib/hooks";
 import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
-import type { Booking, ReturnForm, Warehouse } from "@/lib/types";
+import type { Booking, ReturnForm, ReturnRequest, Warehouse } from "@/lib/types";
 import { TABS, type StockParcel, type Tab } from "@/components/warehouse/types";
 import StockList from "@/components/warehouse/StockList";
 import IntakeList from "@/components/warehouse/IntakeList";
 import ReturnsList from "@/components/warehouse/ReturnsList";
+import ToPrepareList from "@/components/warehouse/ToPrepareList";
 import ParcelEditPanel, { type EditMode } from "@/components/warehouse/ParcelEditPanel";
 
 function WarehouseContent() {
@@ -70,6 +71,10 @@ function WarehouseContent() {
     supabase.from("returns").select("*, booking:bookings(code, invoice_no, sender_name), parcels(barcode, weight_kg, description)").order("created_at", { ascending: false }).limit(60)
   );
 
+  const requests = useQuery<ReturnRequest[]>(() =>
+    supabase.from("return_requests").select("*, booking:bookings(code, invoice_no, sender_name)").eq("status", "open").order("needed_by").order("requested_at")
+  );
+
   // Unpacked = as collected (first round). Packed = repacked by the warehouse (a later round).
   const stock = parcels.data ?? [];
   const unpacked = stock.filter((p) => (p.round ?? 1) <= 1);
@@ -79,7 +84,7 @@ function WarehouseContent() {
     intake: awaiting.data?.length ?? 0,
     unpacked: unpacked.length,
     packed: packed.length,
-    returns: openReturnCount,
+    returns: openReturnCount + (requests.data?.length ?? 0), // forms waiting to be signed, and requests waiting to be prepared
   };
 
   // Arrow keys, Home and End move between the tabs, and keyboard focus follows.
@@ -95,6 +100,7 @@ function WarehouseContent() {
   const intake = (awaiting.data ?? []).filter((b) =>
     matchesSearch(q, [b.code, b.invoice_no, b.sender_name, b.receiver_name, b.pickup_area, b.pickup_address], [b.sender_phone, b.sender_whatsapp, b.receiver_phone, b.receiver_whatsapp])
   );
+  const requestList = (requests.data ?? []).filter((r) => matchesSearch(q, [r.booking?.code, r.booking?.invoice_no, r.booking?.sender_name, r.note, r.requested_by_name]));
   const returnList = (returns.data ?? []).filter((x) =>
     matchesSearch(q, [x.code, x.booking?.invoice_no, x.booking?.code, x.booking?.sender_name, x.received_by_name, ...(x.parcels ?? []).flatMap((p) => [p.barcode, p.description])])
   );
@@ -164,7 +170,7 @@ function WarehouseContent() {
     <>
       <PageHeader title="Warehouse" description="Receive cargo, then unpack, pack and return." />
       <ScanParcel />
-      <ErrorMessage message={awaiting.error ?? parcels.error ?? returns.error} />
+      <ErrorMessage message={awaiting.error ?? parcels.error ?? returns.error ?? requests.error} />
 
       <SwipeHint id="warehouse">Swipe left or right to change tab: Intake, Unpacked, Packed, Returns.</SwipeHint>
       <div ref={swipeRef} className="min-h-[70vh]">
@@ -243,7 +249,20 @@ function WarehouseContent() {
       {tab === "packed" && <StockList {...stockProps} list={packed} empty="Nothing has been repacked yet." />}
 
       {tab === "returns" && (
-        <ReturnsList list={returnList} hasAny={!!returns.data?.length} canOperate={canOpenReturn} openReturns={openReturns} setOpenReturns={setOpenReturns} />
+        <>
+          <ToPrepareList
+            requests={requestList}
+            parcels={stock}
+            canPrepare={canPrepareReturn}
+            canCancel={canPrepareReturn}
+            onChanged={() => {
+              requests.reload();
+              parcels.reload();
+              returns.reload();
+            }}
+          />
+          <ReturnsList list={returnList} hasAny={!!returns.data?.length} canOperate={canOpenReturn} openReturns={openReturns} setOpenReturns={setOpenReturns} />
+        </>
       )}
       </div>
       </div>

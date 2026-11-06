@@ -6,7 +6,7 @@ import { supabase } from "./supabase";
 
 // Number badges on navigation items: how many things are waiting for attention.
 //   /pickups              -> bookings still to be collected (drivers only count their own: the database filters)
-//   /warehouse-inventory  -> collected bookings waiting for warehouse intake
+//   /warehouse-inventory  -> collected bookings waiting for warehouse intake, plus return requests waiting to be prepared
 //   /settings             -> problems the app reported from people's browsers (only for people who can change settings)
 export type BadgeCounts = Record<string, number>; // keyed by the nav item's href
 
@@ -21,6 +21,12 @@ const bookingsWithStatus = async (status: string) => {
     .from("bookings")
     .select("*", { count: "exact", head: true })
     .eq("status", status);
+  return count ?? 0;
+};
+
+/** Return requests waiting for the warehouse to prepare. */
+const returnRequestCount = async () => {
+  const { count } = await supabase.from("return_requests").select("*", { count: "exact", head: true }).eq("status", "open");
   return count ?? 0;
 };
 
@@ -44,7 +50,7 @@ export function useBadgeCounts(permissions: string[], enabled: boolean): BadgeCo
     const load = async () => {
       const [pickups, intake, problems] = await Promise.all([
         wantPickups ? bookingsWithStatus("booked") : 0,
-        wantWarehouse ? bookingsWithStatus("collected") : 0,
+        wantWarehouse ? Promise.all([bookingsWithStatus("collected"), returnRequestCount()]).then(([a, b]) => a + b) : 0,
         wantProblems ? problemCount() : 0,
       ]);
       if (!cancelled) setCounts({ "/pickups": pickups, "/warehouse-inventory": intake, "/settings": problems });
