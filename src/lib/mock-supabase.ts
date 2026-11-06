@@ -15,10 +15,10 @@ type Db = {
   drivers: Row[]; warehouses: Row[]; bookings: Row[]; booking_items: Row[]; payments: Row[];
   containers: Row[]; parcels: Row[]; parcel_events: Row[]; profiles: Row[]; audit_log: Row[]; roles: Row[]; permissions: Row[]; role_permissions: Row[];
   credit_notes: Row[]; credit_note_lines: Row[]; refunds: Row[];
-  booking_events: Row[]; notifications: Row[]; app_settings: Row[]; returns: Row[]; booking_notes: Row[]; client_errors: Row[]; number_series: Row[]; organization: Row[]; customers: Row[]; booking_contacts: Row[]; customer_notes: Row[]; customer_receivers: Row[]; id_documents: Row[];
+  booking_events: Row[]; notifications: Row[]; app_settings: Row[]; returns: Row[]; return_requests: Row[]; booking_notes: Row[]; client_errors: Row[]; number_series: Row[]; organization: Row[]; customers: Row[]; booking_contacts: Row[]; customer_notes: Row[]; customer_receivers: Row[]; id_documents: Row[];
 };
 
-const STORAGE_KEY = "logistics-mock-db-v41";
+const STORAGE_KEY = "logistics-mock-db-v42";
 const AUTH_KEY = "logistics-mock-signed-out";
 
 const uid = () => crypto.randomUUID();
@@ -81,18 +81,19 @@ const PERMISSIONS: Row[] = [
   ["parcels.edit", "Warehouse", "Merge and split parcels", "Merge parcels into one, or split one parcel into several, after intake"],
   ["returns.prepare", "Warehouse", "Prepare and cancel returns", "Mark parcels ready for return on a return form, and cancel an open return"],
   ["returns.complete", "Warehouse", "Complete returns", "Confirm the parcels were handed over and mark the return as returned"],
+  ["returns.request", "Warehouse", "Request returns", "Ask the warehouse to prepare parcels for return, and cancel a request"],
   ["refunds.void", "Accounts", "Void refunds and credit notes", "Cancel a credit note or refund that was made by mistake (the record stays, marked void)"],
 ].map(([key, group_name, label, description], i) => ({ key, group_name, label, description, sort: (i + 1) * 10 }));
 const GRANTS: Record<string, string[]> = {
   super_admin: PERMISSIONS.map((p) => p.key),
   manager: ["containers.override_payment", "containers.override_departure", "dashboard.view", "bookings.view", "bookings.create", "bookings.edit", "bookings.cancel", "pickups.view_all",
-    "pickups.collect", "warehouse.view", "warehouse.manage", "warehouse.receive", "parcels.edit", "returns.prepare", "returns.complete", "containers.view", "containers.manage", "accounts.view",
+    "pickups.collect", "warehouse.view", "warehouse.manage", "warehouse.receive", "parcels.edit", "returns.prepare", "returns.complete", "returns.request", "containers.view", "containers.manage", "accounts.view",
     "payments.manage", "drivers.manage", "users.manage", "activity.view", "notifications.view", "bookings.reschedule",
     "items.edit", "items.edit_after", "notes.write", "numbers.edit", "returns.manage", "customers.view", "customers.edit", "customers.manage", "customers.id_photo", "refunds.issue", "sales_rep.change", "rewards.give", "rewards.manage"],
   staff: ["dashboard.view", "bookings.view", "bookings.create", "bookings.edit", "bookings.cancel", "pickups.view_all",
-    "pickups.collect", "warehouse.view", "containers.view", "accounts.view", "notifications.view", "bookings.reschedule", "items.edit", "items.edit_after", "notes.write", "customers.view", "customers.edit", "customers.id_photo"],
+    "pickups.collect", "warehouse.view", "containers.view", "accounts.view", "notifications.view", "bookings.reschedule", "items.edit", "items.edit_after", "notes.write", "customers.view", "customers.edit", "customers.id_photo", "returns.request"],
   accounts: ["dashboard.view", "notifications.view", "bookings.view", "customers.view", "accounts.view", "payments.manage"],
-  warehouse: ["dashboard.view", "warehouse.view", "warehouse.manage", "warehouse.receive", "parcels.edit", "returns.prepare", "returns.complete", "containers.view", "containers.manage", "notifications.view", "notes.write"],
+  warehouse: ["dashboard.view", "warehouse.view", "warehouse.manage", "warehouse.receive", "parcels.edit", "returns.prepare", "returns.complete", "returns.request", "containers.view", "containers.manage", "notifications.view", "notes.write"],
   driver: ["pickups.view_own", "pickups.collect", "pickups.cancel", "pickups.reschedule", "notifications.view", "pickups.edit_contact", "items.edit", "notes.write", "customers.id_photo"],
 };
 // Printing is allowed for every role until a super admin removes it (like migration 0043).
@@ -166,6 +167,7 @@ function seed(): Db {
     audit_log: [],
     booking_events: [],
     returns: [],
+    return_requests: [],
     credit_notes: [], credit_note_lines: [], refunds: [],
     booking_notes: [],
     client_errors: [],
@@ -246,6 +248,20 @@ const PAYING_PARCEL_STATUS = ["in_warehouse", "loaded", "delivered"];
 // Tests (and the sample-data screens) can act as another person; everything else is done by the sample super admin.
 let currentUserId = "mock-user";
 export function setMockUser(id: string) { currentUserId = id; }
+/** Does the person the sample data is acting as hold this permission (like has_perm in the database)? */
+const mockCan = (perm: string) => {
+  const d = db();
+  const p = d.profiles.find((x) => x.id === currentUserId && x.active);
+  return !!p && d.role_permissions.some((rp) => rp.role === p.role && rp.permission === perm);
+};
+const noPermission = () => ({ data: null, error: { message: "You do not have permission to do this" } });
+const personName = () => (db().profiles.find((x) => x.id === currentUserId)?.full_name as string | undefined) ?? "You (sample data)";
+/** Tell everyone who prepares returns (active, not the person acting), like notify_returns_team in the database. */
+function notifyReturnsTeam(bookingId: string, kind: string, title: string, body: string) {
+  const d = db();
+  const team = d.profiles.filter((pr) => pr.active && pr.id !== currentUserId && d.role_permissions.some((rp) => rp.role === pr.role && rp.permission === "returns.prepare"));
+  for (const pr of team) d.notifications.push({ id: uid(), user_id: pr.id, booking_id: bookingId, kind, title, body, actor_name: personName(), created_at: now(), read_at: null });
+}
 
 /** A clean copy of the sample data without reloading the page (for tests). */
 export function freshMockData() {
@@ -832,7 +848,9 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
     return { data: null, error: null };
   },
 
+  // Same rules as prepare_return() in migration 0067: it also closes the booking's open return request.
   prepare_return({ p_booking_id, p_parcel_ids }) {
+    if (!mockCan("returns.prepare")) return noPermission();
     const d = db();
     if (!p_parcel_ids?.length) return fail("Select at least one parcel");
     const ps = d.parcels.filter((p) => p_parcel_ids.includes(p.id));
@@ -842,8 +860,66 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
       created_at: now(), completed_at: null, completed_by_name: null, received_by_name: null };
     d.returns.push(row);
     ps.forEach((p) => { p.return_id = row.id; setParcelStatus(p, "ready_for_return"); });
+    const req = d.return_requests.find((r) => r.booking_id === p_booking_id && r.status === "open");
+    if (req) {
+      Object.assign(req, { status: "prepared", return_id: row.id, closed_at: now(), closed_by_name: personName() });
+      const b = d.bookings.find((x) => x.id === p_booking_id);
+      if (req.requested_by && req.requested_by !== currentUserId && d.profiles.some((pr) => pr.id === req.requested_by && pr.active)) {
+        d.notifications.push({ id: uid(), user_id: req.requested_by, booking_id: p_booking_id, kind: "return_prepared", title: `Return ${row.code} is ready`,
+          body: `Prepared for ${b?.invoice_no ?? b?.code} (${b?.sender_name})`, actor_name: personName(), created_at: now(), read_at: null });
+      }
+    }
     save();
     return { data: row.id, error: null };
+  },
+
+  // Return requests: the same checks, messages and order as request_return() in migration 0067.
+  request_return({ p_booking_id, p_note = null, p_needed_by = null, p_parcel_ids = null }) {
+    if (!mockCan("returns.request")) return noPermission();
+    const d = db();
+    const b = d.bookings.find((x) => x.id === p_booking_id);
+    if (!b) return fail("Booking not found");
+    if (b.status === "cancelled") return fail("A cancelled booking cannot have a return request");
+    if (p_needed_by && p_needed_by < dubaiDay(now())) return fail("The needed-by date cannot be in the past");
+    if (d.return_requests.some((r) => r.booking_id === b.id && r.status === "open")) return fail("This booking already has an open return request");
+    const inWarehouse = d.parcels.filter((p) => p.booking_id === b.id && p.status === "in_warehouse");
+    const ids: string[] | null = p_parcel_ids?.length ? [...new Set<string>(p_parcel_ids)] : null;
+    if (ids) {
+      if (ids.some((id) => !inWarehouse.some((p) => p.id === id))) return fail("Choose parcels of this booking that are in the warehouse");
+    } else if (!inWarehouse.length) return fail("This booking has no parcels in the warehouse");
+
+    const note = String(p_note ?? "").trim() || null;
+    const needed = p_needed_by ? `Needed by ${new Date(`${p_needed_by}T00:00:00Z`).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" })}` : null;
+    const row = { id: uid(), booking_id: b.id, status: "open", note, needed_by: p_needed_by ?? null, parcel_ids: ids, requested_by: currentUserId, requested_by_name: personName(),
+      requested_at: now(), return_id: null, closed_at: null, closed_by_name: null };
+    d.return_requests.push(row);
+    d.booking_events.push({ id: uid(), booking_id: b.id, kind: "return_requested", reason: [note ?? "Return requested", needed ? `(${needed.toLowerCase()})` : null].filter(Boolean).join(" "),
+      old_date: null, new_date: null, actor_name: personName(), created_at: now() });
+    notifyReturnsTeam(b.id, "return_requested", `Return requested: ${b.invoice_no ?? b.code} (${b.sender_name})`, [note, needed].filter(Boolean).join(" "));
+    save();
+    return { data: row.id, error: null };
+  },
+
+  cancel_return_request({ p_request_id }) {
+    const d = db();
+    if (!d.profiles.some((x) => x.id === currentUserId && x.active)) return noPermission();
+    const r = d.return_requests.find((x) => x.id === p_request_id);
+    if (!r) return fail("Return request not found");
+    if (r.status !== "open") return fail(`This return request is already ${r.status}`);
+    if (r.requested_by !== currentUserId && !mockCan("returns.prepare")) return fail("Only the person who asked, or the warehouse, can cancel this request");
+    Object.assign(r, { status: "cancelled", closed_at: now(), closed_by_name: personName() });
+    const b = d.bookings.find((x) => x.id === r.booking_id)!;
+    d.booking_events.push({ id: uid(), booking_id: r.booking_id, kind: "return_request_cancelled", reason: "Return request cancelled", old_date: null, new_date: null, actor_name: personName(), created_at: now() });
+    notifyReturnsTeam(r.booking_id, "return_request_cancelled", `Return request cancelled: ${b.invoice_no ?? b.code} (${b.sender_name})`, r.note ?? "");
+    save();
+    return { data: null, error: null };
+  },
+
+  parcels_for_return_request({ p_booking_id }) {
+    if (!mockCan("returns.request")) return noPermission();
+    const list = db().parcels.filter((p) => p.booking_id === p_booking_id && p.status === "in_warehouse").sort((x, y) => x.seq - y.seq)
+      .map((p) => ({ id: p.id, barcode: p.barcode, description: p.description ?? null, weight_kg: p.weight_kg }));
+    return { data: list, error: null };
   },
 
   complete_return({ p_return_id, p_received_by }) {
@@ -877,6 +953,7 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
     const parcelIds = d.parcels.filter((p) => p.booking_id === b.id).map((p) => p.id);
     d.payments = d.payments.filter((p) => p.booking_id !== b.id);
     d.returns = d.returns.filter((r) => r.booking_id !== b.id);
+    d.return_requests = d.return_requests.filter((r) => r.booking_id !== b.id);
     d.parcel_events = d.parcel_events.filter((e) => !parcelIds.includes(e.parcel_id));
     d.parcels = d.parcels.filter((p) => p.booking_id !== b.id);
     d.booking_items = d.booking_items.filter((i) => i.booking_id !== b.id);
