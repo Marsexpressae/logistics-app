@@ -15,18 +15,25 @@ import { useSwipe } from "@/lib/use-swipe";
 import { useQuery } from "@/lib/hooks";
 import { usePermissions } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
-import type { Booking, ReturnForm, ReturnRequest, Warehouse } from "@/lib/types";
+import type { Booking, ReturnForm, Warehouse } from "@/lib/types";
 import { TABS, type StockParcel, type Tab } from "@/components/warehouse/types";
 import StockList from "@/components/warehouse/StockList";
 import IntakeList from "@/components/warehouse/IntakeList";
 import ReturnsList from "@/components/warehouse/ReturnsList";
 import ToPrepareList from "@/components/warehouse/ToPrepareList";
+import { useReturnRequests } from "@/components/warehouse/useReturnRequests";
 import ParcelEditPanel, { type EditMode } from "@/components/warehouse/ParcelEditPanel";
 
 function WarehouseContent() {
   const router = useRouter();
   const asked = useSearchParams().get("tab");
   const [tab, setTab] = useState<Tab>(TABS.some((t) => t.key === asked) ? (asked as Tab) : "intake");
+  // A link to ?tab=returns (the new-request alert) changes the tab even when this page is already open.
+  const [seenAsked, setSeenAsked] = useState(asked);
+  if (asked !== seenAsked) {
+    setSeenAsked(asked);
+    if (TABS.some((t) => t.key === asked)) setTab(asked as Tab);
+  }
   const [filter, setFilter] = useState("all");
   const [q, setQ] = useState("");
   const [slide, setSlide] = useState<"next" | "previous" | null>(null); // which way the tab content slides in after a swipe
@@ -71,9 +78,7 @@ function WarehouseContent() {
     supabase.from("returns").select("*, booking:bookings(code, invoice_no, sender_name), parcels(barcode, weight_kg, description)").order("created_at", { ascending: false }).limit(60)
   );
 
-  const requests = useQuery<ReturnRequest[]>(() =>
-    supabase.from("return_requests").select("*, booking:bookings(code, invoice_no, sender_name)").eq("status", "open").order("needed_by").order("requested_at")
-  );
+  const requests = useReturnRequests(() => parcels.reload());
 
   // Unpacked = as collected (first round). Packed = repacked by the warehouse (a later round).
   const stock = parcels.data ?? [];

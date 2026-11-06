@@ -188,8 +188,10 @@ begin
   perform require_perm('returns.prepare');
   if coalesce(cardinality(p_parcel_ids), 0) = 0 then raise exception 'Select at least one parcel'; end if;
 
-  select count(*) into n from parcels
-  where id = any (p_parcel_ids) and booking_id = p_booking_id and status = 'in_warehouse';
+  -- lock the parcels first: a second person returning the same parcels waits here, then finds them gone
+  select count(*) into n from (
+    select 1 from parcels where id = any (p_parcel_ids) and booking_id = p_booking_id and status = 'in_warehouse' for update
+  ) locked;
   if n <> cardinality(p_parcel_ids) then
     raise exception 'Only parcels of this booking that are in the warehouse can be returned';
   end if;
@@ -198,7 +200,11 @@ begin
   values (p_booking_id, nullif(btrim(coalesce(p_note, '')), ''), actor, actor_name)
   returning id, code into rid, rcode;
 
-  update parcels set status = 'ready_for_return', return_id = rid where id = any (p_parcel_ids);
+  update parcels set status = 'ready_for_return', return_id = rid where id = any (p_parcel_ids) and status = 'in_warehouse';
+  get diagnostics n = row_count;
+  if n <> cardinality(p_parcel_ids) then
+    raise exception 'Only parcels of this booking that are in the warehouse can be returned'; -- belt and braces: nothing is kept if a parcel moved meanwhile
+  end if;
 
   -- the booking's open return request, if any, is now done: tell whoever asked
   update return_requests set status = 'prepared', return_id = rid, closed_at = now(), closed_by_name = actor_name

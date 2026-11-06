@@ -60,7 +60,7 @@ test("the To prepare list shows the pick list with places, gates Prepare and Can
 
 test("the warehouse page loads open requests, shows the list on the Returns tab and counts them", () => {
   const page = read("src/app/warehouse-inventory/page.tsx");
-  assert.ok(page.includes("ToPrepareList") && page.includes("return_requests"));
+  assert.ok(page.includes("ToPrepareList") && page.includes("useReturnRequests"));
   assert.ok(page.includes('can("returns.prepare")'));
   assert.match(page, /openReturnCount \+/, "the Returns tab count includes the waiting requests");
   const badges = read("src/lib/badges.tsx");
@@ -73,4 +73,23 @@ test("notifications: the three new kinds have icons and the right link; the audi
   assert.ok(page.includes("notificationHref"));
   assert.ok(read("src/components/notifications/NotificationToast.tsx").includes("notificationHref"));
   assert.ok(read("src/components/audit/AuditList.tsx").includes("return_requests"));
+});
+
+test("final review: the pick list says which warehouse a parcel is in, not only the place", () => {
+  assert.ok(list().includes("warehouse?.name"), "two warehouses can both have a Place 3");
+});
+
+test("final review: the warehouse page follows a changed ?tab= and refreshes by itself when a request changes", () => {
+  const page = read("src/app/warehouse-inventory/page.tsx");
+  assert.match(page, /seenAsked/, "a link to ?tab=returns changes the tab even when the page is already open");
+  assert.ok(page.includes("useReturnRequests"));
+  const hook = read("src/components/warehouse/useReturnRequests.ts");
+  for (const needle of ["postgres_changes", "table: \"return_requests\"", "removeChannel", "isMock", "return_requests"]) assert.ok(hook.includes(needle), `the hook should use ${needle}`);
+});
+
+test("final review: prepare_return locks the parcels it counts and checks the update, so two people cannot both return the same parcels", () => {
+  const sql = read("supabase/migrations/0067_return_requests.sql");
+  const fn = sql.slice(sql.indexOf("create or replace function prepare_return"));
+  assert.match(fn, /for update/);
+  assert.match(fn, /status = 'in_warehouse'[\s\S]*get diagnostics/);
 });

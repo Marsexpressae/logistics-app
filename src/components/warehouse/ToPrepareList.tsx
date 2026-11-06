@@ -97,7 +97,10 @@ export default function ToPrepareList({ requests, parcels, canPrepare, canCancel
                               {p.description || "No description"} · {kg(Number(p.weight_kg))}
                             </span>
                           </span>
-                          <span className="text-base font-semibold text-slate-900">{p.position ? `Place ${p.position}` : "No place set"}</span>
+                          <span className="text-base font-semibold text-slate-900">
+                            {p.warehouse?.name ? `${p.warehouse.name} · ` : ""}
+                            {p.position ? `Place ${p.position}` : "No place set"}
+                          </span>
                         </li>
                       ))}
                     </ul>
