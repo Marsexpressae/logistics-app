@@ -3,6 +3,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createMockClient, freshMockData, setMockUser } from "../src/lib/mock-supabase.ts";
+import { changedCount, pickList, requestLine } from "../src/lib/return-requests.ts";
 
 type R = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 const c: any = createMockClient(); // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -137,4 +138,33 @@ test("mock: a deleted booking takes its requests with it, and the roles that can
   const has = (role: string) => grants.some((g) => g.role === role && g.permission === "returns.request");
   for (const role of ["super_admin", "manager", "staff", "warehouse"]) assert.equal(has(role), true, role);
   for (const role of ["accounts", "driver"]) assert.equal(has(role), false, role);
+});
+
+const parcel = (id: string, barcode: string, status = "in_warehouse", position: string | null = null) => ({ id, barcode, status, position });
+
+test("pickList: only parcels still in the warehouse, the asked-for ones, in walking order", () => {
+  const all = [parcel("a", "BK-1-P3", "in_warehouse", "B-02"), parcel("b", "BK-1-P1", "in_warehouse", "A-01"), parcel("c", "BK-1-P2", "in_warehouse", null), parcel("d", "BK-1-P4", "loaded", "A-02"), parcel("e", "BK-1-P5", "ready_for_return", "A-03")];
+  assert.deepEqual(pickList({ parcel_ids: null }, all).map((p) => p.id), ["b", "a", "c"]); // A-01, B-02, then no position
+  assert.deepEqual(pickList({ parcel_ids: ["a", "d", "e"] }, all).map((p) => p.id), ["a"]); // the loaded and the already-prepared ones are gone
+  assert.deepEqual(pickList({ parcel_ids: ["d"] }, all), []); // nothing left to return
+  assert.deepEqual(pickList({ parcel_ids: null }, []), []);
+  assert.deepEqual(pickList({ parcel_ids: [] }, all).map((p) => p.id), ["b", "a", "c"]); // an empty list means the same as all
+  const tied = [parcel("x", "BK-1-P2", "in_warehouse", "A-01"), parcel("y", "BK-1-P1", "in_warehouse", "A-01")];
+  assert.deepEqual(pickList({ parcel_ids: null }, tied).map((p) => p.id), ["y", "x"]); // the same place: by barcode
+});
+
+test("changedCount: how many asked-for parcels are no longer in the warehouse", () => {
+  const all = [parcel("a", "P1"), parcel("b", "P2", "loaded"), parcel("c", "P3", "ready_for_return")];
+  assert.equal(changedCount({ parcel_ids: null }, all), 0);
+  assert.equal(changedCount({ parcel_ids: [] }, all), 0);
+  assert.equal(changedCount({ parcel_ids: ["a"] }, all), 0);
+  assert.equal(changedCount({ parcel_ids: ["a", "b", "c"] }, all), 2);
+  assert.equal(changedCount({ parcel_ids: ["a", "gone"] }, all), 1); // a retired parcel that is not in the list at all
+});
+
+test("requestLine: the invoice (or booking) number and the customer", () => {
+  const base = { requested_by_name: "Sam Staff", requested_at: "2026-11-06T08:00:00Z" };
+  assert.equal(requestLine({ ...base, booking: { code: "BK-1003", invoice_no: "INV-1002", sender_name: "Fatima Noor" } }), "INV-1002 · Fatima Noor");
+  assert.equal(requestLine({ ...base, booking: { code: "BK-1003", invoice_no: null, sender_name: "Fatima Noor" } }), "BK-1003 · Fatima Noor");
+  assert.equal(requestLine({ ...base, booking: null }), "Booking");
 });

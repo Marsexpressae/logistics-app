@@ -215,6 +215,23 @@ export type ReturnForm = {
   parcels?: Parcel[];
 };
 
+/** A request from the office for the warehouse to prepare parcels for return (return_requests table). */
+export type ReturnRequest = {
+  id: string;
+  booking_id: string;
+  status: "open" | "prepared" | "cancelled";
+  note: string | null;
+  needed_by: string | null; // the day the customer comes, optional
+  parcel_ids: string[] | null; // null = every parcel of the booking that is in the warehouse
+  requested_by_name: string | null;
+  requested_at: string;
+  return_id: string | null; // set when the return form was made
+  closed_at: string | null;
+  closed_by_name: string | null;
+  booking?: Pick<Booking, "code" | "invoice_no" | "sender_name"> | null;
+  return?: { code: string } | null;
+};
+
 export type BookingNote = {
   id: string;
   booking_id: string;
