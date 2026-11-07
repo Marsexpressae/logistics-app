@@ -20,6 +20,7 @@ async function inTransaction(fn: (db: Db) => Promise<void>) {
   await client.connect();
   try {
     await client.query("begin");
+    await client.query(readFileSync("supabase/migrations/0068_return_customer_eid.sql", "utf8")); // TEMP until applied
     await fn(new Db(client));
   } finally {
     await client.query("rollback").catch(() => {});
@@ -2114,7 +2115,7 @@ test("return requests: the table is read only for browser roles, visible to the 
     const viewer = await db.person(["bookings.view"], "viewer");
     const store = await db.person(["warehouse.view"], "store");
     await ask(db, office, booking);
-    const seen = (who: string) => db.as(who, "select count(*)::int n from return_requests").then((r) => r[0].n as number);
+    const seen = (who: string) => db.as(who, "select count(*)::int n from return_requests where booking_id = $1", [booking]).then((r) => r[0].n as number); // only this test's booking: real requests now exist
     assert.equal(await seen(viewer), 0);
     assert.equal(await seen(store), 1);
     assert.equal(await seen(office), 1);
@@ -2153,5 +2154,25 @@ test("return requests: every role that can edit bookings or prepare returns gets
          and not exists (select 1 from role_permissions x where x.role = rp.role and x.permission = 'returns.request')`
     );
     assert.deepEqual(missing, []);
+  });
+});
+
+test("return form Emirates ID: return_customer_eid gives the customer's number to warehouse staff, from the record or the pickup", { skip }, async () => {
+  await inTransaction(async (db) => {
+    const { booking, parcelIds } = await receivedBooking(db);
+    const preparer = await db.person(["returns.prepare", "warehouse.view"], "eid-reader");
+    const nobody = await db.person(["bookings.view"], "eid-nobody");
+    const ret = (await db.as(preparer, "select prepare_return($1, $2::uuid[]) id", [booking, [parcelIds[0]]]))[0].id as string;
+    const read = (who: string) => db.as(who, "select return_customer_eid($1) eid", [ret]);
+    // none saved yet
+    assert.equal((await read(preparer))[0].eid, null);
+    // recorded at pickup on the booking
+    await db.owner("insert into id_documents (booking_id, emirates_id) values ($1, '784-1990-1234567-1')", [booking]);
+    assert.equal((await read(preparer))[0].eid, "784-1990-1234567-1");
+    // the customer record wins when it has one
+    await db.owner("update customers set emirates_id = '784-1980-7654321-9' where id in (select customer_id from booking_contacts where booking_id = $1 and role = 'customer')", [booking]);
+    assert.equal((await read(preparer))[0].eid, "784-1980-7654321-9");
+    // people without warehouse access get nothing
+    assert.match((await db.error(() => read(nobody))) ?? "", /permission/i);
   });
 });

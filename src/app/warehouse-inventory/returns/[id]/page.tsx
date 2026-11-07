@@ -26,6 +26,8 @@ export default function ReturnFormPage() {
       .eq("id", id)
       .single()
   );
+  // The customer's Emirates ID comes from a database function: warehouse staff may not open the customer tables.
+  const customerEid = useQuery<string | null>(() => supabase.rpc("return_customer_eid", { p_return_id: id }) as never, [id]);
   const router = useRouter();
   const { can } = usePermissions();
   const canManage = can("returns.manage");
@@ -144,6 +146,9 @@ export default function ReturnFormPage() {
           <p className="text-xs uppercase text-slate-500">Customer</p>
           <p className="font-medium">{r.booking?.sender_name}</p>
           <p>{formatPhone(r.booking?.sender_phone ?? null)}</p>
+          <p>
+            ID: <span className="font-mono font-medium">{customerEid.data ?? "—"}</span>
+          </p>
           <p>
             {r.booking?.pickup_area} · {r.booking?.pickup_address}
           </p>

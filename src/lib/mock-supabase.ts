@@ -975,6 +975,16 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
     return { data: null, error: null };
   },
 
+  // Migration 0068: the customer's Emirates ID for a return form, from the customer record or else the pickup.
+  return_customer_eid({ p_return_id }) {
+    const d = db();
+    const r = d.returns.find((x) => x.id === p_return_id);
+    const link = r && d.booking_contacts.find((l) => l.booking_id === r.booking_id && l.role === "customer");
+    const fromRecord = link && d.customers.find((c) => c.id === link.customer_id)?.emirates_id;
+    const fromPickup = r && d.id_documents.filter((x) => x.booking_id === r.booking_id && x.emirates_id).pop()?.emirates_id;
+    return { data: fromRecord ?? fromPickup ?? null, error: null };
+  },
+
   update_return({ p_return_id, p_form_date, p_received_by, p_note }) {
     const r = db().returns.find((x) => x.id === p_return_id);
     if (!r) return fail("Return not found");
