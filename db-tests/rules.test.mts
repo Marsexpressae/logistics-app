@@ -2175,3 +2175,26 @@ test("return form Emirates ID: return_customer_eid gives the customer's number t
     assert.match((await db.error(() => read(nobody))) ?? "", /permission/i);
   });
 });
+
+test("send alert: one active colleague gets a short alert from the sender; nobody else sees it", { skip }, async () => {
+  await inTransaction(async (db) => {
+    await db.owner(readFileSync("supabase/migrations/0069_send_alert.sql", "utf8")); // TEMP until applied
+    const sender = await db.person(["bookings.view"], "alert-sender");
+    const colleague = await db.person(["bookings.view"], "alert-colleague");
+    const other = await db.person(["bookings.view"], "alert-other");
+    await db.as(sender, "select send_alert($1, '  Please add the old invoice  ')", [colleague]);
+    const mine = await db.as(colleague, "select kind, title, body, booking_id from notifications where kind = 'alert'");
+    assert.equal(mine.length, 1);
+    assert.equal(mine[0].body, "Please add the old invoice");
+    assert.match(mine[0].title, /^Alert from /);
+    assert.equal(mine[0].booking_id, null);
+    assert.equal((await db.as(other, "select 1 from notifications where kind = 'alert'")).length, 0);
+    assert.equal((await db.as(sender, "select 1 from notifications where kind = 'alert'")).length, 0);
+    assert.match((await db.error(() => db.as(sender, "select send_alert($1, '   ')", [colleague]))) ?? "", /message/i);
+    assert.match((await db.error(() => db.as(sender, "select send_alert($1, repeat('x', 301))", [colleague]))) ?? "", /300/);
+    assert.match((await db.error(() => db.as(sender, "select send_alert($1, 'hi')", [sender]))) ?? "", /yourself/i);
+    assert.match((await db.error(() => db.as(sender, "select send_alert(gen_random_uuid(), 'hi')"))) ?? "", /not found/i);
+    await db.owner("update profiles set active = false where id = $1", [other]);
+    assert.match((await db.error(() => db.as(sender, "select send_alert($1, 'hi')", [other]))) ?? "", /not found/i);
+  });
+});

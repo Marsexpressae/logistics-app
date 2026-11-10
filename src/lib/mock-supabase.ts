@@ -975,6 +975,19 @@ const RPC: Record<string, (a: any) => { data: any; error: { message: string } | 
     return { data: null, error: null };
   },
 
+  // Migration 0069: an alert from one person to one colleague, for any task.
+  send_alert({ p_to, p_message }) {
+    const d = db();
+    const msg = String(p_message ?? "").trim();
+    if (!msg) return fail("Type a message first");
+    if (msg.length > 300) return fail("Keep the message under 300 characters");
+    if (p_to === currentUserId) return fail("You cannot send an alert to yourself");
+    if (!d.profiles.some((x) => x.id === p_to && x.active)) return fail("That person was not found");
+    d.notifications.push({ id: uid(), user_id: p_to, booking_id: null, kind: "alert", title: `Alert from ${personName()}`, body: msg, actor_name: personName(), created_at: now(), read_at: null });
+    save();
+    return { data: null, error: null };
+  },
+
   // Migration 0068: the customer's Emirates ID for a return form, from the customer record or else the pickup.
   return_customer_eid({ p_return_id }) {
     const d = db();

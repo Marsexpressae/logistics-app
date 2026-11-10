@@ -5,15 +5,18 @@ import { useParams } from "next/navigation";
 import AchievementsList from "@/components/rewards/AchievementsList";
 import BadgeGrid from "@/components/rewards/BadgeGrid";
 import ProfileHeader from "@/components/rewards/ProfileHeader";
+import SendAlertButton from "@/components/notifications/SendAlertButton";
 import BackLink from "@/components/ui/BackLink";
 import { Card, ErrorMessage, Loading } from "@/components/ui/form";
 import { useQuery } from "@/lib/hooks";
 import type { BadgeView, DirectoryPerson, Rewards } from "@/lib/rewards";
+import { useCurrentProfile } from "@/lib/profile-context";
 import { supabase } from "@/lib/supabase";
 
 /** A colleague's profile, read-only: their points, level and badges. No phone, no hidden birthday and no point reasons (the database leaves those out). */
 function ColleaguePage() {
   const { id } = useParams<{ id: string }>();
+  const me = useCurrentProfile();
   const people = useQuery<DirectoryPerson[]>(() => supabase.rpc("people_directory") as never);
   const rewards = useQuery<Rewards>(() => supabase.rpc("person_rewards", { p_person: id }) as never, [id]);
   const badges = useQuery<BadgeView[]>(() => supabase.rpc("person_badges_of", { p_person: id }) as never, [id]);
@@ -24,7 +27,7 @@ function ColleaguePage() {
   return (
     <div className="max-w-2xl space-y-4">
       <BackLink href="/">Back to the dashboard</BackLink>
-      <ProfileHeader person={person} rewards={rewards.data} />
+      <ProfileHeader person={person} rewards={rewards.data} action={person.id !== me.id ? <SendAlertButton personId={person.id} name={person.full_name} /> : undefined} />
       <Card title="Medals">
         <BadgeGrid badges={badges.data ?? []} />
       </Card>

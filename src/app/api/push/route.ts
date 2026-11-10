@@ -20,7 +20,7 @@ export async function POST(req: Request) {
     const { data: n } = await admin.from("notifications").select("user_id, kind, title, body").eq("id", notification_id).maybeSingle();
     if (!n) throw new HttpError(404, "Notification not found");
 
-    const devices = await sendPushToUser(admin, n.user_id, { title: n.title, body: n.body, tag: n.kind });
+    const devices = await sendPushToUser(admin, n.user_id, { title: n.title, body: n.body, tag: n.kind === "alert" ? notification_id : n.kind });
     return Response.json({ devices });
   } catch (e) {
     return errorResponse(e);

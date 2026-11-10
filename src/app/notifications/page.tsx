@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Bell, CalendarClock, Ban, MessageSquare, Undo2 } from "lucide-react";
+import { Bell, BellRing, CalendarClock, Ban, MessageSquare, Undo2 } from "lucide-react";
 import PageHeader from "@/components/ui/PageHeader";
 import EmptyState from "@/components/ui/EmptyState";
 import PhoneAlertsCard from "@/components/notifications/PhoneAlertsCard";
@@ -23,7 +23,7 @@ export default function NotificationsPage() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <PageHeader
           title="Notifications"
-          description="Changes made by the other team, and notes where a colleague mentioned you."
+          description="Changes made by the other team, alerts from colleagues, and notes where a colleague mentioned you."
         />
         {unread > 0 && (
           <Button variant="secondary" onClick={markAllRead}>
@@ -51,6 +51,8 @@ export default function NotificationsPage() {
                     <Ban className="mt-0.5 h-5 w-5 shrink-0 text-red-600" />
                   ) : n.kind === "note_mention" ? (
                     <MessageSquare className="mt-0.5 h-5 w-5 shrink-0 text-brand-600" />
+                  ) : n.kind === "alert" ? (
+                    <BellRing className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
                   ) : n.kind === "rescheduled" ? (
                     <CalendarClock className="mt-0.5 h-5 w-5 shrink-0 text-brand-600" />
                   ) : (

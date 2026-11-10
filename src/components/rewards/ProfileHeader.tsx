@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import LevelBar from "@/components/rewards/LevelBar";
 import LevelEmblem from "@/components/rewards/LevelEmblem";
 import StreakFlame from "@/components/rewards/StreakFlame";
@@ -32,7 +33,7 @@ export function StaffPhoto({ path, name }: { path: string | null; name: string }
 }
 
 /** Name, team, points, streak and level: the top of a profile, for yourself or a colleague. */
-export default function ProfileHeader({ person, rewards }: { person: DirectoryPerson; rewards: Rewards | null }) {
+export default function ProfileHeader({ person, rewards, action }: { person: DirectoryPerson; rewards: Rewards | null; action?: ReactNode }) {
   const birthday = birthdayLabel(person.birthday_day, person.birthday_month, false);
   const facts = [
     person.job_title,
@@ -49,6 +50,7 @@ export default function ProfileHeader({ person, rewards }: { person: DirectoryPe
           {facts.length > 0 && <p className="text-sm text-slate-600">{facts.join(" · ")}</p>}
           {person.about && <p className="mt-1 text-base text-slate-800">{person.about}</p>}
         </div>
+        {action}
         {rewards && <LevelEmblem level={rewards.level_number} name={rewards.level_name} />}
         {rewards && <StreakFlame days={rewards.streak} />}
       </div>
