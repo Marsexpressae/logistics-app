@@ -2178,7 +2178,6 @@ test("return form Emirates ID: return_customer_eid gives the customer's number t
 
 test("send alert: one active colleague gets a short alert from the sender; nobody else sees it", { skip }, async () => {
   await inTransaction(async (db) => {
-    await db.owner(readFileSync("supabase/migrations/0069_send_alert.sql", "utf8")); // TEMP until applied
     const sender = await db.person(["bookings.view"], "alert-sender");
     const colleague = await db.person(["bookings.view"], "alert-colleague");
     const other = await db.person(["bookings.view"], "alert-other");
